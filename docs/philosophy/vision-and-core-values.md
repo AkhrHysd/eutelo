@@ -1,3 +1,10 @@
+---
+id: VISION-EUTELO
+type: vision
+purpose: Euteloの存在意義と提供価値を定義し、全ての文書と開発活動の指針を示す。
+last_updated: "2025-11-12"
+---
+
 # Eutelo — Vision and Core Values  
 > **In Telos — Purpose as Becoming.**
 
