@@ -1,0 +1,36 @@
+{
+  "name": "@eutelo/distribution",
+  "version": "0.1.0",
+  "description": "Eutelo の標準ドキュメントテンプレートと構成ガイドを配信する npm パッケージ",
+  "license": "MIT",
+  "main": "index.js",
+  "files": [
+    "templates/",
+    "config/",
+    "examples/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eutelo/eutelo.git",
+    "directory": "packages/distribution"
+  },
+  "keywords": [
+    "eutelo",
+    "documentation",
+    "templates",
+    "prd",
+    "dsg",
+    "adr"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
+
