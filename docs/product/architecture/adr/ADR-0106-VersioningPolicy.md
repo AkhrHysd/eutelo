@@ -2,7 +2,7 @@
 id: ADR-0106-VersioningPolicy
 type: adr
 title: バージョニング運用の決定
-status: draft
+status: accepted
 deciders: ["@team-eutelo-core"]
 date: "2025-11-13"
 related: [SUB-PRD-EUTELO-CORE-DISTRIBUTION, DSG-EUTELO-CORE-DISTRIBUTION]

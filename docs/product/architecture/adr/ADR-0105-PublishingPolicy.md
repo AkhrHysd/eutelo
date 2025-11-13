@@ -2,7 +2,7 @@
 id: ADR-0105-PublishingPolicy
 type: adr
 title: 公開戦略（Publishing Policy）の決定
-status: draft
+status: accepted
 deciders: ["@team-eutelo-core"]
 date: "2025-11-13"
 related: [SUB-PRD-EUTELO-CORE-DISTRIBUTION, DSG-EUTELO-CORE-DISTRIBUTION]
