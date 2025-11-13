@@ -68,6 +68,36 @@ yarn add @eutelo/distribution
 
 ---
 
+## ビルド・依存関係
+
+- **現段階ではビルド不要**  
+  本パッケージは静的アセット（Markdown, JSON, YAML 等）を中心としており、  
+  ビルドツールは不要です。インストール後、そのままテンプレートやガイドを参照できます。
+
+- **将来的な拡張**  
+  CLI ツールや検証スクリプトを含める場合は、その時点でビルド構成を検討します。
+
+詳細は [ADR-0102-BuildBundlerPolicy](../../docs/product/architecture/adr/ADR-0102-BuildBundlerPolicy.md) を参照してください。
+
+---
+
+## 公開戦略
+
+- **公開レジストリ:** npm Public Registry (`https://registry.npmjs.org/`) を基本とします  
+  - 必要に応じて GitHub Packages をミラーとして利用することも可能です
+
+- **公開方法:**  
+  - すべての公開は **provenance（署名）付き** で行われます  
+  - CI による自動公開、または手動リリースのいずれも provenance 署名を必須とします
+
+- **パッケージ利用範囲:**  
+  - 内部に限定せず、外部開発者・他プロジェクト・OSS プロジェクトも利用可能です  
+  - ライセンスは MIT です
+
+詳細は [ADR-0105-PublishingPolicy](../../docs/product/architecture/adr/ADR-0105-PublishingPolicy.md) を参照してください。
+
+---
+
 ## ライセンス
 
 MIT License

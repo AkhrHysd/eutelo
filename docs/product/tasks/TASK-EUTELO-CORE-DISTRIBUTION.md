@@ -69,14 +69,14 @@ Eutelo の標準ドキュメントテンプレートと構成ガイドを、
 # 4. ADR との整合チェック
 
 ## 4-1. Namespace
-- [ ] `@eutelo/distribution` の命名が全ファイルで統一されているか確認する（ADR-0108）
+- [x] `@eutelo/distribution` の命名が全ファイルで統一されているか確認する（ADR-0108）
 
 ## 4-2. Node / Build
-- [ ] Node 20.x サポート範囲の記載が README に含まれているか確認する（ADR-0101）  
-- [ ] 現段階でビルド不要である旨を README に明記する（ADR-0102）
+- [x] Node 20.x サポート範囲の記載が README に含まれているか確認する（ADR-0101）  
+- [x] 現段階でビルド不要である旨を README に明記する（ADR-0102）
 
 ## 4-3. Publishing
-- [ ] 公開方針（npm public + provenance署名）が README と DSG の両方に反映されているか確認する（ADR-0105）
+- [x] 公開方針（npm public + provenance署名）が README と DSG の両方に反映されているか確認する（ADR-0105）
 
 ---
 
