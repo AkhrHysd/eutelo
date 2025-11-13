@@ -7,12 +7,25 @@
 
 ## 目的（Why）
 
-`@eutelo/distribution` は、Eutelo プロジェクトの標準ドキュメント構造・テンプレート・更新ガイド類を、  
-外部プロジェクトでも再利用できるよう **配信（distribution）** するための npm パッケージです。
+`@eutelo/distribution` は、Eutelo プロジェクトが提唱する **「目的駆動・構造化ドキュメント」** の思想と実践方法を、  
+あらゆるプロジェクトの開発者・デザイナー・PM に提供するための npm パッケージです。
 
-- 標準ドキュメント（PRD / BEH / DSG / ADR 等）のテンプレートおよび構成ガイドを統一的に配布
-- 異なるプロジェクト間でドキュメント規約と命名規則の一貫性を維持
-- バージョニングを明確化し、安全に更新・追跡できる仕組みを提供
+### なぜこのパッケージが必要か
+
+- **統一されたドキュメント構造の提供**  
+  プロジェクト規模を問わず、PRD・BEH・DSG・ADR・TASK などのドキュメントを一貫した構造で管理できるテンプレートとガイドを提供します。
+
+- **異なるプロジェクト間での一貫性維持**  
+  複数のプロジェクトやチーム間で、同じドキュメント規約と命名規則を共有することで、  
+  ドキュメントの理解・移行・再利用が容易になります。
+
+- **安全な更新と追跡**  
+  SemVer によるバージョニングと CHANGELOG により、  
+  外部利用者も安全にアップデートし、変更の影響を把握できます。
+
+- **思想の拡散**  
+  Eutelo の "purpose駆動・構造化ドキュメント" の哲学を、  
+  より多くの開発文化に自然に取り込めるようにします。
 
 ---
 
@@ -23,16 +36,6 @@
 - Eutelo エコシステム内のプロジェクト
 - 外部の開発者・他プロジェクト・OSS プロジェクト
 - 構造化ドキュメント体系を導入したい任意のプロジェクト
-
----
-
-## 配布物概要
-
-| 種別 | 内容 | 配置場所 |
-|------|------|----------|
-| **テンプレート** | PRD / BEH / DSG / ADR / TASK などの雛形Markdown | `/templates/` |
-| **構成ガイド** | Directory Guide・命名/配置規約 | `/config/` |
-| **参考資料（例）** | CIやScaffold構成の例示（実装は他ドキュメントで管理） | `/examples/` |
 
 ---
 
@@ -55,7 +58,87 @@ yarn add @eutelo/distribution
 
 ## 使い方
 
-（準備中：テンプレートとガイドの具体的な利用方法を追記予定）
+### テンプレートの利用
+
+インストール後、テンプレートファイルをプロジェクトにコピーして使用できます：
+
+```bash
+# テンプレートをプロジェクトにコピー
+cp node_modules/@eutelo/distribution/templates/_template-prd.md docs/product/features/_template-prd.md
+cp node_modules/@eutelo/distribution/templates/_template-beh.md docs/product/features/_template-beh.md
+cp node_modules/@eutelo/distribution/templates/_template-dsg.md docs/product/architecture/design/_template-dsg.md
+cp node_modules/@eutelo/distribution/templates/_template-adr.md docs/product/architecture/adr/_template-adr.md
+cp node_modules/@eutelo/distribution/templates/_template-task.md docs/product/tasks/_template-task.md
+```
+
+### 構成ガイドの参照
+
+ディレクトリ構造や命名規約については、`DIRECTORY_GUIDE.md` を参照してください：
+
+```bash
+# 構成ガイドを参照
+cat node_modules/@eutelo/distribution/config/DIRECTORY_GUIDE.md
+```
+
+### 参考例の確認
+
+CI/CD や Scaffold の構成例は `examples/` ディレクトリを参照してください。
+
+詳細な利用方法は [examples/scaffold/README.md](./examples/scaffold/README.md) を参照してください。
+
+---
+
+## 配布内容一覧
+
+本パッケージには以下の内容が含まれています：
+
+### `/templates/` - ドキュメントテンプレート
+
+| ファイル名 | 説明 |
+|-----------|------|
+| `_template-prd.md` | 機能要件定義書（PRD）のテンプレート |
+| `_template-beh.md` | 振る舞い仕様書（BEH）のテンプレート |
+| `_template-dsg.md` | 設計仕様書（DSG）のテンプレート |
+| `_template-adr.md` | アーキテクチャ決定記録（ADR）のテンプレート |
+| `_template-task.md` | タスク計画（TASK）のテンプレート |
+
+### `/config/` - 構成ガイド
+
+| ファイル名 | 説明 |
+|-----------|------|
+| `DIRECTORY_GUIDE.md` | ドキュメント構造・命名・配置規約のガイド |
+
+### `/examples/` - 参考資料（例示のみ）
+
+| ディレクトリ/ファイル | 説明 |
+|----------------------|------|
+| `ci/github-actions-workflow-example.yml` | CI/CD ワークフローの例示 |
+| `scaffold/README.md` | プロジェクト構成の例示と利用方法 |
+
+> **Note:**  
+> `examples/` ディレクトリの内容は参考用であり、実装コードは含まれていません。  
+> 実際の CI/CD や scaffold ツールの実装は別途必要です。
+
+---
+
+## バージョニング方針
+
+本パッケージは **Semantic Versioning (SemVer)** に厳密に準拠します。
+
+### バージョン形式
+
+- **MAJOR.MINOR.PATCH** 形式
+  - **MAJOR**: 利用者が破壊的影響を受ける変更（構造変更・必須項目の削除など）
+  - **MINOR**: 後方互換な拡張（テンプレート追加・ガイド追加）
+  - **PATCH**: 誤字修正・小規模整形
+
+### 更新の透明性
+
+- すべての変更は `CHANGELOG.md` に記録されます
+- MAJOR 更新時は、理由を ADR とリリースノートに明記します
+- 外部利用者が安全にアップデートできるよう、影響範囲を明確にします
+
+詳細は [ADR-0106-VersioningPolicy](../../docs/product/architecture/adr/ADR-0106-VersioningPolicy.md) を参照してください。
 
 ---
 
@@ -112,4 +195,3 @@ MIT License
 - [ADR-0105-PublishingPolicy](../../docs/product/architecture/adr/ADR-0105-PublishingPolicy.md)
 - [ADR-0106-VersioningPolicy](../../docs/product/architecture/adr/ADR-0106-VersioningPolicy.md)
 - [ADR-0108-NamespacePolicy](../../docs/product/architecture/adr/ADR-0108-NamespacePolicy.md)
-
