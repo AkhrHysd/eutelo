@@ -46,6 +46,11 @@ pnpm add @eutelo/distribution
 yarn add @eutelo/distribution
 ```
 
+> **推奨レジストリ:**  
+> 本パッケージは **npm Public Registry** (`https://registry.npmjs.org/`) から配信されます。  
+> 必要に応じて GitHub Packages をミラーとして利用することも可能ですが、  
+> 基本的には npm public registry からのインストールを推奨します。
+
 ---
 
 ## 使い方

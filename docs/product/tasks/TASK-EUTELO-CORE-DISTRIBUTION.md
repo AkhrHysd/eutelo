@@ -53,9 +53,9 @@ Eutelo の標準ドキュメントテンプレートと構成ガイドを、
 # 3. 配信方式・運用ルールの反映
 
 ## 3-1. パッケージ公開設定
-- [ ] `package.json` に `publishConfig`（必要なら）を追加する  
-- [ ] `files` フィールドに配布対象ディレクトリを明記する  
-- [ ] 推奨 registry が npm public であることを README に記述する
+- [x] `package.json` に `publishConfig`（必要なら）を追加する  
+- [x] `files` フィールドに配布対象ディレクトリを明記する  
+- [x] 推奨 registry が npm public であることを README に記述する
 
 ## 3-2. バージョニング
 - [ ] `version` を SemVer で初期設定する（例: 0.1.0）
