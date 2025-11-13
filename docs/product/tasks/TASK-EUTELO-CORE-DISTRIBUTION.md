@@ -58,8 +58,8 @@ Eutelo の標準ドキュメントテンプレートと構成ガイドを、
 - [x] 推奨 registry が npm public であることを README に記述する
 
 ## 3-2. バージョニング
-- [ ] `version` を SemVer で初期設定する（例: 0.1.0）
-- [ ] CHANGELOG template（Added/Changed/Fixed/Removed）を追記する
+- [x] `version` を SemVer で初期設定する（例: 0.1.0）
+- [x] CHANGELOG template（Added/Changed/Fixed/Removed）を追記する
 
 ※バージョニングの判断基準は ADR-0106 に準拠  
 ※ここでは「ルール文書化」のみ。CIの実装はスコープ外
