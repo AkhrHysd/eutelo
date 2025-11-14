@@ -1,100 +1,122 @@
 ---
-id: TASK-DOC-SCAFFOLD-ADD
+id: TASK-DOC-SCAFFOLD-CHECK
 type: task
-title: Document Scaffold - add 機能
+title: Document Scaffold - check 機能
 purpose: >
-  テンプレートが存在する全ドキュメント種別について、
-  `eutelo add` により非破壊生成できるようにする。
+  ドキュメント構造・命名規則・frontmatter 必須項目を検証する
+  `eutelo check` コマンドを構築する。
+  CI で利用できる exit code / JSON 出力を備え、
+  E2E / Unit / Integration の3層で TDD を行う。
 status: draft
-version: 0.1
+version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
 last_updated: "2025-11-14"
 ---
 
-# TASK-DOC-SCAFFOLD-ADD
+# TASK-DOC-SCAFFOLD-CHECK  
+Document Scaffold - check 機能
+
+---
 
 ## 1. Overview
 
-対象となる `add` コマンド:
+`eutelo check` の目的:
 
-```
-eutelo add prd {FEATURE}
-eutelo add beh {FEATURE}
-eutelo add sub-prd {FEATURE} {SUB}
-eutelo add sub-beh {FEATURE} {SUB}
-eutelo add dsg {FEATURE}
-eutelo add adr {FEATURE}
-eutelo add task {NAME}
-eutelo add ops {NAME}
-```
-
-本タスクではこれらを **TDD** で実装する。
+- `eutelo-docs/**` 配下のドキュメントについて
+  - frontmatter 必須項目が揃っているか
+  - パス・命名規則に違反していないか
+  - parent 参照が正しいか
+- CI から実行し、構造/命名/必須項目の問題を exit code で検出する
 
 ---
 
-## 2. Red（テスト作成）
+## 2. Red（E2E）
 
-### 2.1 PRD 生成（正常）
-- [ ] 正しい frontmatter が入る  
-- [ ] parent が PRINCIPLE-GLOBAL  
-- [ ] 既存PRDがある場合はエラー  
+### 2.1 正常系（問題なし）
 
-### 2.2 BEH 生成
-- [ ] parent が PRD-{FEATURE}  
-- [ ] Gherkin Feature が最低1つ入る  
+- [ ] 標準どおりに生成されたサンプル `eutelo-docs/` を用意
+- [ ] execa で `eutelo check` を実行
+- [ ] exitCode = 0
+- [ ] stdout に「No issues」「OK」相当の結果要約が出る
+- [ ] `--format=json` 指定時、JSON構造が正しく parse できる
 
-### 2.3 SUB 系
-- [ ] SUB-PRD  
-  - parent = PRD-{FEATURE}  
-- [ ] SUB-BEH  
-  - parent = SUB-PRD-{SUB}  
+### 2.2 必須項目の欠落
 
-### 2.4 DSG 生成
-- [ ] 正しいパスに生成  
-- [ ] id = DSG-{FEATURE}  
+- [ ] 任意の PRD から `purpose` を削除（他は正しい状態）
+- [ ] `eutelo check` 実行で exitCode = 2（ValidationError 用）
+- [ ] JSON出力に「id」「path」「missingField: purpose」が含まれる
 
-### 2.5 ADR 生成
-- [ ] 連番採番  
-- [ ] ADR-{FEATURE}-0001.md  
+### 2.3 命名規則違反
 
-### 2.6 TASK / OPS 生成
-- [ ] id = TASK-{NAME} / OPS-{NAME}  
+- [ ] `PRD-AUTH.md` を `AUTH-PRD.md` にリネーム
+- [ ] `eutelo check` 実行で exitCode = 2
+- [ ] 「expected pattern: PRD-{FEATURE}.md」のようなメッセージが含まれる
 
-### 2.7 エラーケース
-- [ ] テンプレが存在しない種類  
-- [ ] 無効なFEATURE名  
-- [ ] 既存ファイルの上書き禁止  
+### 2.4 parent 参照切れ
+
+- [ ] SUB-PRD-LOGIN.md の `parent` を存在しない ID に変更
+- [ ] `eutelo check` 実行で exitCode = 2
+- [ ] JSON出力に `type: "ParentNotFound"` や類似のエラー種別が含まれる
 
 ---
 
-## 3. Green（実装）
+## 3. Red（Unit / Integration）
 
-### 3.1 AddDocumentService
-- [ ] 種別と引数をバリデーション  
-- [ ] テンプレ読み込み  
-- [ ] テンプレ変数展開  
-- [ ] 出力パスの算出  
-- [ ] 非破壊書き込み  
+### 3.1 core/services/ValidationService（Unit）
 
-### 3.2 連番処理（ADR）
-- [ ] 既存ADRをスキャンして最大値+1  
-- [ ] ゼロパディング処理  
+- [ ] `validateFrontmatter(doc)` が
+  - `id`, `purpose`, `parent`, `feature` などの必須項目をチェックする
+  - 欠落時に `ValidationError`（詳細情報を含む）を返す
+- [ ] `validatePathAndName(docPath, docType)` が
+  - DSG で定義された命名規則に適合するか判定
+- [ ] `validateParentReferences(docs)` が
+  - parent の ID が同一セット内に存在するか検証する
 
----
+### 3.2 integration: docs スキャン
 
-## 4. Refactor
-
-- [ ] 共通ロジック（パス計算、変数展開）の抽出  
-- [ ] 無効値判定の統一  
+- [ ] `scanDocs(root)` が `eutelo-docs/**` を走査して  
+  Document メタ情報（path, type, frontmatter, parentId）一覧を返す
 
 ---
 
-## 5. Definition of Done
+## 4. Green（実装）
 
-- [ ] テンプレートが存在する全種類で `eutelo add` が成功  
-- [ ] 既存ファイルは上書きしない  
-- [ ] BEH の Gherkin シナリオと一致する  
-- [ ] PRD/DSG の仕様に完全整合  
+### 4.1 CLI（packages/cli）
 
+- [ ] Commander.js で `check` サブコマンドを実装
+- [ ] `--format=json` / `--ci` オプションを受け取り core に引き渡す
+- [ ] core からの結果（issues: []）を人間向けログ / JSON の両方に整形
+- [ ] issues が 0 の場合 exitCode = 0
+- [ ] issues がある場合 exitCode = 2
+
+### 4.2 core/services/ValidationService
+
+- [ ] `runChecks(projectRoot)` で以下を行う
+  - docs のスキャン
+  - frontmatter / path / parent の検証
+  - 問題一覧（issues 配列）を返す
+- [ ] issues を種類別に分類
+  - `missingField`
+  - `invalidName`
+  - `invalidPath`
+  - `parentNotFound`
+
+---
+
+## 5. Refactor
+
+- [ ] エラー種別と exit code を定数として定義（CLI / core で共通利用）
+- [ ] JSON レポートの型を TypeScript で定義して整合性を保証
+- [ ] Validation ロジックの一部を他コマンド（sync/add）からも再利用可能にする
+
+---
+
+## 6. Definition of Done
+
+- [ ] `eutelo check` が docs 構造の問題を網羅的に検出できる
+- [ ] CI から `--format=json` で利用できる
+- [ ] exit code によって「OK / 構造問題あり / 実行エラー」が区別できる
+- [ ] PRD / DSG / ADR に定義された検証要件を満たす
+- [ ] E2E / Unit / Integration の全テストが Green
 ---

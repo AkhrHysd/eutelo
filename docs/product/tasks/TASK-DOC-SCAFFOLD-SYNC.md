@@ -3,74 +3,121 @@ id: TASK-DOC-SCAFFOLD-SYNC
 type: task
 title: Document Scaffold - sync 機能
 purpose: >
-  Eutelo 標準文書の不足を検出し、自動生成する sync 機能を
-  テストファーストで実装する。
+  `eutelo sync` によって不足ドキュメントのみを非破壊的に生成し、
+  CI から `--check-only` で検証できるようにする。
+  E2E / Unit / Integration の3層で TDD を行う。
 status: draft
-version: 0.1
+version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
 last_updated: "2025-11-14"
 ---
 
-# TASK-DOC-SCAFFOLD-SYNC
+# TASK-DOC-SCAFFOLD-SYNC  
+Document Scaffold - sync 機能
+
+---
 
 ## 1. Overview
 
-本タスクは `eutelo sync` の  
-**不足テンプレート検出 / 非破壊生成 / CI対応** を TDD で実装する。
+`eutelo sync` の目的:
+
+- Eutelo 標準構造に照らして「本来存在すべきファイル」を推定する
+- 不足しているドキュメントのみテンプレから生成する
+- 既存ファイルを一切上書きしない
+- `--check-only` で CI から不足状況を検出できる
+
+実装対象パッケージ:
+
+- CLI: `packages/cli`  
+- core: `packages/core`（ScaffoldService / TemplateService / ValidationService）  
+- distribution: `packages/distribution`（テンプレの存在は前提）
 
 ---
 
-## 2. Red（テスト作成）
+## 2. Red（E2E）
 
-### 2.1 不足テンプレの検出（正常）
-- [ ] サンプルプロジェクトから PRD だけ削除  
-- [ ] `eutelo sync` 実行で PRD が生成される  
-- [ ] 既存の BEH / DSG が変更されない  
+### 2.1 不足 PRD の自動生成
+- [ ] テスト用プロジェクトを作成（AUTH フィーチャの BEH/DSG は存在、PRD は削除）
+- [ ] execa で `eutelo sync` を実行（cwd をフィクスチャに設定）
+- [ ] exitCode = 0
+- [ ] `eutelo-docs/product/features/AUTH/PRD-AUTH.md` が生成される
+- [ ] 既存 BEH/DSG は変更されていないことを確認
 
 ### 2.2 すべて揃っている場合の no-op
-- [ ] 全テンプレが揃った状態で `eutelo sync`  
-- [ ] 「no changes」  
-- [ ] exit code = 0  
-- [ ] ファイルが1つも変更されない  
+- [ ] サンプルプロジェクトで全ドキュメントが揃った状態を用意
+- [ ] `eutelo sync` 実行で exitCode = 0
+- [ ] ファイル変更が一切起きていないこと（タイムスタンプまたは git diff ベースで確認）
+- [ ] ログに「No changes」的なメッセージが含まれている
 
-### 2.3 `--check-only`
-- [ ] ファイル作成が行われない  
-- [ ] exit code = 1（不足あり）  
+### 2.3 `--check-only` の挙動
+- [ ] PRD が不足している状態で `eutelo sync --check-only` を実行
+- [ ] exitCode = 1（「不足あり」を意味する）
+- [ ] ファイル生成が行われていない
+- [ ] stdout に不足ファイル一覧が出力される
 
----
-
-## 3. Green（実装）
-
-### 3.1 構造解析
-- [ ] 期待構造の計算（features/{FEATURE}/PRD-{FEATURE}.md …）  
-- [ ] 実在ファイルのスキャン  
-- [ ] 差分をリストアップ  
-
-### 3.2 非破壊生成
-- [ ] TemplateService でテンプレ展開  
-- [ ] writeIfNotExists でのみ生成  
-
-### 3.3 CI向け
-- [ ] `--check-only` 実装  
-- [ ] exit code の規約を実装  
-- [ ] CI向けログ形式  
+### 2.4 上書き禁止の確認
+- [ ] 既存 PRD がある状態で `eutelo sync` を実行
+- [ ] exitCode = 0
+- [ ] 既存 PRD の内容・タイムスタンプに変化がない
 
 ---
 
-## 4. Refactor
+## 3. Red（Unit / Integration）
 
-- [ ] 構造定義を JSON 化（後続で利用）  
-- [ ] sync ロジックをサービスに集約  
-- [ ] テストの fixture 整備  
+### 3.1 core/services/ScaffoldService（Unit）
+
+- [ ] `computeSyncPlan(projectRoot)` が「不足ファイル一覧」を返す
+  - 例: `[{ type: "prd", feature: "AUTH", path: "eutelo-docs/..." }, ...]`
+- [ ] すべて揃っている場合は空配列を返す
+- [ ] 既存ファイルは plan に含まれない
+
+### 3.2 core/services/TemplateService（Unit）
+
+- [ ] 指定された種別（prd/beh/...）と `{FEATURE}` 等からテンプレを解決できる
+- [ ] テンプレが見つからない場合は `TemplateNotFound` を投げる
+
+### 3.3 infrastructure/FileSystemAdapter（Integration）
+
+- [ ] `writeIfNotExists(path, content)` が存在しないときのみ書き込む
+- [ ] 既存ファイルがある場合 true/false 等で「未書き込み」を返せること
 
 ---
 
-## 5. Definition of Done
+## 4. Green（実装）
 
-- [ ] sync が不足テンプレのみ生成  
-- [ ] 上書きは一切発生しない  
-- [ ] CI 検証と連動  
-- [ ] BEH/DSG の仕様と一致している
+### 4.1 CLI（packages/cli）
+
+- [ ] Commander.js で `sync` サブコマンドを定義
+- [ ] `--check-only` オプションを CLI で受け取る
+- [ ] core の `ScaffoldService.sync({ checkOnly })` を呼び出す
+- [ ] 戻り値（不足ファイル数・エラー種類）から exit code を決定する
+- [ ] ログ整形（人間向け / CI 向け）を実装
+
+### 4.2 core/services/ScaffoldService
+
+- [ ] DSG に記載の「期待構造」定義に基づき、存在すべきパス一覧を生成
+- [ ] FileSystemAdapter と TemplateService を使って不足ファイルを非破壊生成
+- [ ] checkOnly 時には plan を返すだけにする
+
+### 4.3 core/services/TemplateService
+
+- [ ] distribution パッケージのテンプレを読み込み
+- [ ] `expandTemplate(type, context)` で変数展開 `{FEATURE}`, `{DATE}` 等を行う
 
 ---
+
+## 5. Refactor
+
+- [ ] 期待構造（features/design/adr/tasks/ops）定義を JSON または TypeScript 定数に切り出す
+- [ ] 项目ルート検出ロジックを共通化（init/sync/add/check で使い回し）
+- [ ] sync ロジックのうち「構造定義」と「生成実行」を別関数に分割
+
+---
+
+## 6. Definition of Done
+
+- [ ] `eutelo sync` が不足ドキュメントのみ生成し、既存ファイルを一切上書きしない
+- [ ] `--check-only` が CI から利用可能（exitCode で判定できる）
+- [ ] E2E / Unit / Integration のすべてのテストが Green
+- [ ] PRD / DSG / ADR の仕様と完全に整合している

@@ -4,15 +4,20 @@ type: task
 title: Document Scaffold - add 機能
 purpose: >
   テンプレートが存在する全ドキュメント種別について、
-  `eutelo add` により非破壊生成できるようにする。
+  `eutelo add` コマンドで非破壊生成できるようにする。
+  Commander.js + core/services + distribution/templates を前提とし、
+  E2E / Unit / Integration の3層で TDD を行う。
 status: draft
-version: 0.1
+version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
 last_updated: "2025-11-14"
 ---
 
-# TASK-DOC-SCAFFOLD-ADD
+# TASK-DOC-SCAFFOLD-ADD  
+Document Scaffold - add 機能
+
+---
 
 ## 1. Overview
 
@@ -29,72 +34,106 @@ eutelo add task {NAME}
 eutelo add ops {NAME}
 ```
 
-本タスクではこれらを **TDD** で実装する。
+目的:
+
+- テンプレから各種ドキュメントを生成（PRD / BEH / SUB-PRD / SUB-BEH / DSG / ADR / TASK / OPS）
+- 生成先は常に `eutelo-docs/**`
+- 既存ファイルは一切上書きしない
+- ADR は連番採番（`ADR-{FEATURE}-0001.md` など）
 
 ---
 
-## 2. Red（テスト作成）
+## 2. Red（E2E）
 
-### 2.1 PRD 生成（正常）
-- [ ] 正しい frontmatter が入る  
-- [ ] parent が PRINCIPLE-GLOBAL  
-- [ ] 既存PRDがある場合はエラー  
+### 2.1 `add prd {FEATURE}` の正常系
 
-### 2.2 BEH 生成
-- [ ] parent が PRD-{FEATURE}  
-- [ ] Gherkin Feature が最低1つ入る  
+- [ ] 空の `eutelo-docs/` 環境で `eutelo add prd AUTH` を実行
+- [ ] exitCode = 0
+- [ ] `eutelo-docs/product/features/AUTH/PRD-AUTH.md` が生成される
+- [ ] frontmatter に `id: PRD-AUTH` が設定されている
+- [ ] frontmatter に `feature: auth`（lower/upper は仕様に合わせる）が設定されている
 
-### 2.3 SUB 系
-- [ ] SUB-PRD  
-  - parent = PRD-{FEATURE}  
-- [ ] SUB-BEH  
-  - parent = SUB-PRD-{SUB}  
+### 2.2 既存 PRD がある場合（上書き禁止）
 
-### 2.4 DSG 生成
-- [ ] 正しいパスに生成  
-- [ ] id = DSG-{FEATURE}  
+- [ ] 事前に `PRD-AUTH.md` を作成
+- [ ] 再度 `eutelo add prd AUTH` を実行
+- [ ] exitCode != 0（`FileAlreadyExists` 相当）
+- [ ] ファイル内容が変化していない
 
-### 2.5 ADR 生成
-- [ ] 連番採番  
-- [ ] ADR-{FEATURE}-0001.md  
+### 2.3 BEH / SUB-PRD / SUB-BEH
 
-### 2.6 TASK / OPS 生成
-- [ ] id = TASK-{NAME} / OPS-{NAME}  
+- [ ] `eutelo add beh AUTH` で `BEH-AUTH.md` が生成される
+  - `parent = PRD-AUTH`
+- [ ] `eutelo add sub-prd AUTH LOGIN` で `SUB-PRD-LOGIN.md`
+  - `parent = PRD-AUTH`
+- [ ] `eutelo add sub-beh AUTH LOGIN` で `BEH-AUTH-LOGIN.md`
+  - `parent = SUB-PRD-LOGIN`
 
-### 2.7 エラーケース
-- [ ] テンプレが存在しない種類  
-- [ ] 無効なFEATURE名  
-- [ ] 既存ファイルの上書き禁止  
+### 2.4 DSG / ADR / TASK / OPS
 
----
+- [ ] `eutelo add dsg AUTH` で `DSG-AUTH.md` が生成される
+- [ ] `eutelo add adr AUTH` で `ADR-AUTH-0001.md` が生成される
+- [ ] 同じFEATUREで再実行すると `ADR-AUTH-0002.md` が生成される
+- [ ] `eutelo add task setup-ci` で `TASK-setup-ci.md`
+- [ ] `eutelo add ops doc-scaffold-ci` で `OPS-doc-scaffold-ci.md`
 
-## 3. Green（実装）
+### 2.5 テンプレが存在しない種別
 
-### 3.1 AddDocumentService
-- [ ] 種別と引数をバリデーション  
-- [ ] テンプレ読み込み  
-- [ ] テンプレ変数展開  
-- [ ] 出力パスの算出  
-- [ ] 非破壊書き込み  
-
-### 3.2 連番処理（ADR）
-- [ ] 既存ADRをスキャンして最大値+1  
-- [ ] ゼロパディング処理  
+- [ ] あえて未知種別（例: `eutelo add contract AUTH`）を使って実行
+- [ ] exitCode != 0
+- [ ] 「テンプレが存在しない種別」である旨のエラーが表示される
 
 ---
 
-## 4. Refactor
+## 3. Red（Unit / Integration）
 
-- [ ] 共通ロジック（パス計算、変数展開）の抽出  
-- [ ] 無効値判定の統一  
+### 3.1 core/services/AddDocumentService（Unit）
+
+- [ ] `resolveOutputPath(type, feature, sub, name)` が DSG に準拠したパスを返す
+- [ ] テンプレ存在チェックに失敗すると `TemplateNotFound` を投げる
+- [ ] 既存ファイルがある場合は `FileAlreadyExists` を投げる
+
+### 3.2 core/services/TemplateService（Unit）
+
+- [ ] 種別に応じて distribution/templates/** から正しいテンプレを読み込む
+- [ ] `{FEATURE}`, `{SUB}`, `{DATE}`, `{ID}`, `{PARENT}` を正しく展開する
+
+### 3.3 ADR の連番採番（Integration）
+
+- [ ] 既存の ADR ファイルを走査して最大番号 + 1 を返すロジックのテスト
+- [ ] `0001`, `0002` のようにゼロパディングされること
 
 ---
 
-## 5. Definition of Done
+## 4. Green（実装）
 
-- [ ] テンプレートが存在する全種類で `eutelo add` が成功  
-- [ ] 既存ファイルは上書きしない  
-- [ ] BEH の Gherkin シナリオと一致する  
-- [ ] PRD/DSG の仕様に完全整合  
+### 4.1 CLI（packages/cli）
+
+- [ ] Commander.js で `add` サブコマンドを定義
+- [ ] サブサブコマンド（`prd`, `beh`, `sub-prd`, ...）を実装
+- [ ] 引数が足りない場合は `InvalidArguments` を core に渡す前にCLI側でエラー終了
+- [ ] core の戻り値（または例外）に応じて exit code とメッセージを整形
+
+### 4.2 core/services/AddDocumentService
+
+- [ ] 種別ごとの分岐を internal に集約
+- [ ] TemplateService と FileSystemAdapter を利用して非破壊生成
+- [ ] ADR のみ連番採番ロジックを噛ませる
 
 ---
+
+## 5. Refactor
+
+- [ ] 種別ごとの定義（PRD/BEH/DSG/ADR/TASK/OPS）を型安全な列挙型・マップとして切り出し
+- [ ] `resolveOutputPath` / `resolveTemplateType` / `buildFrontmatterDefaults` を関数分割
+- [ ] CLI側のボイラープレート削減（共通ヘルパー導入）
+
+---
+
+## 6. Definition of Done
+
+- [ ] `eutelo add` でテンプレが存在する全種類のドキュメントを生成可能
+- [ ] 既存ファイルを一切上書きしない
+- [ ] BEH の Gherkin シナリオと完全に整合
+- [ ] PRD / DSG / ADR の要件を満たす
+- [ ] E2E / Unit / Integration の全テストが Green
