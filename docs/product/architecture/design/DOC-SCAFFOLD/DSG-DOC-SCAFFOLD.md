@@ -8,65 +8,74 @@ purpose: >
   既存プロジェクトに対して安全かつ非破壊的に配布・同期するための
   CLI / CI / テンプレート基盤の設計方針を定義する。
 status: draft
-version: 0.1
+version: 0.2
 parent: PRD-DOC-SCAFFOLD
 owners: ["@AkhrHysd"]
 last_updated: "2025-11-14"
 ---
 
 # DSG-DOC-SCAFFOLD  
-Document Scaffold & CI Integration 設計ガイド
+Document Scaffold & CI Integration 設計ガイド（ADR-0001 反映）
 
 ---
 
 ## 1. 概要
 
-本設計ガイドは、`PRD-DOC-SCAFFOLD` で定義された機能要件を満たすための  
-アーキテクチャ、コンポーネント構成、テンプレートの扱い、主要フローを記述する。
+本設計ガイドは **PRD-DOC-SCAFFOLD** と **ADR-DOC-SCAFFOLD-0001（開発基盤選定）**  
+の内容に基づき、Document Scaffold 機能の **アーキテクチャ・責務分担・フロー設計** を定義する。
 
 主な責務:
 
 - Eutelo 標準ドキュメント構造の **初期生成 (`eutelo init`)**
 - 不足テンプレートの **非破壊同期 (`eutelo sync`)**
 - テンプレートからの **個別ドキュメント生成 (`eutelo add …`)**
-- CI 用の **チェック / 非破壊同期モード**
+- CI 用の **構造チェック (`eutelo check`)**
+- すべてをテストファースト（TDD）で実装可能な分割構造
 
 対象となるドキュメント種別（テンプレートが存在するもののみ）:
 
-- PRD / SUB-PRD
-- BEH / SUB-BEH
-- DSG
-- ADR
-- TASK
-- OPS
+- PRD / SUB-PRD  
+- BEH / SUB-BEH  
+- DSG  
+- ADR  
+- TASK  
+- OPS  
 
 ---
 
-## 2. スコープと非スコープ
+## 2. アーキテクチャ全体像（ADRの決定反映）
 
-### 2.1 スコープ
+### 2.1 パッケージ構成（monorepo）
 
-- `eutelo` CLI のうち、ドキュメント構造とテンプレ生成に関係する機能
-- テンプレートの提供・展開ルール
-- 非破壊な構造生成と追加ファイルの検出
-- CI のための `--check-only` / `--ci` モード
-- ドキュメント構造・命名規則・必須フィールド (`purpose` 等) の静的検証
+```
+packages/
+  cli/             # Commander.js ベースの薄い CLI。I/O のみ担当。
+  core/            # ScaffoldService / TemplateService / ValidationService など純粋ロジック
+  distribution/    # templates/（唯一のテンプレートソース、静的ファイル）
+```
 
-### 2.2 非スコープ
+目的:
 
-- ドキュメント本文の生成（AI 等）  
-- 意味的な purpose 整合判定（Doc-Guard 等の別機能に委譲）
-- コード生成・モデルスキーマ生成
+- CLI を薄く保ち、ほぼ全ロジックを core に集約して TDD を容易化
+- distribution パッケージをテンプレート専用にして責務を分離
+- 将来 Rust/Bun CLI へ移行しても core は使いまわせる構造
 
 ---
 
-## 3. コンポーネント構成
+### 2.2 ランタイム
 
-### 3.1 CLI レイヤー
+- **Node.js 18+**  
+- ESM ベース構成  
+- 理由は ADR に準拠（CI 互換性 / CLI 実行安定性 / npm 配布容易性）
 
-`eutelo` CLI は次のサブコマンドを公開する:
+---
 
-```text
+### 2.3 CLI 基盤
+
+- **Commander.js**  
+- サブコマンド完全分離方式
+
+```
 eutelo init
 eutelo sync
 eutelo add prd {FEATURE}
@@ -80,75 +89,153 @@ eutelo add ops {NAME}
 eutelo check
 ```
 
-CLI は **引数パースとルーティングのみ** を行い、  
-実処理は Application サービスに移譲する。
+CLI は I/O（ログ・exit code・引数パース）のみ担当し、  
+実処理は 100% core 層へ委譲する。
 
 ---
 
-### 3.2 Application サービス層
+### 2.4 Template 管理
 
-- **ScaffoldService**
-  - 標準構造の初期生成
-  - 欠落テンプレートの検出・同期
-- **TemplateService**
-  - テンプレート読み取り・変数展開
-- **AddDocumentService**
-  - 種別ごとの `add` 実処理
-- **ValidationService**
-  - 構造・命名規則・frontmatter必須項目の検証
-- **DryRunService**
-  - 書き込みを行わずに差分を生成（CI/診断用）
+テンプレートは **distribution パッケージ**に固定で格納する。
+
+```
+packages/distribution/templates/
+  features/
+    prd.md
+    sub-prd.md
+    beh.md
+    sub-beh.md
+  design/
+    dsg.md
+  adr/
+    adr.md
+  tasks/
+    task.md
+  ops/
+    ops.md
+```
+
+CLI は以下順序でテンプレ解決：
+
+1. `<pkgRoot>/templates/**`（distribution）
+2. （将来）`<projectRoot>/eutelo.templates/**`（ローカル上書き）
+
+※ 現段階では ①のみに対応。
 
 ---
 
-### 3.3 Infrastructure レイヤー
+### 2.5 Validation 基盤
 
-- **FileSystemAdapter**
-  - ファイル存在判定・非破壊書き込み
-- **TemplateRepository**
-  - パッケージ同梱テンプレートの参照
-- **VcsAdapter（将来拡張）**
-  - CI からの PR 自動生成などに対応可能
+ValidationService は次を扱う:
+
+- frontmatter の必須項目  
+  - `id` / `feature` / `purpose` / `parent`
+- 命名規則（PRD-{FEATURE}.md / SUB-PRD-{SUB}.md / BEH-{FEATURE}.md 等）
+- パス規則（必ず `eutelo-docs/**` 配下）
+- parent の参照整合
+- exit code 専用のエラー分類
+
+---
+
+### 2.6 テスト構成（TDD）
+
+ADR の決定に従い、3層構造でテストを行う。
+
+```
+Unit            -> core/services/*.ts を Vitest でテスト
+Integration     -> fs操作を含む core + infrastructure の統合テスト
+E2E             -> execa で実際の CLI を起動して検証
+```
+
+E2E の目的：
+
+- exit code  
+- stdout / stderr  
+- 実際の生成パス  
+- commander のパース検証  
+- 非破壊保証  
+
+を CLI の “実物” に対して確認するため。
+
+---
+
+## 3. コンポーネント構造
+
+### 3.1 CLI 層（packages/cli）
+
+責務:
+
+- Commander.js によるサブコマンド定義
+- コマンド引数のバリデーション
+- core の呼び出し
+- exit code の変換
+- ログ整形
+- CI向け `--format=json` 出力
+
+**CLI はロジックを書かない。**
+
+---
+
+### 3.2 Core 層（packages/core）
+
+#### ScaffoldService
+- `eutelo init`  
+- `eutelo sync`  
+- ディレクトリ構造の生成・判定
+
+#### TemplateService
+- テンプレファイルの読み取り  
+- 展開（{FEATURE} / {SUB} / {DATE} / {ID} / {PARENT}）
+
+#### AddDocumentService
+- `add prd`  
+- `add beh`  
+- `add` 系の全分岐  
+- 出力パス計算・非破壊書き込み
+
+#### ValidationService
+- パス規則・命名規則・frontmatter の静的検証
+
+#### DryRunService
+- 実ファイルを作らず差分を返す
+
+---
+
+### 3.3 Infrastructure 層
+
+#### FileSystemAdapter
+- `exists(path)`  
+- `writeIfNotExists(path, content)`  
+- `mkdirp(path)`  
+
+#### TemplateRepository
+- `<pkgRoot>/templates/**` の読み込み
+- いずれはローカルテンプレ上書きをサポート
 
 ---
 
 ## 4. テンプレート設計
 
-### 4.1 テンプレート配置ルール
+### 4.1 テンプレート配置ルール（確定版）
 
-テンプレートのソースは **`packages/distribution/templates/**`** に存在し、  
-配布物としては `<pkgRoot>/templates/**` として参照される。
-
-```text
-<pkgRoot>/
-  templates/
-    features/
-      prd.md
-      sub-prd.md
-      beh.md
-      sub-beh.md
-    design/
-      dsg.md
-    adr/
-      adr.md
-    tasks/
-      task.md
-    ops/
-      ops.md
+```
+<pkgRoot>/templates/
+  features/
+  design/
+  adr/
+  tasks/
+  ops/
 ```
 
-- CLI は `<pkgRoot>/templates/` をテンプレートのソース・オブ・トゥルースとする。
-- プロジェクトローカルでのテンプレ上書き（例: `eutelo.templates/`）は  
-  **将来拡張とし、本設計ではスコープ外**。
-- テンプレートが存在しない種別は `eutelo add` でエラーとなる。
+CLI はすべて distribution 経由で参照する。
 
 ---
 
-### 4.2 テンプレート変数の展開
+### 4.2 テンプレート変数
 
-テンプレートは `{VAR}` を含む。最低限サポートする変数:
+必須サポート:
 
-- `{FEATURE}`  
+- `{FEATURE}`
 - `{SUB}`
 - `{DATE}`
 - `{ID}`
@@ -156,167 +243,93 @@ CLI は **引数パースとルーティングのみ** を行い、
 - `{VERSION}`
 - `{OWNERS}`
 
-`TemplateService` がすべての変数を展開する。
+変数展開は TemplateService が集中管理。
 
 ---
 
-## 5. ファイルパス・命名規則
+## 5. 生成されるドキュメント構造（出力側）
 
-外部プロジェクトとの競合を避けるため、  
-Eutelo が生成するドキュメント群のルートは **`eutelo-docs/`** とする。
+CLI が生成するディレクトリは常に以下。
 
-```text
+```
 eutelo-docs/
-  product/
-    features/
-      {FEATURE}/
-        PRD-{FEATURE}.md
-        SUB-PRD-{SUB}.md
-        BEH-{FEATURE}.md
-        BEH-{FEATURE}-{SUB}.md
-
-  architecture/
-    design/
-      {FEATURE}/
-        DSG-{FEATURE}.md
-
-    adr/
-      {FEATURE}/
-        ADR-{FEATURE}-{SEQ}.md
-
+  product/features/{FEATURE}/
+  architecture/design/{FEATURE}/
+  architecture/adr/{FEATURE}/
   tasks/
-    TASK-{NAME}.md
-
   ops/
-    OPS-{NAME}.md
 ```
 
-### 5.1 features 配下
-
-- PRD  
-  - `eutelo-docs/product/features/{FEATURE}/PRD-{FEATURE}.md`
-  - `id = PRD-{FEATURE}`
-- BEH  
-  - `eutelo-docs/product/features/{FEATURE}/BEH-{FEATURE}.md`
-  - `parent = PRD-{FEATURE}`
-- SUB-PRD  
-  - `eutelo-docs/product/features/{FEATURE}/SUB-PRD-{SUB}.md`
-  - `id = SUB-PRD-{SUB}`
-  - `parent = PRD-{FEATURE}`
-- SUB-BEH  
-  - `eutelo-docs/product/features/{FEATURE}/BEH-{FEATURE}-{SUB}.md`
-  - `parent = SUB-PRD-{SUB}`
-
-### 5.2 design 配下（DSG）
-
-- `eutelo-docs/architecture/design/{FEATURE}/DSG-{FEATURE}.md`
-- `id = DSG-{FEATURE}`
-
-### 5.3 adr 配下
-
-- `eutelo-docs/architecture/adr/{FEATURE}/ADR-{FEATURE}-{SEQ}.md`
-- `{SEQ}` = ゼロパディング連番
-
-### 5.4 tasks / ops
-
-- TASK  
-  - `eutelo-docs/tasks/TASK-{NAME}.md`
-- OPS  
-  - `eutelo-docs/ops/OPS-{NAME}.md`
-
-`ValidationService` はすべてのパス・命名規則・frontmatter必須項目を検証する。
+すべての add/init/sync はこの構造を破壊しない。
 
 ---
 
-## 6. 主要フロー設計
+## 6. 主要フロー
 
-### 6.1 `eutelo init`
+### 6.1 init
 
-1. プロジェクトルートを特定  
-2. `eutelo-docs/` の存在を確認  
-3. なければ作成  
-4. 標準ディレクトリ群を生成  
-5. ガイド文書（テンプレートがある場合のみ）を生成  
-6. すでに存在するファイルは上書きしない
+- ディレクトリ作成  
+- 非破壊チェック  
+- 既存プロジェクトを壊さないことを最優先  
+- dry-run 対応
 
-異常系:
-- 権限不足  
-- 無効なプロジェクト構造
+### 6.2 sync
 
----
-
-### 6.2 `eutelo sync`
-
-1. 既存構造を走査  
-2. テンプレに基づき「存在すべきファイル」集合を計算  
-3. 不足分のみテンプレから生成  
-4. `--check-only` は書き込み禁止  
-5. 通常モードは非破壊生成 (`writeIfNotExists`) のみ行う
-
----
-
-### 6.3 `eutelo add …`
-
-共通フロー:
-
-1. 種別と引数から生成対象を決定  
-2. TemplateService でテンプレ解決  
-3. 出力パス決定  
-4. 既存チェック  
-5. テンプレ変数展開  
-6. 非破壊書き込み
-
-種別ごとの追加仕様:
-
-- PRD → `parent = PRINCIPLE-GLOBAL`
-- BEH → `parent = PRD-{FEATURE}`
-- SUB-PRD → `parent = PRD-{FEATURE}`
-- SUB-BEH → `parent = SUB-PRD-{SUB}`
-- ADR → 連番採番 (`0001` 形式)
-
----
-
-## 7. CI 連携設計
-
-### 7.1 実行モード
-
+- 期待構造の推定  
+- 不足テンプレ（存在しないファイル）だけ生成  
 - `--check-only`  
-  書き込み禁止、戻り値で状態を返す
-- `--ci`  
-  CI 向けログ整形
-- `--format=json`  
-  JSON レポート
+  - exit: 1  
+  - 生成しない
 
-### 7.2 戻り値規約
+### 6.3 add
 
-- `0`: 問題なし  
-- `1`: 不足テンプレあり  
-- `2`: 構造/命名/必須項目の問題あり  
-- `>2`: 実行エラー
+- 種別ごとにテンプレロード  
+- 展開 → パス決定 → 非破壊書き込み  
+- 既存ファイルは必ずエラー  
+- ADR のみ連番採番
 
----
+### 6.4 check
 
-## 8. エラー処理と UX
-
-- 既存ファイルの上書きは禁止  
-- テンプレのない種別は `add` 実行時に明示的エラー  
-- エラーメッセージは  
-  「原因 / パス / 種別 / 修正方法」を含む  
-- `eutelo add --help` で種別ごとに詳細ヘルプを表示
+- ValidationService にて構造検証  
+- JSONモードで CI 連携  
+- exit code 0/1/2 を厳密管理
 
 ---
 
-## 9. 拡張方針
+## 7. エラー設計
 
-- テンプレ差分比較（Eutelo標準 → プロジェクトの乖離率）  
-- purpose の意味的整合チェックとの連携  
-- CI からの自動 PR 作成  
-- 新しいテンプレ種別の追加  
+core が標準化した例外を投げる：
 
-本機能は  
-**「テンプレ存在ドキュメントはすべて add で生成」  
-「既存プロジェクトを壊さない」  
-「CI が継続的に健全性を保証する」**  
-という原則に基づいて設計される。
+- TemplateNotFound  
+- FileAlreadyExists  
+- InvalidArguments  
+- ValidationError  
+
+CLI がこれを受けて exit code に変換し、  
+原因・対象パス・修正方針を表示する。
+
+---
+
+## 8. 今後の拡張（ADR整合）
+
+未来の追加機能:
+
+- `eutelo.config.json` によるディレクトリカスタマイズ
+- テンプレ差分比較
+- ローカルテンプレ上書き
+- PR 自動生成（VcsAdapter）
+- Rust/Bun CLI への移植
+
+---
+
+## 9. 完了条件（Definition of Done）
+
+- packages が cli / core / distribution に分割されている  
+- Commander.js による CLI が構築されている  
+- core が純粋ロジックとして TDD 可能  
+- distribution がテンプレ唯一のソース  
+- Unit / Integration / E2E の三層テストが実装済み  
+- すべてのコマンドが BEH のシナリオと整合  
+- PRD / ADR に定義された要件を満たす
 
 ---
