@@ -42,11 +42,11 @@ Feature: Initialize Eutelo document structure in an empty project
   Scenario: eutelo init generates the standard document structure
     When I run "eutelo init"
     Then a "docs" directory should exist
-      And a "docs/product/features" directory should exist
-      And a "docs/architecture/design" directory should exist
-      And a "docs/architecture/adr" directory should exist
-      And a "docs/tasks" directory should exist
-      And a "docs/ops" directory should exist
+      And a "eutelo-docs/product/features" directory should exist
+      And a "eutelo-docs/architecture/design" directory should exist
+      And a "eutelo-docs/architecture/adr" directory should exist
+      And a "eutelo-docs/tasks" directory should exist
+      And a "eutelo-docs/ops" directory should exist
     And template guide files should be created where defined
     And no existing files should be overwritten
 ```
@@ -59,13 +59,13 @@ Feature: Initialize structure without destructive changes on existing docs
 
   Background:
     Given a project directory with an existing "docs" directory
-      And "docs/README.md" already exists with user content
+      And "eutelo-docs/README.md" already exists with user content
       And the current working directory is the project root
 
   Scenario: eutelo init does not overwrite existing docs
     When I run "eutelo init"
-    Then the file "docs/README.md" should still exist
-      And the content of "docs/README.md" should not be changed
+    Then the file "eutelo-docs/README.md" should still exist
+      And the content of "eutelo-docs/README.md" should not be changed
     And missing standard directories under "docs" should be created
     And a summary of created items should be printed to stdout
 ```
@@ -82,7 +82,7 @@ Feature: Sync missing templates
 
   Background:
     Given a project with an initialized Eutelo document structure
-      And "docs/product/features" contains some feature documents
+      And "eutelo-docs/product/features" contains some feature documents
       And some expected template files are missing
 
   Scenario: eutelo sync creates only missing template files
@@ -131,7 +131,7 @@ Feature: Generate PRD document from template
 
   Scenario: eutelo add prd AUTH generates a new PRD from template
     When I run "eutelo add prd AUTH"
-    Then the file "docs/product/features/AUTH/PRD-AUTH.md" should be created
+    Then the file "eutelo-docs/product/features/AUTH/PRD-AUTH.md" should be created
     And the frontmatter "id" should be "PRD-AUTH"
     And the frontmatter "feature" should be "AUTH"
     And the frontmatter "title" should contain "AUTH 機能 PRD"
@@ -147,12 +147,12 @@ Feature: Do not overwrite existing PRD files
 
   Background:
     Given a project with an initialized Eutelo document structure
-      And the file "docs/product/features/AUTH/PRD-AUTH.md" already exists
+      And the file "eutelo-docs/product/features/AUTH/PRD-AUTH.md" already exists
 
   Scenario: eutelo add prd AUTH refuses to overwrite an existing PRD
     When I run "eutelo add prd AUTH"
     Then the command exit code should be non-zero
-    And the file "docs/product/features/AUTH/PRD-AUTH.md" should remain unchanged
+    And the file "eutelo-docs/product/features/AUTH/PRD-AUTH.md" should remain unchanged
     And the command output should indicate that the target file already exists
 ```
 
@@ -183,11 +183,11 @@ Feature: Generate BEH document from template and link to PRD
     Given a project with an initialized Eutelo document structure
       And a BEH template is available for features
       And the feature key is "AUTH"
-      And the file "docs/product/features/AUTH/PRD-AUTH.md" exists
+      And the file "eutelo-docs/product/features/AUTH/PRD-AUTH.md" exists
 
   Scenario: eutelo add beh AUTH generates BEH and links to the PRD
     When I run "eutelo add beh AUTH"
-    Then the file "docs/product/features/AUTH/BEH-AUTH.md" should be created
+    Then the file "eutelo-docs/product/features/AUTH/BEH-AUTH.md" should be created
     And the frontmatter "feature" should be "AUTH"
     And the frontmatter "parent" should be "PRD-AUTH"
     And the behavior document should contain at least one valid Gherkin "Feature" definition
@@ -206,13 +206,13 @@ Feature: Generate SUB-PRD and SUB-BEH from templates
 
   Scenario: eutelo add sub-prd AUTH LOGIN generates SUB-PRD
     When I run "eutelo add sub-prd AUTH LOGIN"
-    Then the file "docs/product/features/AUTH/SUB-PRD-LOGIN.md" should be created
+    Then the file "eutelo-docs/product/features/AUTH/SUB-PRD-LOGIN.md" should be created
     And the frontmatter "parent" should be "PRD-AUTH"
     And the frontmatter "feature" should be "AUTH"
 
   Scenario: eutelo add sub-beh AUTH LOGIN generates SUB-BEH
     When I run "eutelo add sub-beh AUTH LOGIN"
-    Then the file "docs/product/features/AUTH/BEH-AUTH-LOGIN.md" should be created
+    Then the file "eutelo-docs/product/features/AUTH/BEH-AUTH-LOGIN.md" should be created
     And the frontmatter "parent" should be "SUB-PRD-LOGIN"
     And the behavior document should contain at least one valid Gherkin "Feature" or "Scenario"
 ```
@@ -229,22 +229,22 @@ Feature: Generate other document types only when templates exist
   Scenario: eutelo add dsg AUTH creates DSG file when DSG template exists
     Given a DSG template exists for features
     When I run "eutelo add dsg AUTH"
-    Then "docs/architecture/design/AUTH/DSG-AUTH.md" should be created
+    Then "eutelo-docs/architecture/design/AUTH/DSG-AUTH.md" should be created
 
   Scenario: eutelo add adr AUTH creates ADR file when ADR template exists
     Given an ADR template exists for features
     When I run "eutelo add adr AUTH"
-    Then an ADR file "docs/architecture/adr/AUTH/ADR-AUTH-0001.md" should be created
+    Then an ADR file "eutelo-docs/architecture/adr/AUTH/ADR-AUTH-0001.md" should be created
 
   Scenario: eutelo add task setup-ci creates a task file when TASK template exists
     Given a task template exists
     When I run "eutelo add task setup-ci"
-    Then "docs/tasks/TASK-setup-ci.md" should be created
+    Then "eutelo-docs/tasks/TASK-setup-ci.md" should be created
 
   Scenario: eutelo add ops doc-scaffold-ci creates an ops file when OPS template exists
     Given an ops template exists
     When I run "eutelo add ops doc-scaffold-ci"
-    Then "docs/ops/OPS-doc-scaffold-ci.md" should be created
+    Then "eutelo-docs/ops/OPS-doc-scaffold-ci.md" should be created
 ```
 
 ---
