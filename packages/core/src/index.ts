@@ -1,4 +1,5 @@
 export { REQUIRED_DIRECTORIES } from './constants/requiredDirectories.js';
+export { CHECK_EXIT_CODES } from './constants/check.js';
 export {
   ScaffoldService,
   createScaffoldService
@@ -26,3 +27,16 @@ export type {
 } from './services/AddDocumentService.js';
 export { TemplateService, TemplateNotFoundError } from './services/TemplateService.js';
 export type { TemplateServiceOptions, TemplateVariables } from './services/TemplateService.js';
+export {
+  ValidationService,
+  createValidationService
+} from './services/ValidationService.js';
+export type {
+  RunChecksOptions,
+  ValidationIssue,
+  ValidationReport,
+  MissingFieldIssue,
+  InvalidNameIssue,
+  ParentNotFoundIssue,
+  ValidationServiceDependencies
+} from './services/ValidationService.js';

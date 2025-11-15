@@ -7,8 +7,10 @@ import {
   TemplateService,
   createAddDocumentService,
   createScaffoldService,
+  createValidationService,
   type DocumentType,
-  type SyncOptions
+  type SyncOptions,
+  CHECK_EXIT_CODES
 } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
@@ -23,6 +25,11 @@ type AddParams = {
 };
 
 type SyncCliOptions = Pick<SyncOptions, 'checkOnly'>;
+
+type CheckCliOptions = {
+  format?: string;
+  ci?: boolean;
+};
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
@@ -88,6 +95,34 @@ async function runSyncCommand(scaffoldService: ReturnType<typeof createScaffoldS
   }
 }
 
+async function runCheckCommand(
+  validationService: ReturnType<typeof createValidationService>,
+  options: CheckCliOptions,
+  argv: string[]
+) {
+  const formatOverride = resolveFormatArgument(argv);
+  const normalizedFormat = (formatOverride ?? 'text').toLowerCase();
+  const useJson = normalizedFormat === 'json' || Boolean(options.ci);
+  const report = await validationService.runChecks({ cwd: process.cwd() });
+  const hasIssues = report.issues.length > 0;
+
+  if (useJson) {
+    const indent = options.ci ? 0 : 2;
+    process.stdout.write(`${JSON.stringify(report, null, indent)}\n`);
+  } else {
+    if (!hasIssues) {
+      process.stdout.write('No issues found. Documentation structure looks good.\n');
+    } else {
+      process.stdout.write(`Found ${report.issues.length} issue(s):\n`);
+      for (const issue of report.issues) {
+        process.stdout.write(`- [${issue.type}] ${issue.path}: ${issue.message}\n`);
+      }
+    }
+  }
+
+  process.exitCode = hasIssues ? CHECK_EXIT_CODES.VALIDATION_ERROR : CHECK_EXIT_CODES.SUCCESS;
+}
+
 function handleCommandError(error: unknown): void {
   if (error instanceof FileAlreadyExistsError) {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
@@ -106,6 +141,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const templateService = new TemplateService({ templateRoot: resolveTemplateRoot() });
   const scaffoldService = createScaffoldService({ fileSystemAdapter, templateService });
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
+  const validationService = createValidationService({ fileSystemAdapter });
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');
@@ -224,5 +260,44 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
     });
 
+  const runtimeArgv = argv;
+
+  program
+    .command('check')
+    .description('Validate eutelo-docs structure and frontmatter consistency')
+    .option('--format <format>', 'Output format: text or json')
+    .option('--ci', 'Emit CI-friendly JSON output')
+    .action(async (options: CheckCliOptions) => {
+      try {
+        await runCheckCommand(validationService, options, runtimeArgv);
+      } catch (error) {
+        handleCommandError(error);
+        process.exitCode = CHECK_EXIT_CODES.ERROR;
+      }
+    });
+
   await program.parseAsync(argv);
+}
+
+function resolveFormatArgument(argv: string[]): string | undefined {
+  if (!Array.isArray(argv)) {
+    return undefined;
+  }
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith('--')) {
+      continue;
+    }
+    if (token.startsWith('--format=')) {
+      const [, value] = token.split('=');
+      return value;
+    }
+    if (token === '--format' && index + 1 < argv.length) {
+      const next = argv[index + 1];
+      if (next && !next.startsWith('--')) {
+        return next;
+      }
+    }
+  }
+  return undefined;
 }
