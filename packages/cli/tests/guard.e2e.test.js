@@ -31,6 +31,16 @@ test('guard command reports the processed document count in its summary', () => 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
+test('guard command falls back to the placeholder implementation message', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /guardservice is not implemented yet/i);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
 test('guard command supports --format=json for structured output', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
   const result = runCli(
@@ -63,6 +73,22 @@ test('guard command maps warn-only and connection errors to exit codes', () => {
   });
   assert.equal(connectionFailure.status, 3, connectionFailure.stderr);
   assert.match(connectionFailure.stdout, /failed to reach/i);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('guard command rejects unsupported --format values before invoking the service', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const result = runCli(
+    ['guard', '--format=unknown', 'docs/product/features/DUMMY.md'],
+    cwd,
+    {
+      EUTELO_GUARD_STUB_RESULT: 'success'
+    }
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Invalid --format value: unknown/);
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
