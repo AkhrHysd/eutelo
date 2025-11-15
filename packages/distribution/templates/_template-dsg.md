@@ -1,5 +1,5 @@
 ---
-id: DSG-{FEATURE}
+id: {ID}
 type: design
 feature: {FEATURE}
 title: {FEATURE} 設計仕様書
@@ -7,7 +7,7 @@ purpose: >
   この設計書は {FEATURE} 機能の構造、責務、および主要データ構成を定義する。
 status: draft
 version: 0.1.0
-parent: PRD-{FEATURE}
+parent: {PARENT}
 owners: ["@team-{FEATURE}"]
 tags: ["design"]
 last_updated: "{DATE}"

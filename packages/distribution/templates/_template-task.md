@@ -1,5 +1,5 @@
 ---
-id: TSK-{FEATURE}
+id: {ID}
 type: task
 feature: {FEATURE}
 title: {FEATURE} タスク計画

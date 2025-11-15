@@ -1,34 +1,43 @@
-import { parseArgs } from 'node:util';
-import { createScaffoldService, type InitResult } from '@eutelo/core';
+import { Command } from 'commander';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import {
+  FileAlreadyExistsError,
+  TemplateNotFoundError,
+  TemplateService,
+  createAddDocumentService,
+  createScaffoldService,
+  type DocumentType
+} from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
-type ParsedValues = Record<string, unknown> & { 'dry-run'?: boolean; dryRun?: boolean };
+type InitCliOptions = {
+  dryRun?: boolean;
+};
 
-function printHelp(): void {
-  const message = `Eutelo CLI\n\nUsage:\n  eutelo init [--dry-run]\n\nCommands:\n  init        Initialize the eutelo-docs structure in the current directory.\n\nOptions:\n  --dry-run   Show the directories that would be created without writing.\n`;
-  process.stdout.write(message);
-}
+type AddParams = {
+  feature?: string;
+  sub?: string;
+  name?: string;
+};
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
 }
 
-async function handleInit(args: string[]): Promise<void> {
-  const { values } = parseArgs({
-    args,
-    options: {
-      'dry-run': { type: 'boolean', default: false },
-      dryRun: { type: 'boolean' }
-    },
-    allowPositionals: true
-  });
+function resolveTemplateRoot(): string {
+  const override = process.env.EUTELO_TEMPLATE_ROOT;
+  if (override && override.trim().length > 0) {
+    return path.resolve(process.cwd(), override);
+  }
+  const require = createRequire(import.meta.url);
+  const distributionPath = require.resolve('@eutelo/distribution/package.json');
+  return path.join(path.dirname(distributionPath), 'templates');
+}
 
-  const typedValues = values as ParsedValues;
-  const dryRun = typedValues['dry-run'] ?? typedValues.dryRun ?? false;
-  const fileSystemAdapter = new FileSystemAdapter();
-  const scaffoldService = createScaffoldService({ fileSystemAdapter });
-
-  const result = (await scaffoldService.init({ cwd: process.cwd(), dryRun })) as InitResult;
+async function runInitCommand(scaffoldService: ReturnType<typeof createScaffoldService>, options: InitCliOptions) {
+  const dryRun = Boolean(options.dryRun);
+  const result = await scaffoldService.init({ cwd: process.cwd(), dryRun });
 
   if (dryRun) {
     process.stdout.write('Dry run: the following directories would be created:\n');
@@ -48,28 +57,138 @@ async function handleInit(args: string[]): Promise<void> {
   }
 }
 
+async function executeAddDocument(
+  service: ReturnType<typeof createAddDocumentService>,
+  type: DocumentType,
+  params: AddParams
+) {
+  const result = await service.addDocument({ cwd: process.cwd(), type, ...params });
+  process.stdout.write(`Created ${result.relativePath}\n`);
+}
+
+function handleCommandError(error: unknown): void {
+  if (error instanceof FileAlreadyExistsError) {
+    process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
+  } else if (error instanceof TemplateNotFoundError) {
+    process.stderr.write(`Error: Template not found (${error.templateName})\n`);
+  } else if (error instanceof Error) {
+    process.stderr.write(`Error: ${error.message}\n`);
+  } else {
+    process.stderr.write('Error: Unknown error\n');
+  }
+  process.exitCode = 1;
+}
+
 export async function runCli(argv: string[] = process.argv): Promise<void> {
-  const args = argv.slice(2);
-  const command = args[0];
-  if (!command || command === '--help' || command === '-h') {
-    printHelp();
-    return;
-  }
+  const fileSystemAdapter = new FileSystemAdapter();
+  const scaffoldService = createScaffoldService({ fileSystemAdapter });
+  const templateService = new TemplateService({ templateRoot: resolveTemplateRoot() });
+  const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
 
-  const rest = args.slice(1);
+  const program = new Command();
+  program.name('eutelo').description('Eutelo documentation toolkit');
 
-  try {
-    if (command === 'init') {
-      await handleInit(rest);
-      return;
-    }
+  program
+    .command('init')
+    .description('Initialize the eutelo-docs structure in the current directory')
+    .option('--dry-run', 'Show directories without writing to disk')
+    .action(async (options: InitCliOptions) => {
+      try {
+        await runInitCommand(scaffoldService, options);
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
 
-    process.stderr.write(`Unknown command: ${command}\n`);
-    printHelp();
-    process.exitCode = 1;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    process.stderr.write(`Error: ${message}\n`);
-    process.exitCode = 1;
-  }
+  const add = program.command('add').description('Generate documentation from templates');
+
+  add
+    .command('prd <feature>')
+    .description('Generate a PRD document for the given feature')
+    .action(async (feature: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'prd', { feature });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('beh <feature>')
+    .description('Generate a BEH document for the given feature')
+    .action(async (feature: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'beh', { feature });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('sub-prd <feature> <sub>')
+    .description('Generate a SUB-PRD document for the given feature and sub-feature')
+    .action(async (feature: string, sub: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'sub-prd', { feature, sub });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('sub-beh <feature> <sub>')
+    .description('Generate a sub BEH document linked to a SUB-PRD')
+    .action(async (feature: string, sub: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'sub-beh', { feature, sub });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('dsg <feature>')
+    .description('Generate a DSG document for the given feature')
+    .action(async (feature: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'dsg', { feature });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('adr <feature>')
+    .description('Generate an ADR document for the given feature with sequential numbering')
+    .action(async (feature: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'adr', { feature });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('task <name>')
+    .description('Generate a TASK plan document')
+    .action(async (name: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'task', { name });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  add
+    .command('ops <name>')
+    .description('Generate an OPS runbook document')
+    .action(async (name: string) => {
+      try {
+        await executeAddDocument(addDocumentService, 'ops', { name });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  await program.parseAsync(argv);
 }

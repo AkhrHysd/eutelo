@@ -1,5 +1,5 @@
 ---
-id: BEH-{FEATURE}
+id: {ID}
 type: behavior
 feature: {FEATURE}
 title: {FEATURE} 振る舞い仕様
@@ -7,7 +7,7 @@ purpose: >
   {FEATURE} がどのように認識・解釈・参照されるかを観察可能な形で示す。
 status: draft
 version: {VERSION}
-parent: PRD-{FEATURE}
+parent: {PARENT}
 owners: {OWNERS}
 tags: ["{FEATURE}", "behavior"]
 last_updated: "{DATE}"
