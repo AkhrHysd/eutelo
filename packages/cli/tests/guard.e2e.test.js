@@ -7,6 +7,14 @@ import test from 'node:test';
 
 const CLI_PATH = path.resolve('packages/cli/bin/eutelo.js');
 
+function writeDoc(baseDir, relativePath, frontmatterLines, body = '# Document Body') {
+  const target = path.join(baseDir, relativePath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const content = ['---', ...frontmatterLines, '---', '', body, ''].join('\n');
+  fs.writeFileSync(target, content, 'utf8');
+  return relativePath;
+}
+
 function runCli(args, cwd, envOverrides = {}) {
   return spawnSync('node', [CLI_PATH, ...args], {
     cwd,
@@ -19,32 +27,50 @@ function runCli(args, cwd, envOverrides = {}) {
   });
 }
 
-test('guard command reports the processed document count in its summary', () => {
+function createGuardDoc(cwd) {
+  return writeDoc(
+    cwd,
+    'docs/product/features/DOCS/PRD-DOCS.md',
+    [
+      'id: PRD-DOCS',
+      'type: prd',
+      'feature: DOCS',
+      'purpose: Validate docs',
+      'parent: PRINCIPLE-GLOBAL'
+    ],
+    '# Guard Test Body'
+  );
+}
+
+test('guard command reports stubbed success output', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
-  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
+  const docPath = createGuardDoc(cwd);
+  const result = runCli(['guard', docPath], cwd, {
     EUTELO_GUARD_STUB_RESULT: 'success'
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /processed 1 document\(s\)/i);
+  assert.match(result.stdout, /Stubbed guard evaluation/i);
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command falls back to the placeholder implementation message', () => {
+test('guard command reports configuration errors when API key is missing', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
-  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd);
+  const docPath = createGuardDoc(cwd);
+  const result = runCli(['guard', docPath], cwd);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /guardservice is not implemented yet/i);
+  assert.equal(result.status, 3, result.stderr);
+  assert.match(result.stdout, /LLM API key is not configured/i);
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test('guard command supports --format=json for structured output', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const docPath = createGuardDoc(cwd);
   const result = runCli(
-    ['guard', '--format=json', '--fail-on-error', 'docs/product/features/DUMMY.md'],
+    ['guard', '--format=json', '--fail-on-error', docPath],
     cwd,
     { EUTELO_GUARD_STUB_RESULT: 'issues' }
   );
@@ -59,28 +85,30 @@ test('guard command supports --format=json for structured output', () => {
 
 test('guard command maps warn-only and connection errors to exit codes', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const docPath = createGuardDoc(cwd);
 
   const warnOnly = runCli(
-    ['guard', '--warn-only', 'docs/product/features/DUMMY.md'],
+    ['guard', '--warn-only', docPath],
     cwd,
     { EUTELO_GUARD_STUB_RESULT: 'issues' }
   );
   assert.equal(warnOnly.status, 0, warnOnly.stderr);
   assert.match(warnOnly.stdout, /Issues:/);
 
-  const connectionFailure = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
+  const connectionFailure = runCli(['guard', docPath], cwd, {
     EUTELO_GUARD_STUB_RESULT: 'connection-error'
   });
   assert.equal(connectionFailure.status, 3, connectionFailure.stderr);
-  assert.match(connectionFailure.stdout, /failed to reach/i);
+  assert.match(connectionFailure.stdout, /LLM connection failed/i);
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test('guard command rejects unsupported --format values before invoking the service', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const docPath = createGuardDoc(cwd);
   const result = runCli(
-    ['guard', '--format=unknown', 'docs/product/features/DUMMY.md'],
+    ['guard', '--format=unknown', docPath],
     cwd,
     {
       EUTELO_GUARD_STUB_RESULT: 'success'

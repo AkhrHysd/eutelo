@@ -146,6 +146,7 @@ async function runGuardCommand(
   const failOnError = warnOnly ? false : options.failOnError ?? true;
   const result = await guardService.run({
     documents: normalizedDocuments,
+    cwd: process.cwd(),
     format,
     warnOnly,
     failOnError
@@ -174,7 +175,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const scaffoldService = createScaffoldService({ fileSystemAdapter, templateService });
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
   const validationService = createValidationService({ fileSystemAdapter });
-  const guardService = createGuardService();
+  const guardService = createGuardService({ fileSystemAdapter });
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');

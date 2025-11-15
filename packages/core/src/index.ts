@@ -47,3 +47,24 @@ export {
 } from './services/GuardService.js';
 export type { GuardServiceDependencies, GuardRunResult, RunGuardOptions } from './services/GuardService.js';
 export type { GuardFinding, GuardRunError, GuardRunErrorType, GuardOutputFormat } from './services/GuardService.js';
+export {
+  DocumentLoader,
+  createDocumentLoader
+} from './guard/DocumentLoader.js';
+export type {
+  DocumentLoaderDependencies,
+  LoadDocumentsOptions,
+  DocumentLoaderError
+} from './guard/DocumentLoader.js';
+export { PromptBuilder, createPromptBuilder } from './guard/PromptBuilder.js';
+export type { PromptBuilderOptions, PromptPayload } from './guard/PromptBuilder.js';
+export { Analyzer, createAnalyzer } from './guard/Analyzer.js';
+export type { AnalysisResult } from './guard/Analyzer.js';
+export { IssueFormatter, createIssueFormatter } from './guard/IssueFormatter.js';
+export type { IssueFormatterContext } from './guard/IssueFormatter.js';
+export {
+  OpenAICompatibleLLMClient,
+  FakeLLMClient
+} from './guard/LLMClient.js';
+export type { GenerateParams, GenerateResult, LLMClient } from './guard/LLMClient.js';
+export type { GuardDocumentType, LoadedDocument } from './guard/types.js';
