@@ -7,7 +7,8 @@ import {
   TemplateService,
   createAddDocumentService,
   createScaffoldService,
-  type DocumentType
+  type DocumentType,
+  type SyncOptions
 } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
@@ -20,6 +21,8 @@ type AddParams = {
   sub?: string;
   name?: string;
 };
+
+type SyncCliOptions = Pick<SyncOptions, 'checkOnly'>;
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
@@ -66,6 +69,25 @@ async function executeAddDocument(
   process.stdout.write(`Created ${result.relativePath}\n`);
 }
 
+async function runSyncCommand(scaffoldService: ReturnType<typeof createScaffoldService>, options: SyncCliOptions) {
+  const result = await scaffoldService.sync({ cwd: process.cwd(), checkOnly: Boolean(options.checkOnly) });
+
+  if (result.plan.length === 0) {
+    process.stdout.write('No changes. All documents are up to date.\n');
+    return;
+  }
+
+  const paths = result.plan.map((entry) => entry.relativePath);
+  if (options.checkOnly) {
+    process.stdout.write('Missing documents detected:\n');
+    process.stdout.write(`${formatList(paths)}\n`);
+    process.exitCode = 1;
+  } else {
+    process.stdout.write('Generated documents:\n');
+    process.stdout.write(`${formatList(paths)}\n`);
+  }
+}
+
 function handleCommandError(error: unknown): void {
   if (error instanceof FileAlreadyExistsError) {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
@@ -81,8 +103,8 @@ function handleCommandError(error: unknown): void {
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
   const fileSystemAdapter = new FileSystemAdapter();
-  const scaffoldService = createScaffoldService({ fileSystemAdapter });
   const templateService = new TemplateService({ templateRoot: resolveTemplateRoot() });
+  const scaffoldService = createScaffoldService({ fileSystemAdapter, templateService });
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
 
   const program = new Command();
@@ -185,6 +207,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .action(async (name: string) => {
       try {
         await executeAddDocument(addDocumentService, 'ops', { name });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  program
+    .command('sync')
+    .description('Generate any missing documentation artifacts based on the current structure')
+    .option('--check-only', 'Report missing documents without writing to disk')
+    .action(async (options: SyncCliOptions) => {
+      try {
+        await runSyncCommand(scaffoldService, options);
       } catch (error) {
         handleCommandError(error);
       }

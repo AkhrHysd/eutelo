@@ -7,7 +7,10 @@ export type {
   InitResult,
   InitOptions,
   ComputeInitPlanOptions,
-  ScaffoldServiceDependencies
+  ScaffoldServiceDependencies,
+  SyncOptions,
+  SyncResult,
+  SyncPlanEntry
 } from './services/ScaffoldService.js';
 export {
   AddDocumentService,

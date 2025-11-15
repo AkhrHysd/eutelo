@@ -48,4 +48,33 @@ export class FileSystemAdapter {
       throw error;
     }
   }
+
+  async listDirectories(targetPath: string): Promise<string[]> {
+    let entries: string[] = [];
+    try {
+      entries = await fs.readdir(targetPath);
+    } catch (error) {
+      const nodeError = error as NodeFsError;
+      if (nodeError && nodeError.code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
+
+    const directories: string[] = [];
+    for (const entry of entries) {
+      const entryPath = path.join(targetPath, entry);
+      try {
+        await fs.readdir(entryPath);
+        directories.push(entry);
+      } catch (error) {
+        const nodeError = error as NodeFsError;
+        if (nodeError && (nodeError.code === 'ENOTDIR' || nodeError.code === 'ENOENT')) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    return directories;
+  }
 }

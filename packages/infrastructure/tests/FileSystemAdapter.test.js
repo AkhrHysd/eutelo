@@ -31,3 +31,18 @@ test('writeIfNotExists does not overwrite existing files', async () => {
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test('listDirectories returns only nested directories and ignores files', async () => {
+  const adapter = new FileSystemAdapter();
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-fs-integration-'));
+  const base = path.join(cwd, 'workspace');
+  await adapter.mkdirp(path.join(base, 'alpha'));
+  await adapter.mkdirp(path.join(base, 'beta/nested'));
+  await adapter.writeIfNotExists(path.join(base, 'README.md'), 'docs');
+
+  const result = await adapter.listDirectories(base);
+
+  assert.deepEqual(new Set(result), new Set(['alpha', 'beta']));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});

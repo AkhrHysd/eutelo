@@ -6,18 +6,58 @@ import test from 'node:test';
 import { REQUIRED_DIRECTORIES, ScaffoldService } from '../dist/index.js';
 
 class MemoryFileSystemAdapter {
-  constructor(existing = new Set()) {
-    this.existing = existing;
+  constructor({ directories = new Set(), files = new Map() } = {}) {
+    this.directories = directories;
+    this.files = files;
     this.created = [];
   }
 
   async exists(targetPath) {
-    return this.existing.has(targetPath);
+    return this.directories.has(targetPath) || this.files.has(targetPath);
   }
 
   async mkdirp(targetPath) {
     this.created.push(targetPath);
-    this.existing.add(targetPath);
+    this.directories.add(targetPath);
+  }
+
+  async writeIfNotExists(targetPath, content) {
+    if (this.files.has(targetPath)) {
+      return { written: false, skipped: true };
+    }
+    this.files.set(targetPath, content);
+    this.directories.add(path.dirname(targetPath));
+    return { written: true, skipped: false };
+  }
+
+  async listDirectories(targetPath) {
+    const prefix = targetPath.endsWith(path.sep) ? targetPath : `${targetPath}${path.sep}`;
+    const children = new Set();
+    for (const dir of this.directories) {
+      if (!dir.startsWith(prefix)) {
+        continue;
+      }
+      const remainder = dir.slice(prefix.length);
+      if (!remainder) {
+        continue;
+      }
+      const [child] = remainder.split(path.sep);
+      if (child) {
+        children.add(child);
+      }
+    }
+    return Array.from(children);
+  }
+}
+
+class StubTemplateService {
+  constructor() {
+    this.calls = [];
+  }
+
+  async render(_templateName, variables) {
+    this.calls.push({ variables });
+    return `rendered-${variables.FEATURE}`;
   }
 }
 
@@ -39,7 +79,7 @@ test('computeInitPlan lists every required directory when nothing exists', async
 test('computeInitPlan skips directories that already exist', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
   const existingPath = path.resolve(cwd, 'eutelo-docs');
-  const adapter = new MemoryFileSystemAdapter(new Set([existingPath]));
+  const adapter = new MemoryFileSystemAdapter({ directories: new Set([existingPath]) });
   const service = new ScaffoldService({ fileSystemAdapter: adapter });
 
   const plan = await service.computeInitPlan({ cwd });
@@ -68,7 +108,7 @@ test('init respects dryRun and does not call mkdirp', async () => {
 test('init creates missing directories and reports skipped ones', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
   const existingPath = path.resolve(cwd, 'eutelo-docs');
-  const adapter = new MemoryFileSystemAdapter(new Set([existingPath]));
+  const adapter = new MemoryFileSystemAdapter({ directories: new Set([existingPath]) });
   const service = new ScaffoldService({ fileSystemAdapter: adapter });
 
   const result = await service.init({ cwd, dryRun: false });
@@ -79,4 +119,56 @@ test('init creates missing directories and reports skipped ones', async () => {
   assert.equal(result.dryRun, false);
 
   fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('computeSyncPlan identifies missing PRDs for discovered features', async () => {
+  const cwd = '/tmp/eutelo-sync-plan';
+  const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'AUTH');
+  const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
+  const templateService = new StubTemplateService();
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+
+  const plan = await service.computeSyncPlan({ cwd });
+
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].featureId, 'AUTH');
+  assert.equal(
+    plan[0].relativePath,
+    path.join('eutelo-docs', 'product', 'features', 'AUTH', 'PRD-AUTH.md')
+  );
+});
+
+test('sync writes missing PRDs when not running in check-only mode', async () => {
+  const cwd = '/tmp/eutelo-sync-write';
+  const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'PAYMENTS');
+  const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
+  const templateService = new StubTemplateService();
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+
+  const result = await service.sync({ cwd, checkOnly: false });
+
+  const expectedPath = path.join(
+    cwd,
+    'eutelo-docs',
+    'product',
+    'features',
+    'PAYMENTS',
+    'PRD-PAYMENTS.md'
+  );
+  assert.equal(adapter.files.get(expectedPath), 'rendered-PAYMENTS');
+  assert.deepEqual(result.created, [path.relative(cwd, expectedPath)]);
+});
+
+test('sync in check-only mode reports plan without writing files', async () => {
+  const cwd = '/tmp/eutelo-sync-check';
+  const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'DOCS');
+  const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
+  const templateService = new StubTemplateService();
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+
+  const result = await service.sync({ cwd, checkOnly: true });
+
+  assert.equal(result.plan.length, 1);
+  assert.equal(result.created.length, 0);
+  assert.equal(adapter.files.size, 0);
 });
