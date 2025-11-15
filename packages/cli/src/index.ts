@@ -8,9 +8,13 @@ import {
   createAddDocumentService,
   createScaffoldService,
   createValidationService,
+  createGuardService,
   type DocumentType,
   type SyncOptions,
-  CHECK_EXIT_CODES
+  CHECK_EXIT_CODES,
+  GUARD_EXIT_CODES,
+  type GuardRunResult,
+  type GuardOutputFormat
 } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
@@ -29,6 +33,12 @@ type SyncCliOptions = Pick<SyncOptions, 'checkOnly'>;
 type CheckCliOptions = {
   format?: string;
   ci?: boolean;
+};
+
+type GuardCliOptions = {
+  format?: string;
+  failOnError?: boolean;
+  warnOnly?: boolean;
 };
 
 function formatList(items: string[]): string {
@@ -123,6 +133,28 @@ async function runCheckCommand(
   process.exitCode = hasIssues ? CHECK_EXIT_CODES.VALIDATION_ERROR : CHECK_EXIT_CODES.SUCCESS;
 }
 
+async function runGuardCommand(
+  guardService: ReturnType<typeof createGuardService>,
+  documents: string[],
+  options: GuardCliOptions = {},
+  argv: string[] = []
+) {
+  const normalizedDocuments = normalizeGuardDocuments(documents, argv);
+  const formatOverride = resolveFormatArgument(argv);
+  const format = normalizeGuardFormat(formatOverride ?? options.format);
+  const warnOnly = Boolean(options.warnOnly);
+  const failOnError = warnOnly ? false : options.failOnError ?? true;
+  const result = await guardService.run({
+    documents: normalizedDocuments,
+    format,
+    warnOnly,
+    failOnError
+  });
+
+  renderGuardResult(result, format);
+  process.exitCode = determineGuardExitCode(result, { warnOnly, failOnError });
+}
+
 function handleCommandError(error: unknown): void {
   if (error instanceof FileAlreadyExistsError) {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
@@ -142,6 +174,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const scaffoldService = createScaffoldService({ fileSystemAdapter, templateService });
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
   const validationService = createValidationService({ fileSystemAdapter });
+  const guardService = createGuardService();
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');
@@ -260,8 +293,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
     });
 
-  const runtimeArgv = argv;
-
   program
     .command('check')
     .description('Validate eutelo-docs structure and frontmatter consistency')
@@ -269,10 +300,24 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--ci', 'Emit CI-friendly JSON output')
     .action(async (options: CheckCliOptions) => {
       try {
-        await runCheckCommand(validationService, options, runtimeArgv);
+        await runCheckCommand(validationService, options, argv);
       } catch (error) {
         handleCommandError(error);
         process.exitCode = CHECK_EXIT_CODES.ERROR;
+      }
+    });
+
+  program
+    .command('guard [documents...]')
+    .description('Run the experimental document guard consistency checks')
+    .option('--format <format>', 'Output format (text or json)')
+    .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
+    .option('--warn-only', 'Never exit with code 2, even when issues are detected')
+    .action(async (options: GuardCliOptions = {}) => {
+      try {
+        await runGuardCommand(guardService, [], options, argv);
+      } catch (error) {
+        handleCommandError(error);
       }
     });
 
@@ -300,4 +345,121 @@ function resolveFormatArgument(argv: string[]): string | undefined {
     }
   }
   return undefined;
+}
+
+type GuardExitIntent = {
+  warnOnly: boolean;
+  failOnError: boolean;
+};
+
+function determineGuardExitCode(result: GuardRunResult, intent: GuardExitIntent): number {
+  if (result.error) {
+    return GUARD_EXIT_CODES.EXECUTION_ERROR;
+  }
+  if (intent.warnOnly) {
+    return GUARD_EXIT_CODES.SUCCESS;
+  }
+  const hasIssues = Array.isArray(result.issues) && result.issues.length > 0;
+  if (hasIssues && intent.failOnError) {
+    return GUARD_EXIT_CODES.ISSUES_FOUND;
+  }
+  return GUARD_EXIT_CODES.SUCCESS;
+}
+
+function normalizeGuardFormat(value?: string | boolean): GuardOutputFormat {
+  if (!value || typeof value !== 'string') {
+    return 'text';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'text' || normalized === 'json') {
+    return normalized;
+  }
+  throw new Error(`Invalid --format value: ${value}`);
+}
+
+function renderGuardResult(result: GuardRunResult, format: GuardOutputFormat): void {
+  if (format === 'json') {
+    const payload = {
+      summary: result.summary,
+      stats: {
+        issues: result.issues.length,
+        warnings: result.warnings.length,
+        suggestions: result.suggestions.length
+      },
+      issues: result.issues,
+      warnings: result.warnings,
+      suggestions: result.suggestions,
+      error: result.error ?? null
+    };
+    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    return;
+  }
+
+  process.stdout.write(`${result.summary}\n`);
+  if (result.error) {
+    process.stdout.write(`Error: ${result.error.message}\n`);
+    return;
+  }
+  if (result.issues.length > 0) {
+    process.stdout.write('Issues:\n');
+    for (const issue of result.issues) {
+      process.stdout.write(formatFinding(issue));
+    }
+  }
+  if (result.warnings.length > 0) {
+    process.stdout.write('Warnings:\n');
+    for (const warning of result.warnings) {
+      process.stdout.write(formatFinding(warning));
+    }
+  }
+  if (result.suggestions.length > 0) {
+    process.stdout.write('Suggestions:\n');
+    for (const suggestion of result.suggestions) {
+      process.stdout.write(formatFinding(suggestion));
+    }
+  }
+}
+
+function formatFinding(entry: GuardRunResult['issues'][number]): string {
+  const doc = entry.document ? `${entry.document}: ` : '';
+  return `- ${doc}${entry.message}\n`;
+}
+
+function normalizeGuardDocuments(positional: string[], argv: string[]): string[] {
+  if (Array.isArray(positional) && positional.length > 0) {
+    return positional
+      .filter((doc) => typeof doc === 'string')
+      .map((doc) => doc.trim())
+      .filter((doc) => doc.length > 0);
+  }
+
+  const guardIndex = Array.isArray(argv) ? argv.indexOf('guard') : -1;
+  if (guardIndex === -1) {
+    return [];
+  }
+  const collected: string[] = [];
+  let skipNext = false;
+  let readEverything = false;
+  for (const token of argv.slice(guardIndex + 1)) {
+    if (!readEverything && token === '--') {
+      readEverything = true;
+      continue;
+    }
+    if (!readEverything && token === '--format') {
+      skipNext = true;
+      continue;
+    }
+    if (skipNext) {
+      skipNext = false;
+      continue;
+    }
+    if (!readEverything && token.startsWith('--')) {
+      continue;
+    }
+    const normalized = token.trim();
+    if (normalized.length > 0) {
+      collected.push(normalized);
+    }
+  }
+  return collected;
 }

@@ -1,5 +1,6 @@
 export { REQUIRED_DIRECTORIES } from './constants/requiredDirectories.js';
 export { CHECK_EXIT_CODES } from './constants/check.js';
+export { GUARD_EXIT_CODES } from './constants/guard.js';
 export {
   ScaffoldService,
   createScaffoldService
@@ -40,3 +41,9 @@ export type {
   ParentNotFoundIssue,
   ValidationServiceDependencies
 } from './services/ValidationService.js';
+export {
+  GuardService,
+  createGuardService
+} from './services/GuardService.js';
+export type { GuardServiceDependencies, GuardRunResult, RunGuardOptions } from './services/GuardService.js';
+export type { GuardFinding, GuardRunError, GuardRunErrorType, GuardOutputFormat } from './services/GuardService.js';
