@@ -293,8 +293,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
     });
 
-  const runtimeArgv = argv;
-
   program
     .command('check')
     .description('Validate eutelo-docs structure and frontmatter consistency')
@@ -302,7 +300,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--ci', 'Emit CI-friendly JSON output')
     .action(async (options: CheckCliOptions) => {
       try {
-        await runCheckCommand(validationService, options, runtimeArgv);
+        await runCheckCommand(validationService, options, argv);
       } catch (error) {
         handleCommandError(error);
         process.exitCode = CHECK_EXIT_CODES.ERROR;
@@ -317,7 +315,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--warn-only', 'Never exit with code 2, even when issues are detected')
     .action(async (options: GuardCliOptions = {}) => {
       try {
-        await runGuardCommand(guardService, [], options, runtimeArgv);
+        await runGuardCommand(guardService, [], options, argv);
       } catch (error) {
         handleCommandError(error);
       }
