@@ -1,5 +1,5 @@
 ---
-id: PRD-{FEATURE}
+id: {ID}
 type: prd
 feature: {FEATURE}
 title: {FEATURE} 機能 PRD
@@ -8,7 +8,7 @@ purpose: >
   上位原則（Principle）および関連ドキュメントとの整合を保つ。
 status: draft
 version: {VERSION}
-parent: PRINCIPLE-GLOBAL
+parent: {PARENT}
 owners: {OWNERS}
 tags: ["{FEATURE}"]
 last_updated: "{DATE}"

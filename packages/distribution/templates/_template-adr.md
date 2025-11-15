@@ -1,16 +1,16 @@
 ---
-id: ADR-{SEQ}-{topic}
+id: {ID}
 type: adr
-title: {決定のタイトル}
+title: {ID} decision record
 status: draft
 deciders: ["@team-{FEATURE}"]
 date: "{DATE}"
-related: [{PRD-ID}, {DSG-ID}]
+related: [{PARENT}]
 purpose: >
   このADRは {FEATURE} に関する設計判断を記録する。
 ---
 
-# {決定のタイトル}
+# {ID}
 
 ## Context
 （背景・課題・検討のきっかけ）

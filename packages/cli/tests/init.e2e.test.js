@@ -7,10 +7,11 @@ import test from 'node:test';
 
 const CLI_PATH = path.resolve('packages/cli/bin/eutelo.js');
 
-function runCli(args, cwd) {
+function runCli(args, cwd, env = {}) {
   return spawnSync('node', [CLI_PATH, ...args], {
     cwd,
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env: { ...process.env, ...env }
   });
 }
 
@@ -59,6 +60,22 @@ test('init --dry-run reports plan without touching disk', () => {
   assert.match(result.stdout, /Dry run/);
   assert.match(result.stdout, /eutelo-docs/);
   assert.ok(!fs.existsSync(path.join(cwd, 'eutelo-docs')));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('init respects EUTELO_DOCS_ROOT override', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-e2e-'));
+  const customRoot = 'custom-docs';
+
+  const result = runCli(['init'], cwd, { EUTELO_DOCS_ROOT: customRoot });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(fs.existsSync(path.join(cwd, customRoot)), 'custom root should exist');
+  assert.ok(
+    fs.existsSync(path.join(cwd, customRoot, 'architecture/adr')),
+    'custom root should include adr directory'
+  );
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
