@@ -1,0 +1,19 @@
+{
+  "name": "eutelo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf packages/*/dist",
+    "test": "npm run build && node --test"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

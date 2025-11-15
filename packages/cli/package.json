@@ -1,0 +1,21 @@
+{
+  "name": "@eutelo/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "eutelo": "./bin/eutelo.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@eutelo/core": "file:../core",
+    "@eutelo/infrastructure": "file:../infrastructure"
+  }
+}
