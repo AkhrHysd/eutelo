@@ -49,6 +49,14 @@ export class FileSystemAdapter {
     }
   }
 
+  async readFile(targetPath: string): Promise<string> {
+    return await fs.readFile(targetPath, 'utf8');
+  }
+
+  async stat(targetPath: string): Promise<{ isDirectory(): boolean; isFile(): boolean }> {
+    return await fs.stat(targetPath);
+  }
+
   async listDirectories(targetPath: string): Promise<string[]> {
     let entries: string[] = [];
     try {

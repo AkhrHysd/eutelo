@@ -18,6 +18,8 @@ declare module 'node:path' {
     relative(from: string, to: string): string;
     join(...segments: string[]): string;
     dirname(p: string): string;
+    basename(p: string): string;
+    sep: string;
   }
   const path: PathModule;
   export default path;
@@ -49,12 +51,17 @@ declare module 'node:fs/promises' {
 }
 
 declare module 'node:fs' {
+  export type Stats = {
+    isDirectory(): boolean;
+    isFile(): boolean;
+  };
   export const promises: {
     access(path: string): Promise<void>;
     mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
     writeFile(path: string, data: string, options?: { flag?: string }): Promise<void>;
     readFile(path: string, encoding?: string): Promise<string>;
     readdir(path: string): Promise<string[]>;
+    stat(path: string): Promise<Stats>;
   };
 }
 
