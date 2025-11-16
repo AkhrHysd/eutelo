@@ -5,7 +5,8 @@ title: ビルドおよびバンドラ方針の決定
 status: accepted
 deciders: ["@team-eutelo-core"]
 date: "2025-11-13"
-related: [SUB-PRD-EUTELO-CORE-DISTRIBUTION, DSG-EUTELO-CORE-DISTRIBUTION]
+related: [SUB-PRD-EUTELO-CORE-DISTRIBUTION, DSG-EUTELO-CORE-DISTRIBUTION],
+parent: EUTELO-CORE
 purpose: >
   このADRは Eutelo Core Distribution におけるビルドおよびバンドラの方針を定義し、
   npm 配信物の構成・依存・成果物形式を統一しない
