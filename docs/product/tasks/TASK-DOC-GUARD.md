@@ -5,7 +5,7 @@ title: Document Guard - LLM Consistency Check 実装タスクリスト
 purpose: >
   PRD-DOC-GUARD / BEH-DOC-GUARD / DSG-DOC-GUARD / ADR-DOC-GUARD-0001 に基づき、
   eutelo guard 機能を TDD（Red → Green）で実装するためのタスクを整理する。
-status: draft
+status: closed
 version: 0.1
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-GUARD
