@@ -98,6 +98,17 @@ And 結果は Actions のログで確認できる
 
 ---
 
+## Scenario: ほげほげほーげ
+
+```
+Given なし
+When ユーザーが怒る
+Then ユーザーの興味が失われる
+And 寝る
+```
+
+---
+
 ## Scenario: JSON 形式で guard 結果を取得できる
 
 ```
