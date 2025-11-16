@@ -41,6 +41,11 @@
 
 ---
 
+## [0.2.2] - 2025-01-XX
+### Changed
+- GuardService: "No valid documents found" メッセージを詳細化（提供されたパス数、スキップされたファイル、考えられる理由を表示）
+- GuardService: LLM応答をログ出力する機能を追加（EUTELO_GUARD_DEBUG環境変数で制御）
+
 ## [0.2.1] - 2025-01-XX
 ### Fixed
 - DocumentLoader: README.md、テンプレートファイル、philosophy配下のファイルを自動的にスキップするように改善
