@@ -47,3 +47,18 @@ export {
 } from './services/GuardService.js';
 export type { GuardServiceDependencies, GuardRunResult, RunGuardOptions } from './services/GuardService.js';
 export type { GuardFinding, GuardRunError, GuardRunErrorType, GuardOutputFormat } from './services/GuardService.js';
+export {
+  FrontmatterParser
+} from './doc-lint/frontmatter-parser.js';
+export type {
+  Frontmatter,
+  FrontmatterIssue,
+  FrontmatterParseResult,
+  FrontmatterParserOptions,
+  LintSeverity
+} from './doc-lint/frontmatter-parser.js';
+export { analyzeStructure, resolveParentPath } from './doc-lint/structure-analyzer.js';
+export type { AnalyzeStructureOptions, StructureExpectation } from './doc-lint/structure-analyzer.js';
+export { RuleEngine } from './doc-lint/rule-engine.js';
+export type { DocLintIssue, LintResult, LintTarget, RuleEngineOptions } from './doc-lint/rule-engine.js';
+export { resolveDocsRoot } from './constants/docsRoot.js';

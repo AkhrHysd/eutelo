@@ -14,7 +14,9 @@ import {
   CHECK_EXIT_CODES,
   GUARD_EXIT_CODES,
   type GuardRunResult,
-  type GuardOutputFormat
+  type GuardOutputFormat,
+  RuleEngine,
+  resolveDocsRoot
 } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
@@ -33,6 +35,11 @@ type SyncCliOptions = Pick<SyncOptions, 'checkOnly'>;
 type CheckCliOptions = {
   format?: string;
   ci?: boolean;
+};
+
+type LintCliOptions = {
+  format?: string;
+  paths?: string[];
 };
 
 type GuardCliOptions = {
@@ -133,6 +140,68 @@ async function runCheckCommand(
   process.exitCode = hasIssues ? CHECK_EXIT_CODES.VALIDATION_ERROR : CHECK_EXIT_CODES.SUCCESS;
 }
 
+async function collectMarkdownFiles(root: string, adapter: FileSystemAdapter, accumulator: string[] = []): Promise<string[]> {
+  const entries = await adapter.readDir(root);
+  for (const entry of entries) {
+    const entryPath = path.join(root, entry);
+    const stats = await adapter.stat(entryPath);
+    if (stats.isDirectory()) {
+      await collectMarkdownFiles(entryPath, adapter, accumulator);
+    } else if (stats.isFile() && entry.toLowerCase().endsWith('.md')) {
+      accumulator.push(entryPath);
+    }
+  }
+  return accumulator.sort((a, b) => a.localeCompare(b));
+}
+
+function determineLintFormat(argv: string[], options: LintCliOptions): 'json' | 'text' {
+  const override = resolveFormatArgument(argv) ?? options.format;
+  if (!override) return 'text';
+  const normalized = override.toLowerCase();
+  return normalized === 'json' ? 'json' : 'text';
+}
+
+async function runLintCommand(
+  ruleEngine: RuleEngine,
+  fileSystemAdapter: FileSystemAdapter,
+  options: LintCliOptions,
+  argv: string[] = process.argv
+) {
+  const docsRoot = path.resolve(process.cwd(), resolveDocsRoot());
+  const targetPaths =
+    options.paths && options.paths.length > 0
+      ? options.paths.map((entry) => path.resolve(process.cwd(), entry))
+      : await collectMarkdownFiles(docsRoot, fileSystemAdapter);
+
+  const results = [];
+  for (const filePath of targetPaths) {
+    const content = await fileSystemAdapter.readFile(filePath);
+    const { issues } = await ruleEngine.lint({ content, filePath });
+    results.push({ path: filePath, issues });
+  }
+
+  const hasErrors = results.some((result) => result.issues.some((issue) => issue.severity === 'error'));
+  const format = determineLintFormat(argv, options);
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify({ results }, null, 2)}\n`);
+  } else {
+    if (!hasErrors && results.every((entry) => entry.issues.length === 0)) {
+      process.stdout.write('No lint issues found.\n');
+    } else {
+      for (const result of results) {
+        if (result.issues.length === 0) continue;
+        process.stdout.write(`${result.path}\n`);
+        for (const issue of result.issues) {
+          process.stdout.write(`  - ${issue.severity.toUpperCase()}: ${issue.message}\n`);
+        }
+      }
+    }
+  }
+
+  process.exitCode = hasErrors ? 1 : 0;
+}
+
 async function runGuardCommand(
   guardService: ReturnType<typeof createGuardService>,
   documents: string[],
@@ -175,6 +244,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
   const validationService = createValidationService({ fileSystemAdapter });
   const guardService = createGuardService();
+  const ruleEngine = new RuleEngine({ docsRoot: resolveDocsRoot() });
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');
@@ -192,6 +262,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     });
 
   const add = program.command('add').description('Generate documentation from templates');
+
+  program
+    .command('lint [paths...]')
+    .description('Run doc-lint across documentation files')
+    .option('--format <format>', 'Output format (text or json)')
+    .action(async (paths: string[], options: LintCliOptions) => {
+      try {
+        await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
 
   add
     .command('prd <feature>')
