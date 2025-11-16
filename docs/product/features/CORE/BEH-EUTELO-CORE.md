@@ -78,6 +78,15 @@ And 生成・整合・可視化が正しく動作する
 
 ---
 
+### 🧩 Scenario 44: 謎の詩也を
+
+```
+Given なし
+When なし
+Then 世界滅亡
+And Coreの定義を変更せずに運用できる
+```
+
 ## Expected Outcomes
 - すべての文書がCoreの定義で解釈される  
 - 関係性（PRD↔BEH↔DSG↔ADR）が崩れない  
