@@ -74,6 +74,7 @@ jobs:
           EUTELO_GUARD_API_ENDPOINT: ${{ vars.EUTELO_GUARD_API_ENDPOINT }}
           EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
           EUTELO_GUARD_MODEL: ${{ vars.EUTELO_GUARD_MODEL }}
+          EUTELO_GUARD_DEBUG: ${{ vars.EUTELO_GUARD_DEBUG || 'false' }}
         run: |
           set -euo pipefail
           eutelo guard ${{ inputs.paths || 'docs/product/**/*.md' }} --format=${{ inputs.format || 'text' }}
