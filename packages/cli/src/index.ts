@@ -460,8 +460,10 @@ function normalizeGuardFormat(value?: string | boolean): GuardOutputFormat {
 }
 
 function renderGuardResult(result: GuardRunResult, format: GuardOutputFormat): void {
+  const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
+  
   if (format === 'json') {
-    const payload = {
+    const payload: Record<string, unknown> = {
       summary: result.summary,
       stats: {
         issues: result.issues.length,
@@ -473,8 +475,21 @@ function renderGuardResult(result: GuardRunResult, format: GuardOutputFormat): v
       suggestions: result.suggestions,
       error: result.error ?? null
     };
+    
+    // Include LLM response in JSON output if debug mode is enabled
+    if (debugMode && result.llmResponse) {
+      payload.llmResponse = result.llmResponse;
+    }
+    
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     return;
+  }
+  
+  // For text format, log LLM response to stderr if debug mode is enabled
+  if (debugMode && result.llmResponse) {
+    process.stderr.write('\n=== LLM Response (Debug) ===\n');
+    process.stderr.write(result.llmResponse);
+    process.stderr.write('\n=== End LLM Response ===\n\n');
   }
 
   process.stdout.write(`${result.summary}\n`);

@@ -68,6 +68,10 @@ export type GuardRunResult = {
    * Optional execution error. When present, the CLI should treat the run as exit code 3.
    */
   error?: GuardRunError;
+  /**
+   * Raw LLM response (only included if debug mode is enabled or format is json with debug flag).
+   */
+  llmResponse?: string;
 };
 
 export class GuardService {
@@ -170,10 +174,34 @@ export class GuardService {
       }
 
       if (loadResult.documents.length === 0) {
+        const totalPaths = documents.length;
+        const skippedCount = loadResult.errors.length;
+        const skippedFiles = loadResult.errors.map((e) => e.path).join(', ');
+        
+        let summary = `No valid documents found to check.`;
+        summary += `\n  Total paths provided: ${totalPaths}`;
+        if (skippedCount > 0) {
+          summary += `\n  Files skipped: ${skippedCount}`;
+          if (skippedFiles) {
+            summary += `\n  Skipped files: ${skippedFiles}`;
+          }
+        }
+        summary += `\n  Valid documents loaded: 0`;
+        summary += `\n\nPossible reasons:`;
+        summary += `\n  - All files were skipped (README.md, templates, or philosophy files)`;
+        summary += `\n  - Files do not have valid frontmatter with required fields (id, type, etc.)`;
+        summary += `\n  - Files do not match expected document types (PRD, BEH, DSG, ADR, TASK, OPS)`;
+        
         return {
-          summary: 'No valid documents found to check.',
+          summary,
           issues: [],
-          warnings: [],
+          warnings: loadResult.errors.length > 0 
+            ? loadResult.errors.map((e) => ({
+                id: `LOAD-WARN-${e.path}`,
+                message: `Skipped: ${e.path} - ${e.message}`,
+                document: e.path
+              }))
+            : [],
           suggestions: []
         };
       }
@@ -199,6 +227,16 @@ export class GuardService {
         systemPrompt,
         temperature: 0.3
       });
+
+      // Check if debug mode is enabled
+      const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
+      
+      // Log LLM response to stderr if debug mode is enabled
+      if (debugMode) {
+        console.error('=== LLM Response (Debug) ===');
+        console.error(llmResponse.content);
+        console.error('=== End LLM Response ===');
+      }
 
       const analysisResult = this.analyzer.analyze(llmResponse.content);
 
@@ -230,7 +268,8 @@ export class GuardService {
         summary,
         issues: analysisResult.issues,
         warnings: allWarnings,
-        suggestions: analysisResult.suggestions
+        suggestions: analysisResult.suggestions,
+        llmResponse: debugMode ? llmResponse.content : undefined
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
