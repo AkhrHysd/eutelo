@@ -73,3 +73,44 @@ declare module 'node:process' {
   const proc: typeof process;
   export = proc;
 }
+
+declare global {
+  function fetch(
+    input: RequestInfo | URL,
+    init?: RequestInit
+  ): Promise<Response>;
+
+  interface RequestInit {
+    method?: string;
+    headers?: HeadersInit;
+    body?: BodyInit | null;
+    signal?: AbortSignal | null;
+  }
+
+  interface HeadersInit {
+    [key: string]: string;
+  }
+
+  type BodyInit = string | Blob | ArrayBuffer | FormData;
+
+  interface Response {
+    ok: boolean;
+    status: number;
+    statusText: string;
+    json(): Promise<unknown>;
+    text(): Promise<string>;
+  }
+
+  interface AbortController {
+    signal: AbortSignal;
+    abort(): void;
+  }
+
+  interface AbortSignal {
+    readonly aborted: boolean;
+  }
+
+  const AbortController: {
+    new (): AbortController;
+  };
+}

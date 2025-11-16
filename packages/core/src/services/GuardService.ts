@@ -1,4 +1,14 @@
-export type GuardServiceDependencies = Record<string, never>;
+import type { FileSystemAdapter } from '@eutelo/infrastructure';
+import { FileSystemAdapter as DefaultFileSystemAdapter } from '@eutelo/infrastructure';
+import { Analyzer } from '../guard/Analyzer.js';
+import { DocumentLoader } from '../guard/DocumentLoader.js';
+import { LLMClient, OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
+import { PromptBuilder } from '../guard/PromptBuilder.js';
+
+export type GuardServiceDependencies = {
+  fileSystemAdapter?: FileSystemAdapter;
+  llmClient?: LLMClient;
+};
 
 export type GuardOutputFormat = 'text' | 'json';
 
@@ -60,12 +70,165 @@ export type GuardRunResult = {
 };
 
 export class GuardService {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  constructor(_deps: GuardServiceDependencies = {}) {}
+  private readonly documentLoader: DocumentLoader;
+  private readonly promptBuilder: PromptBuilder;
+  private readonly analyzer: Analyzer;
+  private readonly llmClient: LLMClient | null;
+
+  constructor(deps: GuardServiceDependencies = {}) {
+    const fileSystemAdapter = deps.fileSystemAdapter ?? new DefaultFileSystemAdapter();
+    this.documentLoader = new DocumentLoader({ fileSystemAdapter });
+    this.promptBuilder = new PromptBuilder();
+    this.analyzer = new Analyzer();
+
+    const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
+    if (stubMode && stubMode !== 'not-implemented') {
+      this.llmClient = null;
+    } else {
+      const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
+      const apiKey = process.env.EUTELO_GUARD_API_KEY;
+      const model = process.env.EUTELO_GUARD_MODEL;
+
+      if (endpoint && apiKey) {
+        this.llmClient = deps.llmClient ?? new OpenAICompatibleLLMClient({ endpoint, apiKey, model });
+      } else {
+        this.llmClient = null;
+      }
+    }
+  }
 
   async run(options: RunGuardOptions): Promise<GuardRunResult> {
     const documents = normalizeDocuments(options.documents);
+
+    if (documents.length === 0) {
+      return {
+        summary: 'No documents to check.',
+        issues: [],
+        warnings: [],
+        suggestions: []
+      };
+    }
+
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT ?? 'not-implemented';
+    if (stubMode !== 'not-implemented') {
+      return this.runStubMode(documents, stubMode);
+    }
+
+    if (!this.llmClient) {
+      const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
+      const apiKey = process.env.EUTELO_GUARD_API_KEY;
+
+      if (!endpoint || !apiKey) {
+        return {
+          summary: 'API endpoint or API key is missing. Please set EUTELO_GUARD_API_ENDPOINT and EUTELO_GUARD_API_KEY environment variables.',
+          issues: [],
+          warnings: [],
+          suggestions: [],
+          error: {
+            type: 'configuration',
+            message: 'API endpoint or API key is missing.'
+          }
+        };
+      }
+    }
+
+    try {
+      const loadResult = await this.documentLoader.loadDocuments(documents);
+      if (loadResult.errors.length > 0) {
+        const errorMessages = loadResult.errors.map((e) => `${e.path}: ${e.message}`).join('; ');
+        return {
+          summary: `Failed to load some documents: ${errorMessages}`,
+          issues: [],
+          warnings: [],
+          suggestions: [],
+          error: {
+            type: 'configuration',
+            message: `Document loading errors: ${errorMessages}`
+          }
+        };
+      }
+
+      if (loadResult.documents.length === 0) {
+        return {
+          summary: 'No valid documents found to check.',
+          issues: [],
+          warnings: [],
+          suggestions: []
+        };
+      }
+
+      if (!this.llmClient) {
+        return {
+          summary: 'LLM client is not available.',
+          issues: [],
+          warnings: [],
+          suggestions: [],
+          error: {
+            type: 'configuration',
+            message: 'LLM client is not configured.'
+          }
+        };
+      }
+
+      const { systemPrompt, userPrompt } = this.promptBuilder.buildPrompt({
+        documents: loadResult.documents
+      });
+
+      const llmResponse = await this.llmClient.generate({
+        prompt: userPrompt,
+        systemPrompt,
+        temperature: 0.3
+      });
+
+      const analysisResult = this.analyzer.analyze(llmResponse.content);
+
+      const issueCount = analysisResult.issues.length;
+      const warningCount = analysisResult.warnings.length;
+      const suggestionCount = analysisResult.suggestions.length;
+
+      let summary = `Analyzed ${loadResult.documents.length} document(s).`;
+      if (issueCount > 0) {
+        summary += ` Found ${issueCount} issue(s).`;
+      }
+      if (warningCount > 0) {
+        summary += ` Found ${warningCount} warning(s).`;
+      }
+      if (suggestionCount > 0) {
+        summary += ` Found ${suggestionCount} suggestion(s).`;
+      }
+      if (issueCount === 0 && warningCount === 0 && suggestionCount === 0) {
+        summary += ' No issues detected.';
+      }
+
+      return {
+        summary,
+        issues: analysisResult.issues,
+        warnings: analysisResult.warnings,
+        suggestions: analysisResult.suggestions
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isLLMError = error && typeof error === 'object' && 'type' in error;
+
+      return {
+        summary: `Guard execution failed: ${errorMessage}`,
+        issues: [],
+        warnings: [],
+        suggestions: [],
+        error: isLLMError
+          ? {
+              type: (error as { type: string }).type === 'authentication' ? 'configuration' : 'connection',
+              message: errorMessage
+            }
+          : {
+              type: 'unknown',
+              message: errorMessage
+            }
+      };
+    }
+  }
+
+  private runStubMode(documents: string[], stubMode: string): GuardRunResult {
     const summaryPrefix = `Document guard placeholder processed ${documents.length} document(s).`;
 
     if (stubMode === 'success') {
