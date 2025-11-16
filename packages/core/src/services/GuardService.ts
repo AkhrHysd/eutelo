@@ -153,10 +153,12 @@ export class GuardService {
 
     try {
       const loadResult = await this.documentLoader.loadDocuments(documents);
-      if (loadResult.errors.length > 0) {
+      
+      // If there are errors but we have some valid documents, continue with warnings
+      if (loadResult.errors.length > 0 && loadResult.documents.length === 0) {
         const errorMessages = loadResult.errors.map((e) => `${e.path}: ${e.message}`).join('; ');
         return {
-          summary: `Failed to load some documents: ${errorMessages}`,
+          summary: `Failed to load all documents: ${errorMessages}`,
           issues: [],
           warnings: [],
           suggestions: [],
@@ -176,6 +178,18 @@ export class GuardService {
         };
       }
 
+      // If there are errors but we have valid documents, add warnings but continue
+      const loadWarnings: GuardFinding[] = [];
+      if (loadResult.errors.length > 0) {
+        loadWarnings.push(
+          ...loadResult.errors.map((e) => ({
+            id: `LOAD-WARN-${e.path}`,
+            message: `Skipped document: ${e.path} - ${e.message}`,
+            document: e.path
+          }))
+        );
+      }
+
       const { systemPrompt, userPrompt } = this.promptBuilder.buildPrompt({
         documents: loadResult.documents
       });
@@ -188,11 +202,17 @@ export class GuardService {
 
       const analysisResult = this.analyzer.analyze(llmResponse.content);
 
+      // Combine load warnings with analysis warnings
+      const allWarnings = [...loadWarnings, ...analysisResult.warnings];
+
       const issueCount = analysisResult.issues.length;
-      const warningCount = analysisResult.warnings.length;
+      const warningCount = allWarnings.length;
       const suggestionCount = analysisResult.suggestions.length;
 
       let summary = `Analyzed ${loadResult.documents.length} document(s).`;
+      if (loadResult.errors.length > 0) {
+        summary += ` Skipped ${loadResult.errors.length} file(s).`;
+      }
       if (issueCount > 0) {
         summary += ` Found ${issueCount} issue(s).`;
       }
@@ -209,7 +229,7 @@ export class GuardService {
       return {
         summary,
         issues: analysisResult.issues,
-        warnings: analysisResult.warnings,
+        warnings: allWarnings,
         suggestions: analysisResult.suggestions
       };
     } catch (error) {

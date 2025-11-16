@@ -38,6 +38,11 @@ export class DocumentLoader {
     const errors: DocumentLoadError[] = [];
 
     for (const docPath of documentPaths) {
+      // Skip README files and template files
+      if (shouldSkipDocument(docPath)) {
+        continue;
+      }
+
       try {
         const document = await this.loadDocument(docPath);
         if (document) {
@@ -124,6 +129,28 @@ function inferDocumentType(filePath: string, frontmatterType: string | undefined
   }
 
   return null;
+}
+
+function shouldSkipDocument(docPath: string): boolean {
+  const fileName = path.basename(docPath).toLowerCase();
+  const dirName = path.dirname(docPath).toLowerCase();
+
+  // Skip README files
+  if (fileName === 'readme.md') {
+    return true;
+  }
+
+  // Skip template files
+  if (fileName.startsWith('_template-')) {
+    return true;
+  }
+
+  // Skip files in philosophy directory (vision, principles, etc.)
+  if (dirName.includes('philosophy')) {
+    return true;
+  }
+
+  return false;
 }
 
 function extractContentWithoutFrontmatter(content: string): string {
