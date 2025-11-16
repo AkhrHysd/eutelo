@@ -69,6 +69,14 @@ jobs:
           echo "MODEL from vars: ${{ vars.EUTELO_GUARD_MODEL }}"
           echo "MODEL from secrets: ${{ secrets.EUTELO_GUARD_MODEL }}"
 
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            docs/product/**/*.md
+            docs/product/**/*.mdx
+
       - name: Run eutelo guard
         env:
           EUTELO_GUARD_API_ENDPOINT: ${{ vars.EUTELO_GUARD_API_ENDPOINT }}
@@ -77,4 +85,13 @@ jobs:
           EUTELO_GUARD_DEBUG: ${{ vars.EUTELO_GUARD_DEBUG || 'false' }}
         run: |
           set -euo pipefail
-          eutelo guard ${{ inputs.paths || 'docs/product/**/*.md' }} --format=${{ inputs.format || 'text' }} --warn-only
+          # Use changed files if available, otherwise fall back to inputs.paths or default
+          if [ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]; then
+            echo "Checking changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+            eutelo guard ${{ steps.changed-files.outputs.all_changed_files }} --format=${{ inputs.format || 'text' }} --warn-only
+          elif [ -n "${{ inputs.paths }}" ]; then
+            echo "Checking specified paths: ${{ inputs.paths }}"
+            eutelo guard ${{ inputs.paths }} --format=${{ inputs.format || 'text' }} --warn-only
+          else
+            echo "No changed files found and no paths specified. Skipping guard check."
+          fi
