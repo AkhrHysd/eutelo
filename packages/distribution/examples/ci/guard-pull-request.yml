@@ -1,0 +1,16 @@
+name: Guard Docs on Pull Request
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+
+jobs:
+  guard:
+    uses: eutelo/eutelo/.github/workflows/guard.yml@v1
+    with:
+      paths: docs/**/*.md
+    secrets:
+      EUTELO_GUARD_API_ENDPOINT: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}
+      EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
+      EUTELO_GUARD_MODEL: ${{ secrets.EUTELO_GUARD_MODEL }}

@@ -1,0 +1,65 @@
+name: Eutelo Guard
+
+description: "Reusable workflow that installs @eutelo/cli and runs eutelo guard"
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+  workflow_call:
+    inputs:
+      paths:
+        type: string
+        description: "Space-separated file paths or globs to pass to eutelo guard"
+        default: "docs/**/*.md"
+      working-directory:
+        type: string
+        description: "Directory in which eutelo guard should run"
+        default: "."
+      format:
+        type: string
+        description: "Output format passed to --format (text or json)"
+        default: "text"
+      node-version:
+        type: string
+        description: "Node.js version supplied to actions/setup-node"
+        default: "18"
+    secrets:
+      EUTELO_GUARD_API_ENDPOINT:
+        required: true
+      EUTELO_GUARD_API_KEY:
+        required: true
+      EUTELO_GUARD_MODEL:
+        required: false
+
+jobs:
+  guard:
+    name: Run eutelo guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install Eutelo CLI
+        run: |
+          set -euo pipefail
+          npm install -g @eutelo/cli
+
+      - name: Run eutelo guard
+        env:
+          EUTELO_GUARD_API_ENDPOINT: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}
+          EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
+          EUTELO_GUARD_MODEL: ${{ secrets.EUTELO_GUARD_MODEL }}
+        run: |
+          set -euo pipefail
+          eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}

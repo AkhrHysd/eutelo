@@ -24,7 +24,11 @@ examples/
 
 各ディレクトリの README またはサンプルファイルを参照してください。
 
-- **CI 例**: `ci/github-actions-workflow-example.yml` を参照
+- **CI 例**:
+  - `ci/github-actions-workflow-example.yml`: 汎用的な検証フローの骨子
+  - `ci/guard-pull-request.yml`: PR で docs 配下の変更があったときだけ guard を実行
+  - `ci/guard-main.yml`: main ブランチへの push で guard を実行
+  - `ci/guard-dispatch.yml`: 手動実行用。working-directory / format を入力で上書き可能
 - **Scaffold 例**: `scaffold/README.md` を参照
 
 ---

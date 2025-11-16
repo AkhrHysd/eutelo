@@ -1,0 +1,26 @@
+name: Guard Docs Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: 'Space-separated paths to evaluate'
+        default: 'docs/**/*.md'
+      working-directory:
+        description: 'Optional subdirectory (e.g. apps/web)'
+        default: '.'
+      format:
+        description: 'Switch to json when you need structured output'
+        default: 'text'
+
+jobs:
+  guard:
+    uses: eutelo/eutelo/.github/workflows/guard.yml@v1
+    with:
+      paths: ${{ inputs.paths }}
+      working-directory: ${{ inputs.working-directory }}
+      format: ${{ inputs.format }}
+    secrets:
+      EUTELO_GUARD_API_ENDPOINT: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}
+      EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
+      EUTELO_GUARD_MODEL: ${{ secrets.EUTELO_GUARD_MODEL }}
