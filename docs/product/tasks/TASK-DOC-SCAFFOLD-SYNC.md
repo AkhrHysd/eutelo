@@ -6,7 +6,7 @@ purpose: >
   `eutelo sync` によって不足ドキュメントのみを非破壊的に生成し、
   CI から `--check-only` で検証できるようにする。
   E2E / Unit / Integration の3層で TDD を行う。
-status: draft
+status: closed
 version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
