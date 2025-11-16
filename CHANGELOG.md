@@ -41,6 +41,18 @@
 
 ---
 
+## [0.2.0] - 2025-01-XX
+### Added
+- GuardService実装: DocumentLoader, PromptBuilder, LLMClient, Analyzerを追加（PRD-DOC-GUARD, BEH-DOC-GUARD, DSG-DOC-GUARD）
+- OpenAI互換APIクライアント実装（ADR-DOC-GUARD-0001）
+- ドキュメント整合性チェック機能（LLMベース）
+
+### Changed
+- GuardService: プレースホルダー実装から本実装へ移行
+- 環境変数未設定時のエラーハンドリングを改善
+
+---
+
 ## 運用ルール
 
 - **すべてのPR／マージで更新必須。**  

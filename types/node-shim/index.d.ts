@@ -80,6 +80,13 @@ declare global {
     init?: RequestInit
   ): Promise<Response>;
 
+  function setTimeout(callback: () => void, delay: number): number;
+  function clearTimeout(timeoutId: number): void;
+
+  interface RequestInfo {
+    toString(): string;
+  }
+
   interface RequestInit {
     method?: string;
     headers?: HeadersInit;
