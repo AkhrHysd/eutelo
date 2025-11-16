@@ -7,7 +7,7 @@ purpose: >
   `eutelo check` コマンドを構築する。
   CI で利用できる exit code / JSON 出力を備え、
   E2E / Unit / Integration の3層で TDD を行う。
-status: draft
+status: closed
 version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
