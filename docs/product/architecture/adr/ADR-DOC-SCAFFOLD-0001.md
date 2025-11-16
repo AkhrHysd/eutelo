@@ -3,7 +3,7 @@ id: ADR-DOC-SCAFFOLD-0001
 type: adr
 feature: doc-scaffold
 title: Document Scaffold 開発基盤の選定
-status: proposed
+status: accepted
 version: 0.1
 parent: PRD-DOC-SCAFFOLD
 owners: ["@AkhrHysd"]
