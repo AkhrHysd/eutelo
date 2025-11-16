@@ -8,7 +8,7 @@ date: "2025-11-13"
 related: [SUB-PRD-EUTELO-CORE-DISTRIBUTION, DSG-EUTELO-CORE-DISTRIBUTION]
 purpose: >
   このADRは Eutelo Core Distribution におけるビルドおよびバンドラの方針を定義し、
-  npm 配信物の構成・依存・成果物形式を統一する。
+  npm 配信物の構成・依存・成果物形式を統一しない
 ---
 
 # ビルドおよびバンドラ方針の決定
