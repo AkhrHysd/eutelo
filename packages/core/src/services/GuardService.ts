@@ -117,22 +117,38 @@ export class GuardService {
       return this.runStubMode(documents, stubMode);
     }
 
-    if (!this.llmClient) {
-      const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
-      const apiKey = process.env.EUTELO_GUARD_API_KEY;
+    // Check for required environment variables before proceeding
+    const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
+    const apiKey = process.env.EUTELO_GUARD_API_KEY;
 
-      if (!endpoint || !apiKey) {
-        return {
-          summary: 'API endpoint or API key is missing. Please set EUTELO_GUARD_API_ENDPOINT and EUTELO_GUARD_API_KEY environment variables.',
-          issues: [],
-          warnings: [],
-          suggestions: [],
-          error: {
-            type: 'configuration',
-            message: 'API endpoint or API key is missing.'
-          }
-        };
-      }
+    if (!endpoint || !apiKey) {
+      const missingVars: string[] = [];
+      if (!endpoint) missingVars.push('EUTELO_GUARD_API_ENDPOINT');
+      if (!apiKey) missingVars.push('EUTELO_GUARD_API_KEY');
+
+      return {
+        summary: `Required environment variables are missing: ${missingVars.join(', ')}. Please set these environment variables to use the guard service.`,
+        issues: [],
+        warnings: [],
+        suggestions: [],
+        error: {
+          type: 'configuration',
+          message: `Missing required environment variables: ${missingVars.join(', ')}`
+        }
+      };
+    }
+
+    if (!this.llmClient) {
+      return {
+        summary: 'LLM client initialization failed. Please check your environment variables.',
+        issues: [],
+        warnings: [],
+        suggestions: [],
+        error: {
+          type: 'configuration',
+          message: 'LLM client could not be initialized.'
+        }
+      };
     }
 
     try {
@@ -157,19 +173,6 @@ export class GuardService {
           issues: [],
           warnings: [],
           suggestions: []
-        };
-      }
-
-      if (!this.llmClient) {
-        return {
-          summary: 'LLM client is not available.',
-          issues: [],
-          warnings: [],
-          suggestions: [],
-          error: {
-            type: 'configuration',
-            message: 'LLM client is not configured.'
-          }
         };
       }
 
