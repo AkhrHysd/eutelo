@@ -41,6 +41,11 @@
 
 ---
 
+## [0.2.1] - 2025-01-XX
+### Fixed
+- DocumentLoader: README.md、テンプレートファイル、philosophy配下のファイルを自動的にスキップするように改善
+- GuardService: 一部のファイルが読み込めなくても、有効なドキュメントがあれば続行するように改善
+
 ## [0.2.0] - 2025-01-XX
 ### Added
 - GuardService実装: DocumentLoader, PromptBuilder, LLMClient, Analyzerを追加（PRD-DOC-GUARD, BEH-DOC-GUARD, DSG-DOC-GUARD）
