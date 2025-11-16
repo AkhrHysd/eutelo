@@ -8,7 +8,8 @@
   },
   "references": [
     { "path": "../core" },
-    { "path": "../infrastructure" }
+    { "path": "../infrastructure" },
+    { "path": "../commander" }
   ],
   "include": ["src/**/*.ts"]
 }
