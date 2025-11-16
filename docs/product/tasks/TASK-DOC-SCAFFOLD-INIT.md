@@ -5,7 +5,7 @@ title: Document Scaffold - init 機能
 purpose: >
   `eutelo init` のコマンド実装とテスト（E2E・Unit・Integration）を
   TDD に基づいて構築する。
-status: draft
+status: closed
 version: 0.2
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-SCAFFOLD
