@@ -5,7 +5,7 @@ title: Document Lint — Static Analysis TDD Task Breakdown
 purpose: >
   doc-lint（静的解析）機能を、Core / ESLint / Biome / CLI の順に
   Red → Green で実装するためのタスクを整理する。
-status: draft
+status: closed
 version: 0.1
 owners: ["@AkhrHysd"]
 parent: PRD-DOC-LINT
