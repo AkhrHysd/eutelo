@@ -39,8 +39,6 @@ jobs:
   guard:
     name: Run eutelo guard
     runs-on: ubuntu-latest
-    environment:
-      name: production
     defaults:
       run:
         shell: bash
@@ -60,11 +58,21 @@ jobs:
           set -euo pipefail
           npm install -g @eutelo/cli
 
+      - name: Debug environment variables
+        if: always()
+        run: |
+          echo "Checking environment variables..."
+          echo "ENDPOINT from vars: ${{ vars.EUTELO_GUARD_API_ENDPOINT }}"
+          echo "ENDPOINT from secrets: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}"
+          echo "KEY from secrets: ${{ secrets.EUTELO_GUARD_API_KEY != '' && '***SET***' || 'NOT SET' }}"
+          echo "MODEL from vars: ${{ vars.EUTELO_GUARD_MODEL }}"
+          echo "MODEL from secrets: ${{ secrets.EUTELO_GUARD_MODEL }}"
+
       - name: Run eutelo guard
         env:
-          EUTELO_GUARD_API_ENDPOINT: ${{ vars.EUTELO_GUARD_API_ENDPOINT || secrets.EUTELO_GUARD_API_ENDPOINT }}
+          EUTELO_GUARD_API_ENDPOINT: ${{ vars.EUTELO_GUARD_API_ENDPOINT }}
           EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
-          EUTELO_GUARD_MODEL: ${{ vars.EUTELO_GUARD_MODEL || secrets.EUTELO_GUARD_MODEL }}
+          EUTELO_GUARD_MODEL: ${{ vars.EUTELO_GUARD_MODEL }}
         run: |
           set -euo pipefail
           eutelo guard ${{ inputs.paths || 'docs/**/*.md' }} --format=${{ inputs.format || 'text' }}
