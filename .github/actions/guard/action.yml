@@ -1,0 +1,48 @@
+name: 'Eutelo Guard'
+
+description: 'Composite action to install @eutelo/cli and run eutelo guard'
+
+inputs:
+  paths:
+    description: 'Space-separated file paths or globs to guard'
+    required: false
+    default: 'docs/**/*.md'
+  working-directory:
+    description: 'Directory that contains eutelo-docs content'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format forwarded to eutelo guard (--format)'
+    required: false
+    default: 'text'
+  node-version:
+    description: 'Node.js version passed to actions/setup-node'
+    required: false
+    default: '18'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Install Eutelo CLI
+      shell: bash
+      working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
+      run: |
+        set -euo pipefail
+        npm install -g @eutelo/cli
+
+    - name: Run eutelo guard
+      shell: bash
+      working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
+      env:
+        EUTELO_GUARD_API_ENDPOINT: ${{ env.EUTELO_GUARD_API_ENDPOINT }}
+        EUTELO_GUARD_API_KEY: ${{ env.EUTELO_GUARD_API_KEY }}
+        EUTELO_GUARD_MODEL: ${{ env.EUTELO_GUARD_MODEL }}
+      run: |
+        set -euo pipefail
+        eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}
