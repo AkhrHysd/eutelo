@@ -3,6 +3,8 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/infrastructure" },
-    { "path": "./packages/cli" }
+    { "path": "./packages/cli" },
+    { "path": "./packages/eslint-plugin-docs" },
+    { "path": "./packages/biome-doc-lint" }
   ]
 }
