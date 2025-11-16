@@ -2,7 +2,8 @@ import type { FileSystemAdapter } from '@eutelo/infrastructure';
 import { FileSystemAdapter as DefaultFileSystemAdapter } from '@eutelo/infrastructure';
 import { Analyzer } from '../guard/Analyzer.js';
 import { DocumentLoader } from '../guard/DocumentLoader.js';
-import { LLMClient, OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
+import type { LLMClient } from '../guard/LLMClient.js';
+import { OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
 import { PromptBuilder } from '../guard/PromptBuilder.js';
 
 export type GuardServiceDependencies = {
@@ -82,7 +83,8 @@ export class GuardService {
     this.analyzer = new Analyzer();
 
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
-    if (stubMode && stubMode !== 'not-implemented') {
+    const validStubModes = ['success', 'issues', 'warnings', 'connection-error'];
+    if (stubMode && validStubModes.includes(stubMode)) {
       this.llmClient = null;
     } else {
       const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
@@ -109,8 +111,9 @@ export class GuardService {
       };
     }
 
-    const stubMode = process.env.EUTELO_GUARD_STUB_RESULT ?? 'not-implemented';
-    if (stubMode !== 'not-implemented') {
+    const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
+    const validStubModes = ['success', 'issues', 'warnings', 'connection-error'];
+    if (stubMode && validStubModes.includes(stubMode)) {
       return this.runStubMode(documents, stubMode);
     }
 
@@ -231,64 +234,63 @@ export class GuardService {
   private runStubMode(documents: string[], stubMode: string): GuardRunResult {
     const summaryPrefix = `Document guard placeholder processed ${documents.length} document(s).`;
 
-    if (stubMode === 'success') {
-      return {
-        summary: `${summaryPrefix} No issues detected by the stub service.`,
-        issues: [],
-        warnings: [],
-        suggestions: []
-      };
-    }
+    switch (stubMode) {
+      case 'success':
+        return {
+          summary: `${summaryPrefix} No issues detected by the stub service.`,
+          issues: [],
+          warnings: [],
+          suggestions: []
+        };
 
-    if (stubMode === 'issues') {
-      return {
-        summary: `${summaryPrefix} Issues detected by the stub service.`,
-        issues: [
-          {
-            id: 'ISSUE-STUB-1',
-            document: documents[0],
-            message: 'Stub detected a purpose conflict between PRD and BEH.'
+      case 'issues':
+        return {
+          summary: `${summaryPrefix} Issues detected by the stub service.`,
+          issues: [
+            {
+              id: 'ISSUE-STUB-1',
+              document: documents[0],
+              message: 'Stub detected a purpose conflict between PRD and BEH.'
+            }
+          ],
+          warnings: [],
+          suggestions: []
+        };
+
+      case 'warnings':
+        return {
+          summary: `${summaryPrefix} Only warnings detected by the stub service.`,
+          issues: [],
+          warnings: [
+            {
+              id: 'WARN-STUB-1',
+              document: documents[0],
+              message: 'Stub suggests expanding the BEH scenarios to match PRD scope.'
+            }
+          ],
+          suggestions: []
+        };
+
+      case 'connection-error':
+        return {
+          summary: `${summaryPrefix} Failed to reach the LLM backend (stub).`,
+          issues: [],
+          warnings: [],
+          suggestions: [],
+          error: {
+            type: 'connection',
+            message: 'LLM connection failed in stub mode.'
           }
-        ],
-        warnings: [],
-        suggestions: []
-      };
-    }
+        };
 
-    if (stubMode === 'warnings') {
-      return {
-        summary: `${summaryPrefix} Only warnings detected by the stub service.`,
-        issues: [],
-        warnings: [
-          {
-            id: 'WARN-STUB-1',
-            document: documents[0],
-            message: 'Stub suggests expanding the BEH scenarios to match PRD scope.'
-          }
-        ],
-        suggestions: []
-      };
+      default:
+        return {
+          summary: `${summaryPrefix} Unknown stub mode: ${stubMode}.`,
+          issues: [],
+          warnings: [],
+          suggestions: []
+        };
     }
-
-    if (stubMode === 'connection-error') {
-      return {
-        summary: `${summaryPrefix} Failed to reach the LLM backend (stub).`,
-        issues: [],
-        warnings: [],
-        suggestions: [],
-        error: {
-          type: 'connection',
-          message: 'LLM connection failed in stub mode.'
-        }
-      };
-    }
-
-    return {
-      summary: `${summaryPrefix} GuardService is not implemented yet.`,
-      issues: [],
-      warnings: [],
-      suggestions: []
-    };
   }
 }
 
