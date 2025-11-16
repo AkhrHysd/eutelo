@@ -4,7 +4,7 @@ type: task
 feature: EUTELO-CORE
 title: "Eutelo Distribution: 実装タスクリスト"
 owners: ["AkhrHysd"]
-status: draft
+status: closed
 last_updated: "2025-11-13"
 ---
 
