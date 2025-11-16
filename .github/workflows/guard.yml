@@ -1,11 +1,14 @@
 name: Eutelo Guard
 
-description: "Reusable workflow that installs @eutelo/cli and runs eutelo guard"
-
 on:
+  push:
+    paths:
+      - 'docs/**/*.md'
+      - 'docs/**/*.mdx'
   pull_request:
     paths:
-      - 'docs/**'
+      - 'docs/**/*.md'
+      - 'docs/**/*.mdx'
   workflow_call:
     inputs:
       paths:
@@ -39,7 +42,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
+        working-directory: ${{ inputs.working-directory || '.' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,7 +50,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version: ${{ inputs.node-version || '18' }}
           cache: npm
 
       - name: Install Eutelo CLI
@@ -62,4 +65,4 @@ jobs:
           EUTELO_GUARD_MODEL: ${{ secrets.EUTELO_GUARD_MODEL }}
         run: |
           set -euo pipefail
-          eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}
+          eutelo guard ${{ inputs.paths || 'docs/**/*.md' }} --format=${{ inputs.format || 'text' }}
