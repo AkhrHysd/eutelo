@@ -272,23 +272,71 @@ export class GuardService {
         llmResponse: debugMode ? llmResponse.content : undefined
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const isLLMError = error && typeof error === 'object' && 'type' in error;
+      const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
+      
+      // Log detailed error information in debug mode
+      if (debugMode) {
+        console.error('=== Error Details (Debug) ===');
+        console.error('Error type:', typeof error);
+        console.error('Error instanceof Error:', error instanceof Error);
+        if (error instanceof Error) {
+          console.error('Error name:', error.name);
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        } else if (error && typeof error === 'object') {
+          console.error('Error object:', JSON.stringify(error, null, 2));
+        } else {
+          console.error('Error value:', error);
+        }
+        console.error('=== End Error Details ===');
+      }
+
+      let errorMessage = 'Unknown error';
+      let errorType: GuardRunErrorType = 'unknown';
+
+      if (error && typeof error === 'object' && 'type' in error) {
+        // LLMClient error
+        const llmError = error as { type: string; message?: string };
+        errorMessage = llmError.message || 'LLM API error';
+        if (llmError.type === 'authentication') {
+          errorType = 'configuration';
+        } else if (llmError.type === 'connection' || llmError.type === 'rate-limit') {
+          errorType = 'connection';
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message || error.toString();
+        // Check for common error types
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          errorType = 'connection';
+          errorMessage = `Network error: ${error.message}`;
+        } else if (error.name === 'SyntaxError') {
+          errorType = 'connection';
+          errorMessage = `JSON parse error: ${error.message}`;
+        } else if (error.message.includes('timeout') || error.message.includes('aborted')) {
+          errorType = 'connection';
+        } else if (error.name) {
+          errorMessage = `${error.name}: ${error.message}`;
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        // Try to stringify the error for debugging
+        try {
+          errorMessage = `Unexpected error: ${JSON.stringify(error)}`;
+        } catch {
+          errorMessage = `Unexpected error type: ${typeof error}`;
+        }
+      }
 
       return {
-        summary: `Guard execution failed: ${errorMessage}`,
+        summary: `Guard execution failed: ${errorMessage}${debugMode ? ' (Check stderr for details)' : ''}`,
         issues: [],
         warnings: [],
         suggestions: [],
-        error: isLLMError
-          ? {
-              type: (error as { type: string }).type === 'authentication' ? 'configuration' : 'connection',
-              message: errorMessage
-            }
-          : {
-              type: 'unknown',
-              message: errorMessage
-            }
+        error: {
+          type: errorType,
+          message: errorMessage
+        }
       };
     }
   }
