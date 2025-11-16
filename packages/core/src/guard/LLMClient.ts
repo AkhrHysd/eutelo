@@ -72,6 +72,13 @@ export class OpenAICompatibleLLMClient implements LLMClient {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
+        const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
+        if (debugMode) {
+          console.error(`[DEBUG] LLM API Error Response (${response.status}):`, errorText);
+          console.error(`[DEBUG] Request URL:`, url);
+          console.error(`[DEBUG] API Key prefix:`, this.apiKey.substring(0, 10) + '...');
+          console.error(`[DEBUG] Requested model:`, model);
+        }
         throw this.createError(response.status, errorText);
       }
 
@@ -108,8 +115,28 @@ export class OpenAICompatibleLLMClient implements LLMClient {
   }
 
   private createError(status: number, message: string): LLMClientError {
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       return { type: 'authentication', message: 'Authentication failed. Check your API key.' };
+    }
+    if (status === 403) {
+      // Check if it's a model access error
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes('model') && (lowerMessage.includes('access') || lowerMessage.includes('not found'))) {
+        try {
+          const errorObj = JSON.parse(message);
+          const errorMessage = errorObj?.error?.message || message;
+          return { 
+            type: 'unknown', 
+            message: `Model access error: ${errorMessage}. Please check if your project has access to the requested model, or try a different model.` 
+          };
+        } catch {
+          return { 
+            type: 'unknown', 
+            message: `Model access error: ${message}. Please check if your project has access to the requested model, or try a different model.` 
+          };
+        }
+      }
+      return { type: 'authentication', message: 'Authentication failed. Check your API key and permissions.' };
     }
     if (status === 429) {
       return { type: 'rate-limit', message: 'Rate limit exceeded. Please try again later.' };

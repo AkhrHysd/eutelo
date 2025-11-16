@@ -26,6 +26,7 @@
     "@eutelo/distribution": "file:../distribution",
     "@eutelo/core": "file:../core",
     "@eutelo/infrastructure": "file:../infrastructure",
-    "@eutelo/commander": "file:../commander"
+    "@eutelo/commander": "file:../commander",
+    "dotenv": "^16.4.5"
   }
 }

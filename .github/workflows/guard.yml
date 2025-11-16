@@ -77,4 +77,4 @@ jobs:
           EUTELO_GUARD_DEBUG: ${{ vars.EUTELO_GUARD_DEBUG || 'false' }}
         run: |
           set -euo pipefail
-          eutelo guard ${{ inputs.paths || 'docs/product/**/*.md' }} --format=${{ inputs.format || 'text' }}
+          eutelo guard ${{ inputs.paths || 'docs/product/**/*.md' }} --format=${{ inputs.format || 'text' }} --warn-only

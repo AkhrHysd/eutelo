@@ -155,7 +155,16 @@ export class GuardService {
       };
     }
 
+    const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
+    
     try {
+      if (debugMode) {
+        console.error('[DEBUG] Environment variables check:');
+        console.error(`[DEBUG] EUTELO_GUARD_API_ENDPOINT: ${process.env.EUTELO_GUARD_API_ENDPOINT ? 'SET' : 'NOT SET'}`);
+        console.error(`[DEBUG] EUTELO_GUARD_API_KEY: ${process.env.EUTELO_GUARD_API_KEY ? 'SET (' + process.env.EUTELO_GUARD_API_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
+        console.error(`[DEBUG] EUTELO_GUARD_MODEL: ${process.env.EUTELO_GUARD_MODEL || 'NOT SET (using default)'}`);
+      }
+
       const loadResult = await this.documentLoader.loadDocuments(documents);
       
       // If there are errors but we have some valid documents, continue with warnings
@@ -228,16 +237,7 @@ export class GuardService {
         temperature: 0.3
       });
 
-      // Check if debug mode is enabled
-      const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';
-      
-      // Log LLM response to stderr if debug mode is enabled
-      if (debugMode) {
-        console.error('=== LLM Response (Debug) ===');
-        console.error(llmResponse.content);
-        console.error('=== End LLM Response ===');
-      }
-
+      // Note: LLM response logging is handled by CLI layer to avoid duplicate output
       const analysisResult = this.analyzer.analyze(llmResponse.content);
 
       // Combine load warnings with analysis warnings
@@ -300,6 +300,7 @@ export class GuardService {
         errorMessage = llmError.message || 'LLM API error';
         if (llmError.type === 'authentication') {
           errorType = 'configuration';
+          errorMessage = `Authentication failed. Please verify that EUTELO_GUARD_API_KEY is correct and has the necessary permissions. ${llmError.message || ''}`;
         } else if (llmError.type === 'connection' || llmError.type === 'rate-limit') {
           errorType = 'connection';
         }

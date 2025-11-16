@@ -1,6 +1,7 @@
 import { Command } from '@eutelo/commander';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { config } from 'dotenv';
 import {
   FileAlreadyExistsError,
   TemplateNotFoundError,
@@ -19,6 +20,13 @@ import {
   resolveDocsRoot
 } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
+
+// Load .env file from project root (where CLI is executed)
+// This allows users to place .env in their project root directory
+// dotenv.config() will silently continue if the file doesn't exist
+const projectRoot = process.cwd();
+const envPath = path.join(projectRoot, '.env');
+config({ path: envPath });
 
 type InitCliOptions = {
   dryRun?: boolean;

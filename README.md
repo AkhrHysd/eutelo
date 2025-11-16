@@ -154,6 +154,39 @@ pnpm exec eutelo check --ci              # CI向けのJSON出力
 
 実験的なドキュメントガード一貫性チェックを実行します。
 
+**環境変数の設定**
+
+`eutelo guard` コマンドを使用するには、以下の環境変数を設定する必要があります。環境変数は以下のいずれかの方法で設定できます：
+
+1. **`.env`ファイルを使用（推奨）**
+   
+   プロジェクトルートに`.env`ファイルを作成し、以下の変数を設定します：
+
+   ```bash
+   EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   EUTELO_GUARD_API_KEY=your-api-key-here
+   EUTELO_GUARD_MODEL=gpt-4o-mini
+   EUTELO_GUARD_DEBUG=false
+   ```
+
+   `.env.example`ファイルをコピーして`.env`を作成できます：
+
+   ```bash
+   cp .env.example .env
+   # .envファイルを編集してAPIキーを設定
+   ```
+
+2. **環境変数を直接設定**
+
+   ```bash
+   export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   export EUTELO_GUARD_API_KEY=your-api-key-here
+   export EUTELO_GUARD_MODEL=gpt-4o-mini
+   pnpm exec eutelo guard
+   ```
+
+**使用方法**
+
 ```bash
 pnpm exec eutelo guard                           # ガードチェックを実行
 pnpm exec eutelo guard docs/**/*.md             # 指定したドキュメントをチェック
