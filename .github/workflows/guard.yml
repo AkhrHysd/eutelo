@@ -39,6 +39,7 @@ jobs:
   guard:
     name: Run eutelo guard
     runs-on: ubuntu-latest
+    environment: production
     defaults:
       run:
         shell: bash
