@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "bin": {
     "eutelo": "./bin/eutelo.js"
@@ -8,16 +8,24 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "bin",
+    "bin/eutelo.js",
     "dist"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepublishOnly": "node ../../scripts/convert-deps-for-publish.js publish",
+    "postpublish": "node ../../scripts/convert-deps-for-publish.js local"
+  },
   "dependencies": {
     "@eutelo/distribution": "file:../distribution",
     "@eutelo/core": "file:../core",
     "@eutelo/infrastructure": "file:../infrastructure",
-    "commander": "file:../commander"
+    "@eutelo/commander": "file:../commander"
   }
 }

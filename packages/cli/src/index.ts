@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command } from '@eutelo/commander';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import {

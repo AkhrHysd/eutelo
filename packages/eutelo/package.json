@@ -1,0 +1,50 @@
+{
+  "name": "@eutelo/eutelo",
+  "version": "0.1.1",
+  "description": "Eutelo エコシステムの全パッケージをまとめてインストールするメタパッケージ",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eutelo/eutelo.git",
+    "directory": "packages/eutelo"
+  },
+  "keywords": [
+    "eutelo",
+    "documentation",
+    "cli",
+    "lint",
+    "scaffold",
+    "guard"
+  ],
+  "dependencies": {
+    "@eutelo/core": "^0.1.0",
+    "@eutelo/infrastructure": "^0.1.0",
+    "@eutelo/distribution": "^0.1.0",
+    "@eutelo/cli": "^0.1.1",
+    "@eutelo/biome-doc-lint": "^0.1.0",
+    "@eutelo/commander": "^0.0.1",
+    "eslint-plugin-eutelo-docs": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@biomejs/biome": ">=1.9.0",
+    "eslint": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "@biomejs/biome": {
+      "optional": true
+    },
+    "eslint": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
+

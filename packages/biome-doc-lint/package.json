@@ -7,7 +7,9 @@
   "exports": {
     ".": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -15,6 +17,10 @@
     "@biomejs/biome": ">=1.9.0"
   },
   "dependencies": {
-    "@eutelo/core": "^0.1.0"
+    "@eutelo/core": "file:../core"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

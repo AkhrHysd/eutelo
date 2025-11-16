@@ -11,7 +11,14 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "rm -rf packages/*/dist",
-    "test": "npm run build && node --test"
+    "test": "npm run build && node --test",
+    "deps:publish": "node scripts/convert-deps-for-publish.js publish",
+    "deps:local": "node scripts/convert-deps-for-publish.js local",
+    "publish:core": "npm run build && node scripts/convert-deps-for-publish.js publish biome-doc-lint eslint-plugin-docs && node scripts/publish-packages.js core infrastructure distribution commander && node scripts/convert-deps-for-publish.js local biome-doc-lint eslint-plugin-docs",
+    "publish:plugins": "npm run build && node scripts/convert-deps-for-publish.js publish biome-doc-lint eslint-plugin-docs && node scripts/publish-packages.js biome-doc-lint eslint-plugin-docs && node scripts/convert-deps-for-publish.js local biome-doc-lint eslint-plugin-docs",
+    "publish:cli": "npm run build && node scripts/publish-packages.js cli",
+    "publish:meta": "node scripts/publish-packages.js eutelo",
+    "publish:all": "npm run publish:core && npm run publish:plugins && npm run publish:cli && npm run publish:meta"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
