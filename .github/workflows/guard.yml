@@ -1,39 +1,41 @@
 name: Eutelo Guard
 
-on:
-  push:
-    paths:
-      - 'docs/product/**/*.md'
-      - 'docs/product/**/*.mdx'
-  pull_request:
-    paths:
-      - 'docs/product/**/*.md'
-      - 'docs/product/**/*.mdx'
-  workflow_call:
-    inputs:
-      paths:
-        type: string
-        description: "Space-separated file paths or globs to pass to eutelo guard"
-        default: "docs/product/**/*.md"
-      working-directory:
-        type: string
-        description: "Directory in which eutelo guard should run"
-        default: "."
-      format:
-        type: string
-        description: "Output format passed to --format (text or json)"
-        default: "text"
-      node-version:
-        type: string
-        description: "Node.js version supplied to actions/setup-node"
-        default: "18"
-    secrets:
-      EUTELO_GUARD_API_ENDPOINT:
-        required: true
-      EUTELO_GUARD_API_KEY:
-        required: true
-      EUTELO_GUARD_MODEL:
-        required: false
+# Workflow temporarily disabled
+on: {}
+# on:
+#   push:
+#     paths:
+#       - 'docs/product/**/*.md'
+#       - 'docs/product/**/*.mdx'
+#   pull_request:
+#     paths:
+#       - 'docs/product/**/*.md'
+#       - 'docs/product/**/*.mdx'
+#   workflow_call:
+#     inputs:
+#       paths:
+#         type: string
+#         description: "Space-separated file paths or globs to pass to eutelo guard"
+#         default: "docs/product/**/*.md"
+#       working-directory:
+#         type: string
+#         description: "Directory in which eutelo guard should run"
+#         default: "."
+#       format:
+#         type: string
+#         description: "Output format passed to --format (text or json)"
+#         default: "text"
+#       node-version:
+#         type: string
+#         description: "Node.js version supplied to actions/setup-node"
+#         default: "18"
+#     secrets:
+#       EUTELO_GUARD_API_ENDPOINT:
+#         required: true
+#       EUTELO_GUARD_API_KEY:
+#         required: true
+#       EUTELO_GUARD_MODEL:
+#         required: false
 
 jobs:
   guard:
