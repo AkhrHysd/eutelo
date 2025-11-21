@@ -31,12 +31,12 @@ test('guard command reports the processed document count in its summary', () => 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command falls back to the placeholder implementation message', () => {
+test('guard command reports configuration requirements when not set up', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
   const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /guardservice is not implemented yet/i);
+  assert.equal(result.status, 3, result.stderr);
+  assert.match(result.stdout, /environment variables are missing/i);
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });

@@ -1,0 +1,101 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { GraphService } from '../dist/index.js';
+
+function writeDoc(root, relativePath, frontmatterLines, body = '# Body') {
+  const target = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const frontmatter = ['---', ...frontmatterLines, '---', '', body, ''].join('\n');
+  fs.writeFileSync(target, frontmatter, 'utf8');
+  return target;
+}
+
+function setupWorkspace(builder) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-graph-'));
+  builder(cwd);
+  return cwd;
+}
+
+function cleanup(dirPath) {
+  fs.rmSync(dirPath, { recursive: true, force: true });
+}
+
+test('GraphService builds graph with parent/child relationships', async () => {
+  const cwd = setupWorkspace((root) => {
+    const docsRoot = path.join(root, 'eutelo-docs');
+    writeDoc(path.join(docsRoot, 'product/features/AUTH'), 'PRD-AUTH.md', [
+      'id: PRD-AUTH',
+      'type: prd',
+      'feature: AUTH',
+      'title: Auth Spec',
+      'purpose: Define auth',
+      'parent: PRD-EUTELO-CORE'
+    ]);
+    writeDoc(path.join(docsRoot, 'product/features/AUTH'), 'BEH-AUTH.md', [
+      'id: BEH-AUTH',
+      'type: beh',
+      'feature: AUTH',
+      'title: Auth Behavior',
+      'purpose: Observe auth',
+      'parent: PRD-AUTH'
+    ]);
+  });
+
+  const service = new GraphService();
+  try {
+    const graph = await service.buildGraph({ cwd });
+    assert.equal(graph.nodes.length, 2);
+    assert.equal(graph.edges.length, 1);
+    const prdNode = graph.nodes.find((node) => node.id === 'PRD-AUTH');
+    assert.ok(prdNode, 'PRD node should exist');
+    const behNode = graph.nodes.find((node) => node.id === 'BEH-AUTH');
+    assert.ok(behNode, 'BEH node should exist');
+    assert.ok(graph.integrity.danglingEdges.some((edge) => edge.to === 'PRD-AUTH'));
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('GraphService describeNode and impact traverse neighbors', async () => {
+  const cwd = setupWorkspace((root) => {
+    const docs = path.join(root, 'eutelo-docs');
+    writeDoc(path.join(docs, 'product/features/AUTH'), 'PRD-AUTH.md', [
+      'id: PRD-AUTH',
+      'type: prd',
+      'feature: AUTH',
+      'purpose: Parent doc',
+      'parent: PRD-EUTELO-CORE'
+    ]);
+    writeDoc(path.join(docs, 'product/features/AUTH'), 'BEH-AUTH.md', [
+      'id: BEH-AUTH',
+      'type: beh',
+      'feature: AUTH',
+      'purpose: Behavior',
+      'parent: PRD-AUTH'
+    ]);
+    writeDoc(path.join(docs, 'architecture/design/AUTH'), 'DSG-AUTH.md', [
+      'id: DSG-AUTH',
+      'type: dsg',
+      'feature: AUTH',
+      'purpose: Design',
+      'parent: PRD-AUTH'
+    ]);
+  });
+
+  const service = new GraphService();
+  try {
+    const detail = await service.describeNode({ cwd, documentIdOrPath: 'PRD-AUTH' });
+    assert.equal(detail.children.length, 2);
+    const childIds = detail.children.map((edge) => edge.to).sort();
+    assert.deepEqual(childIds, ['BEH-AUTH', 'DSG-AUTH']);
+
+    const impact = await service.analyzeImpact({ cwd, documentIdOrPath: 'BEH-AUTH', impact: { maxDepth: 2 } });
+    assert.equal(impact.node.id, 'BEH-AUTH');
+    assert.ok(impact.findings.some((entry) => entry.id === 'PRD-AUTH'));
+  } finally {
+    cleanup(cwd);
+  }
+});

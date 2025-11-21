@@ -62,3 +62,21 @@ export type { AnalyzeStructureOptions, StructureExpectation } from './doc-lint/s
 export { RuleEngine } from './doc-lint/rule-engine.js';
 export type { DocLintIssue, LintResult, LintTarget, RuleEngineOptions } from './doc-lint/rule-engine.js';
 export { resolveDocsRoot } from './constants/docsRoot.js';
+export {
+  GraphService,
+  createGraphService
+} from './services/GraphService.js';
+export type {
+  BuildGraphOptions as GraphBuildOptions,
+  GraphSummary,
+  ImpactAnalysisResult,
+  NodeNeighborhood
+} from './services/GraphService.js';
+export { GraphSerializer } from './graph/GraphSerializer.js';
+export type {
+  DocumentGraph,
+  GraphEdge,
+  GraphNode,
+  GraphRelationType,
+  ImpactFinding
+} from './graph/types.js';

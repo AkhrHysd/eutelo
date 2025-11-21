@@ -1,4 +1,5 @@
 import { Command } from '@eutelo/commander';
+import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { config } from 'dotenv';
@@ -10,6 +11,8 @@ import {
   createScaffoldService,
   createValidationService,
   createGuardService,
+  createGraphService,
+  GraphSerializer,
   type DocumentType,
   type SyncOptions,
   CHECK_EXIT_CODES,
@@ -54,6 +57,15 @@ type GuardCliOptions = {
   format?: string;
   failOnError?: boolean;
   warnOnly?: boolean;
+};
+
+type GraphBuildCliOptions = {
+  format?: string;
+  output?: string;
+};
+
+type GraphImpactCliOptions = {
+  depth?: string;
 };
 
 function formatList(items: string[]): string {
@@ -232,6 +244,180 @@ async function runGuardCommand(
   process.exitCode = determineGuardExitCode(result, { warnOnly, failOnError });
 }
 
+type GraphOutputFormat = 'json' | 'mermaid';
+
+async function runGraphBuildCommand(
+  graphService: ReturnType<typeof createGraphService>,
+  argv: string[]
+): Promise<void> {
+  const format = normalizeGraphFormat(resolveFormatArgument(argv));
+  const outputValue = resolveOptionValue(argv, '--output')?.trim();
+  const graph = await graphService.buildGraph({ cwd: process.cwd() });
+  const payload = GraphSerializer.serialize(graph, format, { maxEdges: 400 });
+
+  const wroteToFile = Boolean(outputValue);
+  if (wroteToFile && outputValue) {
+    const absoluteOutput = path.resolve(process.cwd(), outputValue);
+    await fs.mkdir(path.dirname(absoluteOutput), { recursive: true });
+    await fs.writeFile(absoluteOutput, payload);
+    process.stdout.write(`Graph exported to ${absoluteOutput}\n`);
+  } else {
+    process.stdout.write(format === 'json' ? `${payload}\n` : payload);
+  }
+
+  renderGraphWarnings(graph.errors);
+  const summaryStream = format === 'json' && !wroteToFile ? process.stderr : process.stdout;
+  summaryStream.write(`Nodes: ${graph.stats.nodeCount}, edges: ${graph.stats.edgeCount}\n`);
+  if (graph.integrity.orphanNodeIds.length > 0) {
+    summaryStream.write(`Orphan nodes: ${graph.integrity.orphanNodeIds.slice(0, 5).join(', ')}\n`);
+  }
+  if (graph.integrity.danglingEdges.length > 0) {
+    summaryStream.write(`Dangling edges: ${graph.integrity.danglingEdges.length}\n`);
+  }
+}
+
+async function runGraphShowCommand(
+  graphService: ReturnType<typeof createGraphService>,
+  documentId: string
+): Promise<void> {
+  const result = await graphService.describeNode({ cwd: process.cwd(), documentIdOrPath: documentId });
+  process.stdout.write(`Document: ${result.node.id} (${result.node.type})\n`);
+  process.stdout.write(`Path: ${result.node.path}\n`);
+  if (result.node.feature) {
+    process.stdout.write(`Feature: ${result.node.feature}\n`);
+  }
+  if (result.node.tags.length > 0) {
+    process.stdout.write(`Tags: ${result.node.tags.join(', ')}\n`);
+  }
+
+  printEdgeList('Parents', result.parents, (edge) => edge.from);
+  printEdgeList('Children', result.children, (edge) => edge.to);
+  printEdgeList('Related', result.related, (edge) => edge.to);
+  printEdgeList('Mentions', result.mentions, (edge) => edge.to);
+  printEdgeList('Mentioned By', result.mentionedBy, (edge) => edge.from);
+}
+
+async function runGraphImpactCommand(
+  graphService: ReturnType<typeof createGraphService>,
+  documentId: string,
+  argv: string[]
+): Promise<void> {
+  const depthValue = resolveOptionValue(argv, '--depth');
+  const depth = depthValue ? Number.parseInt(depthValue, 10) : undefined;
+  const result = await graphService.analyzeImpact({
+    cwd: process.cwd(),
+    documentIdOrPath: documentId,
+    impact: depth && Number.isFinite(depth) ? { maxDepth: depth } : undefined
+  });
+
+  process.stdout.write(`Impact radius from ${result.node.id}\n`);
+  if (result.findings.length === 0) {
+    process.stdout.write('No connected documents were found.\n');
+    return;
+  }
+
+  for (const finding of result.findings) {
+    process.stdout.write(
+      `  hop=${finding.hop} [${finding.priority}] ${finding.id} (${finding.direction} via ${finding.via})\n`
+    );
+  }
+}
+
+async function runGraphSummaryCommand(graphService: ReturnType<typeof createGraphService>): Promise<void> {
+  const summary = await graphService.summarize({ cwd: process.cwd() });
+  const graph = summary.graph;
+  process.stdout.write(`Nodes: ${graph.stats.nodeCount}\n`);
+  process.stdout.write(`Edges: ${graph.stats.edgeCount}\n`);
+
+  process.stdout.write('By type:\n');
+  for (const [type, count] of Object.entries(graph.stats.byType)) {
+    process.stdout.write(`  - ${type}: ${count}\n`);
+  }
+
+  if (summary.topFeatures.length > 0) {
+    process.stdout.write('Top features:\n');
+    for (const feature of summary.topFeatures) {
+      process.stdout.write(`  - ${feature.feature}: ${feature.count}\n`);
+    }
+  }
+
+  if (graph.integrity.orphanNodeIds.length > 0) {
+    process.stdout.write(`Orphan nodes (${graph.integrity.orphanNodeIds.length}):\n`);
+    for (const orphan of graph.integrity.orphanNodeIds.slice(0, 10)) {
+      process.stdout.write(`  - ${orphan}\n`);
+    }
+  } else {
+    process.stdout.write('No orphan nodes detected.\n');
+  }
+
+  if (graph.integrity.danglingEdges.length > 0) {
+    process.stdout.write(`Dangling references (${graph.integrity.danglingEdges.length}):\n`);
+    for (const edge of graph.integrity.danglingEdges.slice(0, 5)) {
+      process.stdout.write(`  - ${edge.from} -> ${edge.to} (${edge.relation})\n`);
+    }
+  }
+
+  renderGraphWarnings(graph.errors);
+}
+
+function normalizeGraphFormat(value?: string | boolean): GraphOutputFormat {
+  if (!value || typeof value !== 'string') {
+    return 'json';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'json' || normalized === 'mermaid') {
+    return normalized;
+  }
+  throw new Error(`Invalid --format value: ${value}`);
+}
+
+function resolveOptionValue(argv: string[], optionName: string): string | undefined {
+  if (!Array.isArray(argv)) {
+    return undefined;
+  }
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith('--')) {
+      continue;
+    }
+    if (token.startsWith(`${optionName}=`)) {
+      const [, value] = token.split('=');
+      return value;
+    }
+    if (token === optionName && index + 1 < argv.length) {
+      const next = argv[index + 1];
+      if (next && !next.startsWith('--')) {
+        return next;
+      }
+    }
+  }
+  return undefined;
+}
+
+function renderGraphWarnings(errors: { path: string; message: string }[]): void {
+  if (!errors || errors.length === 0) {
+    return;
+  }
+  process.stderr.write('Warnings while building graph:\n');
+  for (const entry of errors.slice(0, 10)) {
+    process.stderr.write(`  - ${entry.path}: ${entry.message}\n`);
+  }
+  if (errors.length > 10) {
+    process.stderr.write(`  ... ${errors.length - 10} more warnings\n`);
+  }
+}
+
+function printEdgeList(label: string, edges: { from: string; to: string }[], selector: (edge: any) => string) {
+  if (!edges || edges.length === 0) {
+    process.stdout.write(`${label}: (none)\n`);
+    return;
+  }
+  process.stdout.write(`${label}:\n`);
+  for (const edge of edges) {
+    process.stdout.write(`  - ${selector(edge)}\n`);
+  }
+}
+
 function handleCommandError(error: unknown): void {
   if (error instanceof FileAlreadyExistsError) {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
@@ -252,6 +438,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
   const validationService = createValidationService({ fileSystemAdapter });
   const guardService = createGuardService();
+  const graphService = createGraphService({ fileSystemAdapter });
   const ruleEngine = new RuleEngine({ docsRoot: resolveDocsRoot() });
 
   const program = new Command();
@@ -270,6 +457,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     });
 
   const add = program.command('add').description('Generate documentation from templates');
+  const graph = program.command('graph').description('Inspect the document dependency graph');
 
   program
     .command('lint [paths...]')
@@ -406,6 +594,53 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .action(async (options: GuardCliOptions = {}) => {
       try {
         await runGuardCommand(guardService, [], options, argv);
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  graph
+    .command('build')
+    .description('Scan eutelo-docs and output the document graph')
+    .option('--format <format>', 'Output format (json or mermaid)')
+    .option('--output <file>', 'Write the graph to a file')
+    .action(async () => {
+      try {
+        await runGraphBuildCommand(graphService, argv);
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  graph
+    .command('show <documentId>')
+    .description('Display parents, children, and related nodes for a document')
+    .action(async (documentId: string) => {
+      try {
+        await runGraphShowCommand(graphService, documentId);
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  graph
+    .command('impact <documentId>')
+    .description('List 1-hop / 2-hop dependencies for a document')
+    .option('--depth <n>', 'Search depth (default: 3)')
+    .action(async (documentId: string) => {
+      try {
+        await runGraphImpactCommand(graphService, documentId, argv);
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  graph
+    .command('summary')
+    .description('Show graph-wide statistics and orphan nodes')
+    .action(async () => {
+      try {
+        await runGraphSummaryCommand(graphService);
       } catch (error) {
         handleCommandError(error);
       }
