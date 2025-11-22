@@ -80,3 +80,23 @@ export type {
   GraphRelationType,
   ImpactFinding
 } from './graph/types.js';
+export {
+  loadConfig,
+  defineConfig
+} from './config/index.js';
+export type {
+  EuteloConfig,
+  EuteloConfigResolved,
+  ConfigResolutionMeta,
+  ConfigResolutionLayerMeta,
+  FrontmatterSchemaConfig,
+  FrontmatterFieldSchema,
+  GuardPromptConfig,
+  ScaffoldTemplateConfig
+} from './config/types.js';
+export {
+  ConfigError,
+  ConfigFileNotFoundError,
+  ConfigParseError,
+  ConfigValidationError
+} from './config/errors.js';

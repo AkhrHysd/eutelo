@@ -34,6 +34,7 @@ npm install @eutelo/distribution
 ## CLI コマンド
 
 > **注意**: CLIコマンドは以下のいずれかの方法で実行してください。
+> ほとんどのコマンドは `--config <path>` オプションを受け取り、特定の `eutelo.config.*` を参照できます。オプションを省略するとプロジェクトルートを自動検出します。
 
 ### 実行方法
 
@@ -193,6 +194,16 @@ pnpm exec eutelo guard docs/**/*.md             # 指定したドキュメント
 pnpm exec eutelo guard --format json             # JSON形式で出力
 pnpm exec eutelo guard --warn-only               # エラーでも終了コード2を返さない
 pnpm exec eutelo guard --fail-on-error           # 問題検出時に終了コード2を返す（デフォルト）
+```
+
+### `eutelo config inspect`
+
+`eutelo.config.*` と preset を解決し、マージ後の設定を確認します。
+
+```bash
+pnpm exec eutelo config inspect                         # プロジェクトルートの設定を解決
+pnpm exec eutelo config inspect --config ./eutelo.config.yaml
+pnpm exec eutelo config inspect --format json           # JSON 形式で出力
 ```
 
 ## 開発用コマンド

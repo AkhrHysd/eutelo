@@ -20,8 +20,11 @@ import {
   type GuardRunResult,
   type GuardOutputFormat,
   RuleEngine,
-  resolveDocsRoot
+  resolveDocsRoot,
+  loadConfig,
+  ConfigError
 } from '@eutelo/core';
+import type { EuteloConfigResolved } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
 // Load .env file from project root (where CLI is executed)
@@ -67,6 +70,47 @@ type GraphBuildCliOptions = {
 type GraphImpactCliOptions = {
   depth?: string;
 };
+
+type ConfigInspectOptions = {
+  config?: string;
+  format?: string;
+};
+
+type ConfigCacheEntry = {
+  key: string;
+  promise: Promise<EuteloConfigResolved>;
+};
+
+const CONFIG_CACHE_AUTO_KEY = '__auto__';
+let configCacheEntry: ConfigCacheEntry | null = null;
+
+function resolveConfigCacheKey(configFile?: string): string {
+  if (!configFile) {
+    return CONFIG_CACHE_AUTO_KEY;
+  }
+  return path.resolve(process.cwd(), configFile);
+}
+
+async function getResolvedConfigCached(configFile?: string): Promise<EuteloConfigResolved> {
+  const cacheKey = resolveConfigCacheKey(configFile);
+  if (!configCacheEntry || configCacheEntry.key !== cacheKey) {
+    const absolutePath = configFile ? cacheKey : undefined;
+    configCacheEntry = {
+      key: cacheKey,
+      promise: loadConfig({ cwd: process.cwd(), configFile: absolutePath })
+    };
+  }
+  return configCacheEntry.promise;
+}
+
+async function withConfig<T>(
+  configFile: string | undefined,
+  fn: (config: EuteloConfigResolved) => Promise<T>
+): Promise<T> {
+  const config = await getResolvedConfigCached(configFile);
+  return fn(config);
+}
+
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
@@ -185,9 +229,12 @@ async function runLintCommand(
   ruleEngine: RuleEngine,
   fileSystemAdapter: FileSystemAdapter,
   options: LintCliOptions,
-  argv: string[] = process.argv
+  argv: string[] = process.argv,
+  docsRootOverride?: string
 ) {
-  const docsRoot = path.resolve(process.cwd(), resolveDocsRoot());
+  const docsRoot = docsRootOverride
+    ? path.resolve(process.cwd(), docsRootOverride)
+    : path.resolve(process.cwd(), resolveDocsRoot());
   const targetPaths =
     options.paths && options.paths.length > 0
       ? options.paths.map((entry) => path.resolve(process.cwd(), entry))
@@ -242,6 +289,91 @@ async function runGuardCommand(
 
   renderGuardResult(result, format);
   process.exitCode = determineGuardExitCode(result, { warnOnly, failOnError });
+}
+
+async function runConfigInspect(options: ConfigInspectOptions, argv: string[]): Promise<void> {
+  const format = normalizeConfigInspectFormat(resolveFormatArgument(argv) ?? options.format);
+  const explicitPath = typeof options.config === 'string' ? options.config : undefined;
+  const argvPath = resolveOptionValue(argv, '--config');
+  const configPath = explicitPath ?? argvPath;
+  const absoluteConfigPath = configPath ? path.resolve(process.cwd(), configPath) : undefined;
+  const resolved = await loadConfig({
+    cwd: process.cwd(),
+    configFile: absoluteConfigPath
+  });
+
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(resolved, null, 2)}\n`);
+    return;
+  }
+
+  process.stdout.write(renderConfigInspection(resolved));
+}
+
+function normalizeConfigInspectFormat(value?: string | boolean): 'text' | 'json' {
+  if (!value || typeof value !== 'string') {
+    return 'text';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'json' || normalized === 'text') {
+    return normalized;
+  }
+  throw new Error(`Invalid --format value: ${value}`);
+}
+
+function renderConfigInspection(config: EuteloConfigResolved): string {
+  const scaffoldEntries = Object.entries(config.scaffold ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+  const guardEntries = Object.entries(config.guard?.prompts ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+  const schemaEntries = [...(config.frontmatter?.schemas ?? [])].sort((a, b) =>
+    a.kind.localeCompare(b.kind)
+  );
+
+  const lines: string[] = [];
+  lines.push(`Config file: ${config.sources.configPath ?? '(auto-detected)'}`);
+  lines.push(`Working directory: ${config.sources.cwd}`);
+  lines.push('Presets:');
+  if (config.presets.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const preset of config.presets) {
+      lines.push(`  - ${preset}`);
+    }
+  }
+
+  lines.push('Scaffold entries:');
+  if (scaffoldEntries.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const [, entry] of scaffoldEntries) {
+      lines.push(`  - ${entry.id}: ${entry.path} (template: ${entry.template})`);
+    }
+  }
+
+  lines.push('Frontmatter schemas:');
+  if (schemaEntries.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const schema of schemaEntries) {
+      lines.push(`  - ${schema.kind}: ${Object.keys(schema.fields).length} field(s)`);
+    }
+  }
+
+  lines.push('Guard prompts:');
+  if (guardEntries.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const [, prompt] of guardEntries) {
+      const modelSegment = prompt.model ? ` model=${prompt.model}` : '';
+      lines.push(`  - ${prompt.id}: ${prompt.templatePath}${modelSegment}`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
 }
 
 type GraphOutputFormat = 'json' | 'mermaid';
@@ -423,6 +555,8 @@ function handleCommandError(error: unknown): void {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
   } else if (error instanceof TemplateNotFoundError) {
     process.stderr.write(`Error: Template not found (${error.templateName})\n`);
+  } else if (error instanceof ConfigError) {
+    process.stderr.write(`Error: ${error.message}\n`);
   } else if (error instanceof Error) {
     process.stderr.write(`Error: ${error.message}\n`);
   } else {
@@ -434,12 +568,7 @@ function handleCommandError(error: unknown): void {
 export async function runCli(argv: string[] = process.argv): Promise<void> {
   const fileSystemAdapter = new FileSystemAdapter();
   const templateService = new TemplateService({ templateRoot: resolveTemplateRoot() });
-  const scaffoldService = createScaffoldService({ fileSystemAdapter, templateService });
-  const addDocumentService = createAddDocumentService({ fileSystemAdapter, templateService });
-  const validationService = createValidationService({ fileSystemAdapter });
   const guardService = createGuardService();
-  const graphService = createGraphService({ fileSystemAdapter });
-  const ruleEngine = new RuleEngine({ docsRoot: resolveDocsRoot() });
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');
@@ -448,9 +577,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .command('init')
     .description('Initialize the eutelo-docs structure in the current directory')
     .option('--dry-run', 'Show directories without writing to disk')
-    .action(async (options: InitCliOptions) => {
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: InitCliOptions = {}) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runInitCommand(scaffoldService, options);
+        await withConfig(configPath, async (config) => {
+          const scaffoldService = createScaffoldService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await runInitCommand(scaffoldService, options);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -458,14 +596,20 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
 
   const add = program.command('add').description('Generate documentation from templates');
   const graph = program.command('graph').description('Inspect the document dependency graph');
+  const configCommand = program.command('config').description('Inspect or debug Eutelo configuration');
 
   program
     .command('lint [paths...]')
     .description('Run doc-lint across documentation files')
     .option('--format <format>', 'Output format (text or json)')
-    .action(async (paths: string[], options: LintCliOptions) => {
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (paths: string[], options: LintCliOptions = {}) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths });
+        await withConfig(configPath, async (config) => {
+          const ruleEngine = new RuleEngine({ docsRoot: config.docsRoot });
+          await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths }, argv, config.docsRoot);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -474,9 +618,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('prd <feature>')
     .description('Generate a PRD document for the given feature')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'prd', { feature });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'prd', { feature });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -485,9 +638,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('beh <feature>')
     .description('Generate a BEH document for the given feature')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'beh', { feature });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'beh', { feature });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -496,9 +658,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('sub-prd <feature> <sub>')
     .description('Generate a SUB-PRD document for the given feature and sub-feature')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string, sub: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'sub-prd', { feature, sub });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'sub-prd', { feature, sub });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -507,9 +678,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('sub-beh <feature> <sub>')
     .description('Generate a sub BEH document linked to a SUB-PRD')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string, sub: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'sub-beh', { feature, sub });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'sub-beh', { feature, sub });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -518,9 +698,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('dsg <feature>')
     .description('Generate a DSG document for the given feature')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'dsg', { feature });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'dsg', { feature });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -529,9 +718,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('adr <feature>')
     .description('Generate an ADR document for the given feature with sequential numbering')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'adr', { feature });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'adr', { feature });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -540,9 +738,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('task <name>')
     .description('Generate a TASK plan document')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (name: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'task', { name });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'task', { name });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -551,9 +758,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   add
     .command('ops <name>')
     .description('Generate an OPS runbook document')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (name: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await executeAddDocument(addDocumentService, 'ops', { name });
+        await withConfig(configPath, async (config) => {
+          const addDocumentService = createAddDocumentService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await executeAddDocument(addDocumentService, 'ops', { name });
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -563,9 +779,18 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .command('sync')
     .description('Generate any missing documentation artifacts based on the current structure')
     .option('--check-only', 'Report missing documents without writing to disk')
-    .action(async (options: SyncCliOptions) => {
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: SyncCliOptions = {}) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runSyncCommand(scaffoldService, options);
+        await withConfig(configPath, async (config) => {
+          const scaffoldService = createScaffoldService({
+            fileSystemAdapter,
+            templateService,
+            docsRoot: config.docsRoot
+          });
+          await runSyncCommand(scaffoldService, options);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -576,9 +801,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Validate eutelo-docs structure and frontmatter consistency')
     .option('--format <format>', 'Output format: text or json')
     .option('--ci', 'Emit CI-friendly JSON output')
-    .action(async (options: CheckCliOptions) => {
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: CheckCliOptions = {}) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runCheckCommand(validationService, options, argv);
+        await withConfig(configPath, async (config) => {
+          const validationService = createValidationService({
+            fileSystemAdapter,
+            docsRoot: config.docsRoot
+          });
+          await runCheckCommand(validationService, options, argv);
+        });
       } catch (error) {
         handleCommandError(error);
         process.exitCode = CHECK_EXIT_CODES.ERROR;
@@ -604,9 +837,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Scan eutelo-docs and output the document graph')
     .option('--format <format>', 'Output format (json or mermaid)')
     .option('--output <file>', 'Write the graph to a file')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async () => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runGraphBuildCommand(graphService, argv);
+        await withConfig(configPath, async (config) => {
+          const graphService = createGraphService({
+            fileSystemAdapter,
+            docsRoot: config.docsRoot
+          });
+          await runGraphBuildCommand(graphService, argv);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -615,9 +856,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   graph
     .command('show <documentId>')
     .description('Display parents, children, and related nodes for a document')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (documentId: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runGraphShowCommand(graphService, documentId);
+        await withConfig(configPath, async (config) => {
+          const graphService = createGraphService({
+            fileSystemAdapter,
+            docsRoot: config.docsRoot
+          });
+          await runGraphShowCommand(graphService, documentId);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -627,9 +876,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .command('impact <documentId>')
     .description('List 1-hop / 2-hop dependencies for a document')
     .option('--depth <n>', 'Search depth (default: 3)')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (documentId: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runGraphImpactCommand(graphService, documentId, argv);
+        await withConfig(configPath, async (config) => {
+          const graphService = createGraphService({
+            fileSystemAdapter,
+            docsRoot: config.docsRoot
+          });
+          await runGraphImpactCommand(graphService, documentId, argv);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -638,9 +895,30 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   graph
     .command('summary')
     .description('Show graph-wide statistics and orphan nodes')
+    .option('--config <path>', 'Path to eutelo.config.*')
     .action(async () => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runGraphSummaryCommand(graphService);
+        await withConfig(configPath, async (config) => {
+          const graphService = createGraphService({
+            fileSystemAdapter,
+            docsRoot: config.docsRoot
+          });
+          await runGraphSummaryCommand(graphService);
+        });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  configCommand
+    .command('inspect')
+    .description('Resolve eutelo.config.* and presets, showing merged values')
+    .option('--config <path>', 'Explicit config file path')
+    .option('--format <format>', 'Output format (text or json)')
+    .action(async (options: ConfigInspectOptions) => {
+      try {
+        await runConfigInspect(options, argv);
       } catch (error) {
         handleCommandError(error);
       }
