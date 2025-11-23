@@ -1,16 +1,4 @@
-export type DocumentKind =
-  | 'prd'
-  | 'sub-prd'
-  | 'beh'
-  | 'sub-beh'
-  | 'dsg'
-  | 'adr'
-  | 'task'
-  | 'ops'
-  | 'ops-runbook'
-  | 'principle'
-  | 'guideline'
-  | 'unknown';
+export type DocumentKind = string;
 
 export type GraphRelationType = 'parent' | 'related' | 'mentions';
 

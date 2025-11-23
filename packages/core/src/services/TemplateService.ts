@@ -5,6 +5,7 @@ type NodeFsError = Error & { code?: string };
 
 export type TemplateServiceOptions = {
   templateRoot: string;
+  overrideRoot?: string;
 };
 
 export type TemplateVariables = Record<string, string>;
@@ -23,13 +24,15 @@ export class TemplateNotFoundError extends Error {
 
 export class TemplateService {
   private readonly templateRoot: string;
+  private readonly overrideRoot?: string;
 
-  constructor({ templateRoot }: TemplateServiceOptions) {
+  constructor({ templateRoot, overrideRoot }: TemplateServiceOptions) {
     this.templateRoot = templateRoot;
+    this.overrideRoot = overrideRoot;
   }
 
   async render(templateName: string, variables: TemplateVariables): Promise<string> {
-    const templatePath = path.resolve(this.templateRoot, templateName);
+    const templatePath = this.resolveTemplatePath(templateName);
     let content: string;
     try {
       content = await fs.readFile(templatePath, 'utf8');
@@ -52,5 +55,13 @@ export class TemplateService {
       output = output.replace(pattern, normalizedValue);
     }
     return output;
+  }
+
+  private resolveTemplatePath(templateName: string): string {
+    if (this.overrideRoot) {
+      const fileName = path.basename(templateName);
+      return path.resolve(this.overrideRoot, fileName);
+    }
+    return path.resolve(this.templateRoot, templateName);
   }
 }

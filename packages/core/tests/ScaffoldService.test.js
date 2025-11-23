@@ -5,6 +5,19 @@ import path from 'node:path';
 import test from 'node:test';
 import { REQUIRED_DIRECTORIES, ScaffoldService } from '../dist/index.js';
 
+const DEFAULT_SCAFFOLD = {
+  'document.prd': {
+    id: 'document.prd',
+    kind: 'prd',
+    path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+    template: '_template-prd.md',
+    variables: {
+      ID: 'PRD-{FEATURE}',
+      PARENT: 'PRINCIPLE-GLOBAL'
+    }
+  }
+};
+
 class MemoryFileSystemAdapter {
   constructor({ directories = new Set(), files = new Map() } = {}) {
     this.directories = directories;
@@ -63,7 +76,7 @@ class StubTemplateService {
 
 test('computeInitPlan lists every required directory when nothing exists', async () => {
   const adapter = new MemoryFileSystemAdapter();
-  const service = new ScaffoldService({ fileSystemAdapter: adapter });
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, scaffold: DEFAULT_SCAFFOLD });
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
 
   const plan = await service.computeInitPlan({ cwd });
@@ -80,7 +93,7 @@ test('computeInitPlan skips directories that already exist', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
   const existingPath = path.resolve(cwd, 'eutelo-docs');
   const adapter = new MemoryFileSystemAdapter({ directories: new Set([existingPath]) });
-  const service = new ScaffoldService({ fileSystemAdapter: adapter });
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, scaffold: DEFAULT_SCAFFOLD });
 
   const plan = await service.computeInitPlan({ cwd });
 
@@ -92,7 +105,7 @@ test('computeInitPlan skips directories that already exist', async () => {
 
 test('init respects dryRun and does not call mkdirp', async () => {
   const adapter = new MemoryFileSystemAdapter();
-  const service = new ScaffoldService({ fileSystemAdapter: adapter });
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, scaffold: DEFAULT_SCAFFOLD });
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
 
   const result = await service.init({ cwd, dryRun: true });
@@ -109,7 +122,7 @@ test('init creates missing directories and reports skipped ones', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-core-unit-'));
   const existingPath = path.resolve(cwd, 'eutelo-docs');
   const adapter = new MemoryFileSystemAdapter({ directories: new Set([existingPath]) });
-  const service = new ScaffoldService({ fileSystemAdapter: adapter });
+  const service = new ScaffoldService({ fileSystemAdapter: adapter, scaffold: DEFAULT_SCAFFOLD });
 
   const result = await service.init({ cwd, dryRun: false });
 
@@ -126,7 +139,11 @@ test('computeSyncPlan identifies missing PRDs for discovered features', async ()
   const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'AUTH');
   const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
   const templateService = new StubTemplateService();
-  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    templateService,
+    scaffold: DEFAULT_SCAFFOLD
+  });
 
   const plan = await service.computeSyncPlan({ cwd });
 
@@ -143,7 +160,11 @@ test('sync writes missing PRDs when not running in check-only mode', async () =>
   const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'PAYMENTS');
   const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
   const templateService = new StubTemplateService();
-  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    templateService,
+    scaffold: DEFAULT_SCAFFOLD
+  });
 
   const result = await service.sync({ cwd, checkOnly: false });
 
@@ -164,7 +185,11 @@ test('sync in check-only mode reports plan without writing files', async () => {
   const featureDir = path.join(cwd, 'eutelo-docs', 'product', 'features', 'DOCS');
   const adapter = new MemoryFileSystemAdapter({ directories: new Set([featureDir]) });
   const templateService = new StubTemplateService();
-  const service = new ScaffoldService({ fileSystemAdapter: adapter, templateService });
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    templateService,
+    scaffold: DEFAULT_SCAFFOLD
+  });
 
   const result = await service.sync({ cwd, checkOnly: true });
 

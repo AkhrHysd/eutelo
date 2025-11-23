@@ -111,19 +111,30 @@ async function withConfig<T>(
   return fn(config);
 }
 
+function resolveDocsRootFromConfig(config: EuteloConfigResolved): string {
+  const override = process.env.EUTELO_DOCS_ROOT;
+  if (override && override.trim().length > 0) {
+    return override.trim();
+  }
+  return config.docsRoot;
+}
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
 }
 
 function resolveTemplateRoot(): string {
+  const require = createRequire(import.meta.url);
+  const presetPath = require.resolve('@eutelo/preset-default/package.json');
+  return path.join(path.dirname(presetPath), 'templates');
+}
+
+function resolveTemplateOverrideRoot(): string | undefined {
   const override = process.env.EUTELO_TEMPLATE_ROOT;
   if (override && override.trim().length > 0) {
     return path.resolve(process.cwd(), override);
   }
-  const require = createRequire(import.meta.url);
-  const distributionPath = require.resolve('@eutelo/distribution/package.json');
-  return path.join(path.dirname(distributionPath), 'templates');
+  return undefined;
 }
 
 async function runInitCommand(scaffoldService: ReturnType<typeof createScaffoldService>, options: InitCliOptions) {
@@ -567,7 +578,10 @@ function handleCommandError(error: unknown): void {
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
   const fileSystemAdapter = new FileSystemAdapter();
-  const templateService = new TemplateService({ templateRoot: resolveTemplateRoot() });
+  const templateService = new TemplateService({
+    templateRoot: resolveTemplateRoot(),
+    overrideRoot: resolveTemplateOverrideRoot()
+  });
   const guardService = createGuardService();
 
   const program = new Command();
@@ -582,10 +596,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const scaffoldService = createScaffoldService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await runInitCommand(scaffoldService, options);
         });
@@ -607,8 +623,9 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
-          const ruleEngine = new RuleEngine({ docsRoot: config.docsRoot });
-          await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths }, argv, config.docsRoot);
+          const docsRoot = resolveDocsRootFromConfig(config);
+          const ruleEngine = new RuleEngine({ docsRoot });
+          await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths }, argv, docsRoot);
         });
       } catch (error) {
         handleCommandError(error);
@@ -623,10 +640,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'prd', { feature });
         });
@@ -643,10 +662,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'beh', { feature });
         });
@@ -663,10 +684,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'sub-prd', { feature, sub });
         });
@@ -683,10 +706,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'sub-beh', { feature, sub });
         });
@@ -703,10 +728,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'dsg', { feature });
         });
@@ -723,10 +750,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'adr', { feature });
         });
@@ -743,10 +772,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'task', { name });
         });
@@ -763,10 +794,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const addDocumentService = createAddDocumentService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await executeAddDocument(addDocumentService, 'ops', { name });
         });
@@ -784,10 +817,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const scaffoldService = createScaffoldService({
             fileSystemAdapter,
             templateService,
-            docsRoot: config.docsRoot
+            docsRoot,
+            scaffold: config.scaffold
           });
           await runSyncCommand(scaffoldService, options);
         });
@@ -806,9 +841,13 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const validationService = createValidationService({
             fileSystemAdapter,
-            docsRoot: config.docsRoot
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            rootParentIds: config.frontmatter.rootParentIds,
+            scaffold: config.scaffold
           });
           await runCheckCommand(validationService, options, argv);
         });
@@ -824,9 +863,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--format <format>', 'Output format (text or json)')
     .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
     .option('--warn-only', 'Never exit with code 2, even when issues are detected')
-    .action(async (options: GuardCliOptions = {}) => {
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
+      const configPath = resolveOptionValue(argv, '--config');
       try {
-        await runGuardCommand(guardService, [], options, argv);
+        await withConfig(configPath, async (config) => {
+          const configuredGuardService = createGuardService({
+            fileSystemAdapter,
+            prompts: config.guard.prompts
+          });
+          await runGuardCommand(configuredGuardService, documents, options, argv);
+        });
       } catch (error) {
         handleCommandError(error);
       }
@@ -842,9 +889,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const graphService = createGraphService({
             fileSystemAdapter,
-            docsRoot: config.docsRoot
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold
           });
           await runGraphBuildCommand(graphService, argv);
         });
@@ -861,9 +911,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const graphService = createGraphService({
             fileSystemAdapter,
-            docsRoot: config.docsRoot
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold
           });
           await runGraphShowCommand(graphService, documentId);
         });
@@ -881,9 +934,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const graphService = createGraphService({
             fileSystemAdapter,
-            docsRoot: config.docsRoot
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold
           });
           await runGraphImpactCommand(graphService, documentId, argv);
         });
@@ -900,9 +956,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const graphService = createGraphService({
             fileSystemAdapter,
-            docsRoot: config.docsRoot
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold
           });
           await runGraphSummaryCommand(graphService);
         });

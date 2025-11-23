@@ -34,6 +34,7 @@ export interface EuteloConfig {
   scaffold?: Record<string, ScaffoldTemplateConfig>;
   frontmatter?: {
     schemas?: FrontmatterSchemaConfig[];
+    rootParentIds?: string[];
   };
   guard?: {
     prompts?: Record<string, GuardPromptConfig>;
@@ -58,6 +59,7 @@ export interface EuteloConfigResolved {
   scaffold: Record<string, ScaffoldTemplateConfig>;
   frontmatter: {
     schemas: FrontmatterSchemaConfig[];
+    rootParentIds: string[];
   };
   guard: {
     prompts: Record<string, GuardPromptConfig>;

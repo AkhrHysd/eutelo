@@ -4,6 +4,7 @@ import { resolveDocsRoot } from '../constants/docsRoot.js';
 import { DocumentScanner } from '../graph/DocumentScanner.js';
 import { GraphBuilder, type GraphBuildArtifacts } from '../graph/GraphBuilder.js';
 import { ImpactAnalyzer, type ImpactAnalysisOptions } from '../graph/ImpactAnalyzer.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
 import type {
   DocumentGraph,
   GraphNode,
@@ -15,6 +16,8 @@ export type GraphServiceDependencies = {
   fileSystemAdapter?: DefaultFileSystemAdapter;
   docsRoot?: string;
   clock?: () => Date;
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
 };
 
 export type BuildGraphOptions = {
@@ -46,9 +49,20 @@ export class GraphService {
   private readonly impactAnalyzer: ImpactAnalyzer;
   private readonly clock: () => Date;
 
-  constructor({ fileSystemAdapter, docsRoot = resolveDocsRoot(), clock = () => new Date() }: GraphServiceDependencies = {}) {
+  constructor({
+    fileSystemAdapter,
+    docsRoot = resolveDocsRoot(),
+    clock = () => new Date(),
+    frontmatterSchemas,
+    scaffold
+  }: GraphServiceDependencies = {}) {
     const fs = fileSystemAdapter ?? new DefaultFileSystemAdapter();
-    this.scanner = new DocumentScanner({ fileSystemAdapter: fs, docsRoot });
+    this.scanner = new DocumentScanner({
+      fileSystemAdapter: fs,
+      docsRoot,
+      frontmatterSchemas,
+      scaffold
+    });
     this.builder = new GraphBuilder();
     this.impactAnalyzer = new ImpactAnalyzer();
     this.clock = clock;

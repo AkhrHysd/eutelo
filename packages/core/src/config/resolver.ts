@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createRequire } from 'node:module';
+import { createRequire, type NodeRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { parse as parseYaml } from 'yaml';
 import {
@@ -42,6 +42,8 @@ const CONFIG_FILENAMES = [
   'eutelo.config.yml'
 ] as const;
 
+const DEFAULT_PRESET = '@eutelo/preset-default';
+
 export async function loadConfig(options: LoadConfigOptions = {}): Promise<EuteloConfigResolved> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   let configPath: string | undefined;
@@ -70,7 +72,7 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Eutel
     projectMeta.push({ type: 'project', path: configPath });
   }
 
-  const presetQueue = [...(options.presets ?? []), ...projectPresets];
+  const presetQueue = [DEFAULT_PRESET, ...(options.presets ?? []), ...projectPresets];
   const presetLayers: Partial<EuteloConfig>[] = [];
 
   for (const preset of presetQueue) {
@@ -140,16 +142,33 @@ async function loadPreset(
   specifier: string,
   cwd: string
 ): Promise<{ config: unknown; path?: string }> {
-  const requireFromCwd = createRequire(path.join(cwd, '__preset.cjs'));
-  let resolvedPath: string;
-  try {
-    resolvedPath = requireFromCwd.resolve(specifier);
-  } catch (error) {
-    throw new ConfigError(`Unable to resolve preset "${specifier}": ${(error as Error).message}`);
+  const projectRequire = createRequire(path.join(cwd, '__preset.cjs'));
+  const fallbackRequire =
+    specifier === DEFAULT_PRESET ? createRequire(import.meta.url) : null;
+  const resolvers = fallbackRequire ? [projectRequire, fallbackRequire] : [projectRequire];
+
+  let resolvedPath: string | undefined;
+  let selectedResolver: NodeRequire | null = null;
+  let lastError: Error | null = null;
+
+  for (const resolver of resolvers) {
+    try {
+      resolvedPath = resolver.resolve(specifier);
+      selectedResolver = resolver;
+      break;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (!resolvedPath || !selectedResolver) {
+    throw new ConfigError(
+      `Unable to resolve preset "${specifier}": ${lastError?.message ?? 'Unknown module'}`
+    );
   }
 
   try {
-    const required = requireFromCwd(specifier);
+    const required = selectedResolver(specifier);
     return { config: unwrapModuleExport(required), path: resolvedPath };
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === 'ERR_REQUIRE_ESM') {
@@ -513,6 +532,7 @@ function mergeConfigLayers(
   const scaffold: Record<string, ScaffoldTemplateConfig> = {};
   const guardPrompts: Record<string, GuardPromptConfig> = {};
   const schemaMap = new Map<DocumentKind, FrontmatterSchemaConfig>();
+  let rootParentIdsOverride: string[] | undefined;
   let docsRootOverride: string | undefined;
 
   for (const layer of layers) {
@@ -534,6 +554,12 @@ function mergeConfigLayers(
         schemaMap.set(schema.kind, schema);
       }
     }
+    if (Array.isArray(layer.frontmatter?.rootParentIds)) {
+      const normalized = layer.frontmatter.rootParentIds.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      if (normalized.length > 0) {
+        rootParentIdsOverride = normalized;
+      }
+    }
     if (typeof layer.docsRoot === 'string' && layer.docsRoot.trim().length > 0) {
       docsRootOverride = layer.docsRoot;
     }
@@ -542,7 +568,10 @@ function mergeConfigLayers(
   return {
     scaffold,
     guard: { prompts: guardPrompts },
-    frontmatter: { schemas: Array.from(schemaMap.values()) },
+    frontmatter: {
+      schemas: Array.from(schemaMap.values()),
+      rootParentIds: rootParentIdsOverride ?? []
+    },
     docsRoot: docsRootOverride
   };
 }

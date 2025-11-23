@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
 
 type FileSystemAdapter = {
   readDir(targetPath: string): Promise<string[]>;
@@ -7,16 +8,7 @@ type FileSystemAdapter = {
   readFile(targetPath: string): Promise<string>;
 };
 
-type DocumentKind =
-  | 'prd'
-  | 'sub-prd'
-  | 'behavior'
-  | 'sub-behavior'
-  | 'design'
-  | 'sub-design'
-  | 'adr'
-  | 'task'
-  | 'ops';
+type DocumentKind = string;
 
 type ParsedFrontmatter = Record<string, string>;
 
@@ -71,6 +63,9 @@ export type ValidationReport = {
 export type ValidationServiceDependencies = {
   fileSystemAdapter: FileSystemAdapter;
   docsRoot?: string;
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
+  rootParentIds?: string[];
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
 };
 
 type NamingRule = {
@@ -79,9 +74,9 @@ type NamingRule = {
   buildPath(doc: ScannedDocument, docsRoot: string): string | undefined;
 };
 
-const ROOT_PARENT_IDS = new Set(['PRINCIPLE-GLOBAL']);
+const DEFAULT_ROOT_PARENT_IDS = new Set(['PRINCIPLE-GLOBAL']);
 
-const NAMING_RULES: NamingRule[] = [
+const DEFAULT_NAMING_RULES: NamingRule[] = [
   {
     kind: 'prd',
     description: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
@@ -168,10 +163,22 @@ const NAMING_RULES: NamingRule[] = [
 export class ValidationService {
   private readonly fileSystemAdapter: FileSystemAdapter;
   private readonly docsRoot: string;
+  private readonly schemaByKind: Map<string, FrontmatterSchemaConfig>;
+  private readonly rootParentIds: Set<string>;
+  private readonly namingRules: NamingRule[];
 
-  constructor({ fileSystemAdapter, docsRoot = resolveDocsRoot() }: ValidationServiceDependencies) {
+  constructor({
+    fileSystemAdapter,
+    docsRoot = resolveDocsRoot(),
+    frontmatterSchemas,
+    rootParentIds,
+    scaffold
+  }: ValidationServiceDependencies) {
     this.fileSystemAdapter = fileSystemAdapter;
     this.docsRoot = docsRoot;
+    this.schemaByKind = buildSchemaMap(frontmatterSchemas);
+    this.rootParentIds = new Set(rootParentIds && rootParentIds.length > 0 ? rootParentIds : DEFAULT_ROOT_PARENT_IDS);
+    this.namingRules = scaffold ? buildNamingRulesFromScaffold(scaffold) : DEFAULT_NAMING_RULES;
   }
 
   async runChecks({ cwd }: RunChecksOptions): Promise<ValidationReport> {
@@ -259,18 +266,10 @@ export class ValidationService {
   private validateFrontmatter(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      const requiredFields = ['id', 'type', 'purpose'];
-      const kind = doc.kind;
-      if (kind && ['prd', 'sub-prd', 'behavior', 'sub-behavior', 'design', 'sub-design'].includes(kind)) {
-        requiredFields.push('feature');
-        requiredFields.push('parent');
-      }
-      const seen = new Set<string>();
+      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
+      const schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
+      const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.kind);
       for (const field of requiredFields) {
-        if (seen.has(field)) {
-          continue;
-        }
-        seen.add(field);
         const value = (doc as Record<string, string | undefined>)[field];
         if (!value) {
           issues.push({
@@ -290,7 +289,10 @@ export class ValidationService {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
       if (!doc.kind) continue;
-      const rule = NAMING_RULES.find((candidate) => candidate.kind === doc.kind);
+      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
+      const rule = this.namingRules.find((candidate) => candidate.kind === schemaKey);
+      // TEMP DEBUG
+      // console.log('DEBUG naming', { path: doc.relativePath, kind: doc.kind, schemaKey, found: rule?.kind });
       if (!rule) continue;
       const expectedPath = rule.buildPath(doc, this.docsRoot);
       if (!expectedPath) continue;
@@ -321,7 +323,7 @@ export class ValidationService {
       if (!parentId) {
         continue;
       }
-      if (ROOT_PARENT_IDS.has(parentId)) {
+      if (this.rootParentIds.has(parentId)) {
         continue;
       }
       if (!knownIds.has(parentId)) {
@@ -446,3 +448,140 @@ function classifyDocumentKind(source?: string): DocumentKind | undefined {
   return undefined;
 }
 
+function buildSchemaMap(schemas?: FrontmatterSchemaConfig[]): Map<string, FrontmatterSchemaConfig> {
+  const map = new Map<string, FrontmatterSchemaConfig>();
+  if (!schemas) {
+    return map;
+  }
+  for (const schema of schemas) {
+    if (!schema?.kind) continue;
+    map.set(normalizeDocumentKind(schema.kind), schema);
+  }
+  return map;
+}
+
+function collectRequiredFields(schema: FrontmatterSchemaConfig): string[] {
+  const required: string[] = [];
+  for (const [fieldName, definition] of Object.entries(schema.fields ?? {})) {
+    if (definition?.required) {
+      required.push(fieldName);
+    }
+  }
+  return required.length > 0 ? required : getDefaultRequiredFields();
+}
+
+function getDefaultRequiredFields(kind?: DocumentKind): string[] {
+  const base = ['id', 'type', 'purpose'];
+  if (kind && ['prd', 'sub-prd', 'behavior', 'sub-behavior', 'design', 'sub-design'].includes(kind)) {
+    base.push('feature', 'parent');
+  }
+  return base;
+}
+
+function buildNamingRulesFromScaffold(scaffold: Record<string, ScaffoldTemplateConfig>): NamingRule[] {
+  const byKind = new Map<string, ScaffoldTemplateConfig>();
+  for (const entry of Object.values(scaffold ?? {})) {
+    if (!entry?.kind || !entry.path) continue;
+    const key = normalizeDocumentKind(entry.kind);
+    if (!byKind.has(key)) {
+      byKind.set(key, entry);
+    }
+  }
+  const rules: NamingRule[] = [];
+  for (const [kind, template] of byKind.entries()) {
+    rules.push({
+      kind,
+      description: template.path,
+      buildPath: (doc, docsRoot) => {
+        const tokens = buildTokensFromDoc(doc);
+        const resolved = applyTemplate(template.path, tokens);
+        if (!resolved) {
+          return undefined;
+        }
+        return normalizePath(path.join(docsRoot, resolved));
+      }
+    });
+  }
+  return rules;
+}
+
+function buildTokensFromDoc(doc: ScannedDocument): Record<string, string> {
+  const tokens: Record<string, string> = {
+    FEATURE: doc.feature ?? deriveFeatureFromId(doc.id),
+    SUB: doc.subfeature ?? deriveSubFromId(doc.id),
+    NAME: deriveNameFromId(doc.id),
+    SEQUENCE: deriveSequenceFromId(doc.id)
+  };
+  return tokens;
+}
+
+function deriveFeatureFromId(id?: string): string {
+  if (!id) return '';
+  if (id.startsWith('PRD-') || id.startsWith('BEH-') || id.startsWith('DSG-') || id.startsWith('ADR-')) {
+    const [, feature] = id.split('-');
+    return feature ?? '';
+  }
+  if (id.startsWith('SUB-PRD-') || id.startsWith('SUB-BEH-')) {
+    const parts = id.split('-');
+    return parts.length >= 3 ? parts[2] : '';
+  }
+  return '';
+}
+
+function deriveSubFromId(id?: string): string {
+  if (!id) return '';
+  if (id.startsWith('SUB-PRD-')) {
+    return id.slice('SUB-PRD-'.length);
+  }
+  if (id.startsWith('BEH-') && id.split('-').length >= 3) {
+    return id.split('-').slice(2).join('-');
+  }
+  return '';
+}
+
+function deriveNameFromId(id?: string): string {
+  if (!id) return '';
+  const hyphenIndex = id.indexOf('-');
+  if (hyphenIndex === -1) {
+    return id;
+  }
+  return id.slice(hyphenIndex + 1);
+}
+
+function deriveSequenceFromId(id?: string): string {
+  if (!id) return '';
+  const match = id.match(/-(\d{2,})$/);
+  return match ? match[1] : '';
+}
+
+function applyTemplate(template: string, tokens: Record<string, string>): string | null {
+  if (!template) {
+    return null;
+  }
+  let result = template;
+  const placeholders = template.match(/\{[A-Z0-9_-]+\}/g) ?? [];
+  for (const placeholder of placeholders) {
+    const key = placeholder.slice(1, -1);
+    const value = tokens[key] ?? '';
+    if (!value) {
+      return null;
+    }
+    const pattern = new RegExp(`\\{${key}\\}`, 'g');
+    result = result.replace(pattern, value);
+  }
+  return normalizeRelativePath(result);
+}
+
+function normalizeRelativePath(value: string): string {
+  return value.split(/[\\/]+/).filter(Boolean).join('/');
+}
+
+function normalizeDocumentKind(value: string): string {
+  if (!value) return '';
+  const normalized = value.toLowerCase();
+  if (normalized === 'beh') return 'behavior';
+  if (normalized === 'sub-beh') return 'sub-behavior';
+  if (normalized === 'dsg') return 'design';
+  if (normalized === 'sub-dsg') return 'sub-design';
+  return normalized;
+}

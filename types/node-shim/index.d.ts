@@ -21,6 +21,7 @@ declare module 'node:path' {
     basename(p: string): string;
     sep: string;
     extname(p: string): string;
+    posix: PathModule;
   }
   const path: PathModule;
   export default path;
@@ -79,6 +80,7 @@ declare module 'node:url' {
     href: string;
   }
   export function pathToFileURL(path: string): FileUrl;
+  export function fileURLToPath(url: string | FileUrl): string;
 }
 
 declare module 'node:vm' {

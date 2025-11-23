@@ -8,6 +8,87 @@ import {
   TemplateService
 } from '../dist/index.js';
 
+const DEFAULT_SCAFFOLD = {
+  'document.prd': {
+    id: 'document.prd',
+    kind: 'prd',
+    path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+    template: '_template-prd.md',
+    variables: {
+      ID: 'PRD-{FEATURE}',
+      PARENT: 'PRINCIPLE-GLOBAL'
+    }
+  },
+  'document.beh': {
+    id: 'document.beh',
+    kind: 'beh',
+    path: 'product/features/{FEATURE}/BEH-{FEATURE}.md',
+    template: '_template-beh.md',
+    variables: {
+      ID: 'BEH-{FEATURE}',
+      PARENT: 'PRD-{FEATURE}'
+    }
+  },
+  'document.sub-prd': {
+    id: 'document.sub-prd',
+    kind: 'sub-prd',
+    path: 'product/features/{FEATURE}/SUB-PRD-{SUB}.md',
+    template: '_template-sub-prd.md',
+    variables: {
+      ID: 'SUB-PRD-{SUB}',
+      PARENT: 'PRD-{FEATURE}'
+    }
+  },
+  'document.sub-beh': {
+    id: 'document.sub-beh',
+    kind: 'sub-beh',
+    path: 'product/features/{FEATURE}/BEH-{FEATURE}-{SUB}.md',
+    template: '_template-sub-beh.md',
+    variables: {
+      ID: 'BEH-{FEATURE}-{SUB}',
+      PARENT: 'SUB-PRD-{SUB}'
+    }
+  },
+  'document.dsg': {
+    id: 'document.dsg',
+    kind: 'dsg',
+    path: 'architecture/design/{FEATURE}/DSG-{FEATURE}.md',
+    template: '_template-dsg.md',
+    variables: {
+      ID: 'DSG-{FEATURE}',
+      PARENT: 'PRD-{FEATURE}'
+    }
+  },
+  'document.adr': {
+    id: 'document.adr',
+    kind: 'adr',
+    path: 'architecture/adr/ADR-{FEATURE}-{SEQUENCE}.md',
+    template: '_template-adr.md',
+    variables: {
+      ID: 'ADR-{FEATURE}-{SEQUENCE}',
+      PARENT: 'PRD-{FEATURE}'
+    }
+  },
+  'document.task': {
+    id: 'document.task',
+    kind: 'task',
+    path: 'tasks/TASK-{NAME}.md',
+    template: '_template-task.md',
+    variables: {
+      ID: 'TASK-{NAME}'
+    }
+  },
+  'document.ops': {
+    id: 'document.ops',
+    kind: 'ops',
+    path: 'ops/OPS-{NAME}.md',
+    template: '_template-ops.md',
+    variables: {
+      ID: 'OPS-{NAME}'
+    }
+  }
+};
+
 class MemoryFileSystemAdapter {
   constructor(files = new Map()) {
     this.files = files;
@@ -65,7 +146,12 @@ class StubTemplateService {
   }
 }
 
-function createService({ fileSystemAdapter = new MemoryFileSystemAdapter(), templateService, docsRoot } = {}) {
+function createService({
+  fileSystemAdapter = new MemoryFileSystemAdapter(),
+  templateService,
+  docsRoot,
+  scaffold = DEFAULT_SCAFFOLD
+} = {}) {
   const service = new AddDocumentService({
     fileSystemAdapter,
     templateService:
@@ -75,7 +161,8 @@ function createService({ fileSystemAdapter = new MemoryFileSystemAdapter(), temp
           ['_template-prd.md', 'id: {ID}\nparent: {PARENT}\nfeature: {FEATURE}\n']
         ])
       ),
-    docsRoot
+    docsRoot,
+    scaffold
   });
   return { service, fileSystemAdapter };
 }
@@ -132,7 +219,11 @@ test('ADR sequence increments by scanning existing files', async () => {
   const templateService = new StubTemplateService(
     new Map([['_template-adr.md', 'id: {ID}\n']])
   );
-  const service = new AddDocumentService({ fileSystemAdapter: adapter, templateService });
+  const service = new AddDocumentService({
+    fileSystemAdapter: adapter,
+    templateService,
+    scaffold: DEFAULT_SCAFFOLD
+  });
   const result = await service.addDocument({ cwd, type: 'adr', feature: 'AUTH' });
   assert.equal(result.id, 'ADR-AUTH-0004');
   assert.ok(adapter.files.has(path.join(adrDir, 'ADR-AUTH-0004.md')));

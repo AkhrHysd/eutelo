@@ -143,3 +143,93 @@ test('ValidationService reports missing parent references', async () => {
     cleanup(cwd);
   }
 });
+
+test('ValidationService honors custom frontmatter schema requirements', async () => {
+  const adapter = new RealFsAdapter();
+  const service = new ValidationService({
+    fileSystemAdapter: adapter,
+    frontmatterSchemas: [
+      {
+        kind: 'prd',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string', required: true },
+          purpose: { type: 'string', required: true },
+          feature: { type: 'string' },
+          owners: { type: 'array', required: true }
+        }
+      }
+    ]
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/PRD-AUTH.md', [
+      'id: PRD-AUTH',
+      'type: prd',
+      'feature: AUTH',
+      'purpose: Auth purpose',
+      'parent: PRINCIPLE-GLOBAL'
+    ]);
+  });
+  try {
+    const report = await service.runChecks({ cwd });
+    const issue = report.issues.find((entry) => entry.field === 'owners');
+    assert.ok(issue, 'owners should be required by custom schema');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('ValidationService uses scaffold naming rules from config', async () => {
+  const adapter = new RealFsAdapter();
+  const service = new ValidationService({
+    fileSystemAdapter: adapter,
+    scaffold: {
+      'document.prd': {
+        id: 'document.prd',
+        kind: 'prd',
+        path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+        template: '_template-prd.md'
+      }
+    }
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/WRONG-AUTH.md', [
+      'id: PRD-AUTH',
+      'type: prd',
+      'feature: AUTH',
+      'purpose: Auth',
+      'parent: PRINCIPLE-GLOBAL'
+    ]);
+  });
+  try {
+    const report = await service.runChecks({ cwd });
+    const issue = report.issues.find((entry) => entry.type === 'invalidName');
+    assert.ok(issue, 'invalid name should be reported via scaffold-based rule');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('ValidationService accepts custom root parent ids', async () => {
+  const adapter = new RealFsAdapter();
+  const service = new ValidationService({
+    fileSystemAdapter: adapter,
+    rootParentIds: ['ROOT-SPEC']
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/PRD-AUTH.md', [
+      'id: PRD-AUTH',
+      'type: prd',
+      'feature: AUTH',
+      'purpose: Auth',
+      'parent: ROOT-SPEC'
+    ]);
+  });
+  try {
+    const report = await service.runChecks({ cwd });
+    const parentIssues = report.issues.filter((entry) => entry.type === 'parentNotFound');
+    assert.equal(parentIssues.length, 0);
+  } finally {
+    cleanup(cwd);
+  }
+});

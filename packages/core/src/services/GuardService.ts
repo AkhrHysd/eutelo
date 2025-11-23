@@ -5,10 +5,13 @@ import { DocumentLoader } from '../guard/DocumentLoader.js';
 import type { LLMClient } from '../guard/LLMClient.js';
 import { OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
 import { PromptBuilder } from '../guard/PromptBuilder.js';
+import type { GuardPromptConfig } from '../config/types.js';
+import fs from 'node:fs/promises';
 
 export type GuardServiceDependencies = {
   fileSystemAdapter?: FileSystemAdapter;
   llmClient?: LLMClient;
+  prompts?: Record<string, GuardPromptConfig>;
 };
 
 export type GuardOutputFormat = 'text' | 'json';
@@ -79,12 +82,14 @@ export class GuardService {
   private readonly promptBuilder: PromptBuilder;
   private readonly analyzer: Analyzer;
   private readonly llmClient: LLMClient | null;
+  private readonly prompts: Record<string, GuardPromptConfig>;
 
   constructor(deps: GuardServiceDependencies = {}) {
     const fileSystemAdapter = deps.fileSystemAdapter ?? new DefaultFileSystemAdapter();
     this.documentLoader = new DocumentLoader({ fileSystemAdapter });
     this.promptBuilder = new PromptBuilder();
     this.analyzer = new Analyzer();
+    this.prompts = deps.prompts ?? {};
 
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
     const validStubModes = ['success', 'issues', 'warnings', 'connection-error'];
@@ -227,14 +232,16 @@ export class GuardService {
         );
       }
 
-      const { systemPrompt, userPrompt } = this.promptBuilder.buildPrompt({
-        documents: loadResult.documents
+      const { systemPrompt, userPrompt } = await this.promptBuilder.buildPrompt({
+        documents: loadResult.documents,
+        promptConfig: this.prompts['guard.default']
       });
 
       const llmResponse = await this.llmClient.generate({
         prompt: userPrompt,
         systemPrompt,
-        temperature: 0.3
+        temperature: this.prompts['guard.default']?.temperature ?? 0.3,
+        model: this.prompts['guard.default']?.model
       });
 
       // Note: LLM response logging is handled by CLI layer to avoid duplicate output

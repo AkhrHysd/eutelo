@@ -1,8 +1,20 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
+import type { ScaffoldTemplateConfig } from '../config/types.js';
 import type { TemplateService } from './TemplateService.js';
 
 const ADR_SEQUENCE_PAD = 4;
+const PLACEHOLDER_PATTERN = /\{([A-Z0-9_-]+)\}/g;
+const DOCUMENT_TYPE_TO_SCAFFOLD_ID: Record<DocumentType, string> = {
+  prd: 'document.prd',
+  beh: 'document.beh',
+  'sub-prd': 'document.sub-prd',
+  'sub-beh': 'document.sub-beh',
+  dsg: 'document.dsg',
+  adr: 'document.adr',
+  task: 'document.task',
+  ops: 'document.ops'
+};
 
 export type DocumentType =
   | 'prd'
@@ -24,6 +36,7 @@ type FileSystemAdapter = {
 export type AddDocumentServiceDependencies = {
   fileSystemAdapter: FileSystemAdapter;
   templateService: TemplateService;
+  scaffold: Record<string, ScaffoldTemplateConfig>;
   clock?: () => Date;
   docsRoot?: string;
 };
@@ -63,7 +76,16 @@ export class FileAlreadyExistsError extends Error {
   }
 }
 
-type DocumentDefinitionContext = {
+type DocumentBlueprint = {
+  documentType: DocumentType;
+  scaffold: ScaffoldTemplateConfig;
+  requiresFeature: boolean;
+  requiresSub: boolean;
+  requiresName: boolean;
+  usesSequence: boolean;
+};
+
+type DocumentContext = {
   feature?: string;
   featureId?: string;
   sub?: string;
@@ -71,83 +93,6 @@ type DocumentDefinitionContext = {
   name?: string;
   nameSlug?: string;
   sequence?: string;
-};
-
-type DocumentDefinition = {
-  template: string;
-  requiresFeature?: boolean;
-  requiresSub?: boolean;
-  requiresName?: boolean;
-  resolveRelativePath(docsRoot: string, context: Required<DocumentDefinitionContext>): string;
-  buildId(context: Required<DocumentDefinitionContext>): string;
-  buildParentId?(context: Required<DocumentDefinitionContext>): string | undefined;
-};
-
-const DOCUMENT_DEFINITIONS: Record<DocumentType, DocumentDefinition> = {
-  prd: {
-    template: '_template-prd.md',
-    requiresFeature: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'product', 'features', ctx.featureId!, `PRD-${ctx.featureId}.md`),
-    buildId: (ctx) => `PRD-${ctx.featureId}`,
-    buildParentId: () => 'PRINCIPLE-GLOBAL'
-  },
-  beh: {
-    template: '_template-beh.md',
-    requiresFeature: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'product', 'features', ctx.featureId!, `BEH-${ctx.featureId}.md`),
-    buildId: (ctx) => `BEH-${ctx.featureId}`,
-    buildParentId: (ctx) => `PRD-${ctx.featureId}`
-  },
-  'sub-prd': {
-    template: '_template-sub-prd.md',
-    requiresFeature: true,
-    requiresSub: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'product', 'features', ctx.featureId!, `SUB-PRD-${ctx.subId}.md`),
-    buildId: (ctx) => `SUB-PRD-${ctx.subId}`,
-    buildParentId: (ctx) => `PRD-${ctx.featureId}`
-  },
-  'sub-beh': {
-    template: '_template-sub-beh.md',
-    requiresFeature: true,
-    requiresSub: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'product', 'features', ctx.featureId!, `BEH-${ctx.featureId}-${ctx.subId}.md`),
-    buildId: (ctx) => `BEH-${ctx.featureId}-${ctx.subId}`,
-    buildParentId: (ctx) => `SUB-PRD-${ctx.subId}`
-  },
-  dsg: {
-    template: '_template-dsg.md',
-    requiresFeature: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'architecture', 'design', ctx.featureId!, `DSG-${ctx.featureId}.md`),
-    buildId: (ctx) => `DSG-${ctx.featureId}`,
-    buildParentId: (ctx) => `PRD-${ctx.featureId}`
-  },
-  adr: {
-    template: '_template-adr.md',
-    requiresFeature: true,
-    resolveRelativePath: (docsRoot, ctx) =>
-      path.join(docsRoot, 'architecture', 'adr', `ADR-${ctx.featureId}-${ctx.sequence}.md`),
-    buildId: (ctx) => `ADR-${ctx.featureId}-${ctx.sequence}`,
-    buildParentId: (ctx) => `PRD-${ctx.featureId}`
-  },
-  task: {
-    template: '_template-task.md',
-    requiresName: true,
-    resolveRelativePath: (docsRoot, ctx) => path.join(docsRoot, 'tasks', `TASK-${ctx.nameSlug}.md`),
-    buildId: (ctx) => `TASK-${ctx.nameSlug}`,
-    buildParentId: () => undefined
-  },
-  ops: {
-    template: '_template-ops.md',
-    requiresName: true,
-    resolveRelativePath: (docsRoot, ctx) => path.join(docsRoot, 'ops', `OPS-${ctx.nameSlug}.md`),
-    buildId: (ctx) => `OPS-${ctx.nameSlug}`,
-    buildParentId: () => undefined
-  }
 };
 
 function normalizeFeature(value?: string): { feature: string; featureId: string } {
@@ -199,10 +144,12 @@ export class AddDocumentService {
   private readonly templateService: TemplateService;
   private readonly clock: () => Date;
   private readonly docsRoot: string;
+  private readonly blueprints: Record<DocumentType, DocumentBlueprint>;
 
   constructor({
     fileSystemAdapter,
     templateService,
+    scaffold,
     clock = () => new Date(),
     docsRoot = resolveDocsRoot()
   }: AddDocumentServiceDependencies) {
@@ -210,48 +157,50 @@ export class AddDocumentService {
     this.templateService = templateService;
     this.clock = clock;
     this.docsRoot = docsRoot;
+    this.blueprints = buildDocumentBlueprints(scaffold);
   }
 
   resolveOutputPath(options: ResolveOutputPathOptions): string {
     const { cwd, type } = options;
-    const definition = DOCUMENT_DEFINITIONS[type];
-    if (!definition) {
-      throw new Error(`Unsupported document type: ${type}`);
-    }
+    const blueprint = this.getBlueprint(type);
     const context = this.buildContext({
-      definition,
+      definition: blueprint,
       feature: options.feature,
       sub: options.sub,
       name: options.name,
-      sequence: options.sequence ?? '0001'
+      sequence: options.sequence
     });
-    const relative = definition.resolveRelativePath(this.docsRoot, context as Required<DocumentDefinitionContext>);
+    const tokens = this.buildTokenMap(context, { includeDate: false });
+    const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
+    const relative = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
     return path.resolve(cwd, relative);
   }
 
   async addDocument({ cwd, type, feature, sub, name, dryRun = false }: AddDocumentOptions): Promise<AddDocumentResult> {
-    const definition = DOCUMENT_DEFINITIONS[type];
-    if (!definition) {
-      throw new Error(`Unsupported document type: ${type}`);
+    const blueprint = this.getBlueprint(type);
+    const context = this.buildContext({ definition: blueprint, feature, sub, name });
+    const baseTokens = this.buildTokenMap(context, { includeDate: false });
+    let sequence: string | undefined;
+
+    if (blueprint.usesSequence) {
+      sequence = await this.computeNextSequence({
+        cwd,
+        blueprint,
+        tokens: baseTokens
+      });
+      context.sequence = sequence;
     }
 
-    const sequence =
-      type === 'adr'
-        ? await this.computeNextAdrSequence(path.resolve(cwd, path.join(this.docsRoot, 'architecture', 'adr')), feature)
-        : undefined;
-    const context = this.buildContext({ definition, feature, sub, name, sequence });
-    const relativePath = definition.resolveRelativePath(this.docsRoot, context as Required<DocumentDefinitionContext>);
+    const tokens = this.buildTokenMap(context, { includeDate: true });
+    const id = this.resolveId(blueprint, tokens);
+    const parent = this.resolveParent(blueprint, tokens);
+    tokens.ID = id;
+    tokens.PARENT = parent;
+
+    const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
+    const relativePath = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
     const absolutePath = path.resolve(cwd, relativePath);
-    const id = definition.buildId(context as Required<DocumentDefinitionContext>);
-    const parent = definition.buildParentId?.(context as Required<DocumentDefinitionContext>) ?? '';
-    const replacements = {
-      FEATURE: context.featureId ?? context.nameSlug ?? '',
-      SUB: context.subId ?? '',
-      DATE: formatDate(this.clock()),
-      ID: id,
-      PARENT: parent
-    };
-    const rendered = await this.templateService.render(definition.template, replacements);
+    const rendered = await this.templateService.render(blueprint.scaffold.template, tokens);
 
     if (dryRun) {
       return { id, absolutePath, relativePath, dryRun: true };
@@ -272,13 +221,13 @@ export class AddDocumentService {
     name,
     sequence
   }: {
-    definition: DocumentDefinition;
+    definition: DocumentBlueprint;
     feature?: string;
     sub?: string;
     name?: string;
     sequence?: string;
-  }): DocumentDefinitionContext {
-    const context: DocumentDefinitionContext = {};
+  }): DocumentContext {
+    const context: DocumentContext = {};
     if (definition.requiresFeature) {
       Object.assign(context, normalizeFeature(feature));
     }
@@ -294,18 +243,49 @@ export class AddDocumentService {
     return context;
   }
 
-  private async computeNextAdrSequence(adrDir: string, feature?: string): Promise<string> {
-    const { featureId } = normalizeFeature(feature);
+  private buildTokenMap(
+    context: DocumentContext,
+    { includeDate }: { includeDate: boolean }
+  ): Record<string, string> {
+    const tokens: Record<string, string> = {
+      FEATURE: context.featureId ?? '',
+      SUB: context.subId ?? '',
+      NAME: context.nameSlug ?? '',
+      SEQUENCE: context.sequence ?? ''
+    };
+    if (includeDate) {
+      tokens.DATE = formatDate(this.clock());
+    }
+    return tokens;
+  }
+
+  private async computeNextSequence({
+    cwd,
+    blueprint,
+    tokens
+  }: {
+    cwd: string;
+    blueprint: DocumentBlueprint;
+    tokens: Record<string, string>;
+  }): Promise<string> {
+    const docsRootPath = path.resolve(cwd, this.docsRoot);
+    const tokensWithoutSequence = { ...tokens, SEQUENCE: '' };
+    const relativeDirPattern = path.posix.dirname(blueprint.scaffold.path);
+    const resolvedDirRelative = applyPlaceholders(relativeDirPattern, tokensWithoutSequence);
+    const dirPath = path.resolve(docsRootPath, normalizeRelativeDocPath(resolvedDirRelative));
+
     let entries: string[] = [];
     try {
-      entries = await this.fileSystemAdapter.readDir(adrDir);
+      entries = await this.fileSystemAdapter.readDir(dirPath);
     } catch {
       entries = [];
     }
-    const pattern = new RegExp(`^ADR-${featureId}-(\\d{${ADR_SEQUENCE_PAD}})\\.md$`);
+
+    const filePattern = path.posix.basename(blueprint.scaffold.path);
+    const regex = buildFilePatternRegex(filePattern, tokensWithoutSequence, ADR_SEQUENCE_PAD);
     let max = 0;
     for (const entry of entries) {
-      const match = entry.match(pattern);
+      const match = entry.match(regex);
       if (match) {
         const value = Number.parseInt(match[1], 10);
         if (value > max) {
@@ -315,8 +295,124 @@ export class AddDocumentService {
     }
     return String(max + 1).padStart(ADR_SEQUENCE_PAD, '0');
   }
+
+  private resolveId(blueprint: DocumentBlueprint, tokens: Record<string, string>): string {
+    const idPattern = blueprint.scaffold.variables?.ID;
+    if (!idPattern) {
+      throw new Error(`Scaffold template "${blueprint.scaffold.id}" is missing ID variable definition`);
+    }
+    const resolved = applyPlaceholders(idPattern, tokens);
+    if (!resolved) {
+      throw new Error(`Failed to resolve document ID for scaffold "${blueprint.scaffold.id}"`);
+    }
+    return resolved;
+  }
+
+  private resolveParent(blueprint: DocumentBlueprint, tokens: Record<string, string>): string {
+    const parentPattern = blueprint.scaffold.variables?.PARENT;
+    if (!parentPattern) {
+      return '';
+    }
+    return applyPlaceholders(parentPattern, tokens);
+  }
+
+  private getBlueprint(type: DocumentType): DocumentBlueprint {
+    const blueprint = this.blueprints[type];
+    if (!blueprint) {
+      throw new Error(`Unsupported document type: ${type}`);
+    }
+    return blueprint;
+  }
 }
 
 export function createAddDocumentService(deps: AddDocumentServiceDependencies): AddDocumentService {
   return new AddDocumentService(deps);
+}
+
+function buildDocumentBlueprints(scaffold: Record<string, ScaffoldTemplateConfig>): Record<DocumentType, DocumentBlueprint> {
+  if (!scaffold) {
+    throw new Error('scaffold configuration is required');
+  }
+  const entries = {} as Record<DocumentType, DocumentBlueprint>;
+  for (const [documentType, scaffoldId] of Object.entries(DOCUMENT_TYPE_TO_SCAFFOLD_ID)) {
+    const templateConfig = scaffold[scaffoldId];
+    if (!templateConfig) {
+      throw new Error(`Missing scaffold configuration for "${scaffoldId}"`);
+    }
+    const requiresFeature = usesPlaceholder(templateConfig, 'FEATURE');
+    const requiresSub = usesPlaceholder(templateConfig, 'SUB');
+    const requiresName = usesPlaceholder(templateConfig, 'NAME');
+    const usesSequence = usesPlaceholder(templateConfig, 'SEQUENCE');
+    entries[documentType as DocumentType] = {
+      documentType: documentType as DocumentType,
+      scaffold: templateConfig,
+      requiresFeature,
+      requiresSub,
+      requiresName,
+      usesSequence
+    };
+  }
+  return entries;
+}
+
+function usesPlaceholder(config: ScaffoldTemplateConfig, placeholder: string): boolean {
+  const token = `{${placeholder}}`;
+  if (config.path.includes(token)) {
+    return true;
+  }
+  if (config.template.includes(token)) {
+    return true;
+  }
+  for (const value of Object.values(config.variables ?? {})) {
+    if (typeof value === 'string' && value.includes(token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function applyPlaceholders(template: string, tokens: Record<string, string>): string {
+  return template.replace(PLACEHOLDER_PATTERN, (_, key: string) => tokens[key] ?? '');
+}
+
+function normalizeRelativeDocPath(relativePath: string): string {
+  if (!relativePath) {
+    return '';
+  }
+  const segments = relativePath.split(/[\\/]+/).filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return '';
+  }
+  return path.join(...segments);
+}
+
+function buildFilePatternRegex(
+  pattern: string,
+  tokens: Record<string, string>,
+  sequencePad: number
+): RegExp {
+  let source = '';
+  let lastIndex = 0;
+  PLACEHOLDER_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = PLACEHOLDER_PATTERN.exec(pattern)) !== null) {
+    if (match.index > lastIndex) {
+      source += escapeRegExp(pattern.slice(lastIndex, match.index));
+    }
+    const placeholder = match[1];
+    if (placeholder === 'SEQUENCE') {
+      source += `(\\d{${sequencePad}})`;
+    } else {
+      source += escapeRegExp(tokens[placeholder] ?? '');
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < pattern.length) {
+    source += escapeRegExp(pattern.slice(lastIndex));
+  }
+  return new RegExp(`^${source}$`);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

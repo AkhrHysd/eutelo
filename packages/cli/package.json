@@ -27,6 +27,7 @@
     "@eutelo/core": "file:../core",
     "@eutelo/infrastructure": "file:../infrastructure",
     "@eutelo/commander": "file:../commander",
+    "@eutelo/preset-default": "file:../preset-default",
     "dotenv": "^16.4.5"
   }
 }

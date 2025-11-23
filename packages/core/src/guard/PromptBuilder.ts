@@ -1,20 +1,33 @@
+import fs from 'node:fs/promises';
+import type { GuardPromptConfig } from '../config/types.js';
 import type { Document } from './DocumentLoader.js';
 
 export type PromptOptions = {
   documents: Document[];
+  promptConfig?: GuardPromptConfig;
 };
 
 export class PromptBuilder {
-  buildPrompt(options: PromptOptions): { systemPrompt: string; userPrompt: string } {
-    const { documents } = options;
+  async buildPrompt(options: PromptOptions): Promise<{ systemPrompt: string; userPrompt: string }> {
+    const { documents, promptConfig } = options;
 
-    const systemPrompt = this.buildSystemPrompt();
+    const systemPrompt = await this.buildSystemPrompt(promptConfig?.templatePath);
     const userPrompt = this.buildUserPrompt(documents);
 
     return { systemPrompt, userPrompt };
   }
 
-  private buildSystemPrompt(): string {
+  private async buildSystemPrompt(templatePath?: string): Promise<string> {
+    if (templatePath) {
+      try {
+        return await fs.readFile(templatePath, 'utf8');
+      } catch (error) {
+        const err = error as { code?: string };
+        if (err?.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
     return `You are a documentation consistency checker for the Eutelo documentation system.
 
 Eutelo uses a structured documentation system with the following document types:
@@ -87,4 +100,3 @@ If no issues are found, return empty arrays.`;
     return `Please analyze the following documents for consistency issues:\n\n${documentSections.join('\n\n---\n\n')}`;
   }
 }
-

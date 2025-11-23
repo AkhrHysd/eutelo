@@ -65,8 +65,8 @@ test('loadConfig resolves TypeScript config with scaffold/frontmatter/guard', as
       resolved.scaffold['feature.prd'].path,
       'docs/product/features/{FEATURE}/PRD-{FEATURE}.md'
     );
-    assert.equal(resolved.frontmatter.schemas.length, 1);
-    assert.equal(resolved.frontmatter.schemas[0].kind, 'prd');
+    const prdSchema = resolved.frontmatter.schemas.find((schema) => schema.kind === 'prd');
+    assert.ok(prdSchema);
     assert.ok(resolved.guard.prompts.purpose);
     assert.equal(resolved.sources.configPath, configPath);
   } finally {
@@ -165,6 +165,7 @@ test('loadConfig merges presets in correct order', async () => {
     const resolved = await loadConfig({ cwd });
 
     assert.deepEqual(resolved.presets, [
+      '@eutelo/preset-default',
       '@example/preset-base',
       '@example/preset-alpha',
       '@example/preset-beta'
@@ -197,6 +198,13 @@ test('loadConfig reports validation issues for invalid yaml', async () => {
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test('loadConfig default preset exposes guard prompts and root parents', async () => {
+  const resolved = await loadConfig({ cwd: process.cwd() });
+  assert.ok(resolved.guard.prompts['guard.default']);
+  assert.ok(resolved.guard.prompts['guard.default'].templatePath.endsWith('guard-system.md'));
+  assert.ok(Array.isArray(resolved.frontmatter.rootParentIds));
 });
 
 test('loadConfig falls back to default docsRoot when not specified', async () => {

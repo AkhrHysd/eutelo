@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/core" },
+    { "path": "./packages/preset-default" },
     { "path": "./packages/infrastructure" },
     { "path": "./packages/cli" },
     { "path": "./packages/eslint-plugin-docs" },

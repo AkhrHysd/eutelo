@@ -70,7 +70,8 @@ export type {
   BuildGraphOptions as GraphBuildOptions,
   GraphSummary,
   ImpactAnalysisResult,
-  NodeNeighborhood
+  NodeNeighborhood,
+  GraphServiceDependencies
 } from './services/GraphService.js';
 export { GraphSerializer } from './graph/GraphSerializer.js';
 export type {

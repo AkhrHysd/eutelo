@@ -14,3 +14,11 @@ Tests reside in each package’s `tests/` directory and should mirror the `src/`
 
 ## Commit & Pull Request Guidelines
 Follow an imperative subject line with optional scope (e.g., `feat(cli): add profile flag`). Limit the first line to 72 characters, add meaningful body paragraphs for nuanced changes, and reference issue IDs when applicable. Pull requests should summarize the motivation, list key changes, include testing evidence (command outputs or screenshots for CLI UX), and mention follow-up work. Keep diffs minimal—split refactors from feature work to ease review and reduce the risk of regressions.
+
+## タスク実行時のルール
+** {タスクリスト}に着手してください ** などの依頼があった際に必ず守らなければいけない原則です。これを破ることはユーザーからの信頼を著しく損なう結果となりますので、細心の注意を払ってください。
+- タスク実行中の思考は英語で行うこと。ただし、報告時は必ず日本語でタスクの進捗状況を報告すること。またタスクリストのマークダウンファイルを渡されている場合はTODOリストのチェック&アップデートしてから報告してください。
+- タスクリストには基本的にはTODOリストが記載されています。依存関係に注意しながらTODOリストを順番に消化していくのがあなたの責務です。
+- 報告時にはユーザーがわかりやすいように元のタスクリストのTODOリストを[]から[x]にチェックをいれることで表現してください。それ以外に過度にタスクリストに追記することはユーザーを混乱させ、不要な実装が紛れ込む原因になるため注意してください。
+- タスクリストに記載されていない実装は絶対に行わないこと。万一よりよいプロダクトのための追加実装が必要であった場合も必ずユーザーの確認をとること。許可なしに追加で実装などを進めた場合はユーザーから厳しく叱責されることを覚悟するように。
+- タスクの進捗報告と一部のallowlist外のコマンド実行以外の繰り返された質問やタスクリストが進んでいない報告でのチャット停止はあなたの評価を毀損することを認識してください。円滑な開発を進めるために、かならずタスクリストのチェックが一つでも進んでから報告をしてください。

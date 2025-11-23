@@ -1,0 +1,18 @@
+{
+  "fields": {
+    "id": { "type": "string", "required": true },
+    "type": { "type": "string", "required": true },
+    "feature": { "type": "string", "required": true },
+    "purpose": { "type": "string", "required": true },
+    "parent": { "type": "string", "required": true },
+    "title": { "type": "string" },
+    "status": { "type": "string" },
+    "version": { "type": "string" },
+    "owners": { "type": "array" },
+    "tags": { "type": "array" },
+    "last_updated": { "type": "string" },
+    "date": { "type": "string" },
+    "links": { "type": "array" },
+    "subfeature": { "type": "string" }
+  }
+}
