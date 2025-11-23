@@ -37,9 +37,9 @@ test('guard workflow installs the CLI and runs eutelo guard with caller paramete
 
   assert.match(content, /uses: actions\/setup-node@v4/, 'setup-node not configured');
   assert.match(content, /working-directory: \$\{\{ inputs\.working-directory/, 'working-directory defaults missing');
-  assert.match(content, /npm install -g @eutelo\/cli/, 'CLI install step missing');
-  assert.match(content, /eutelo guard \$\{\{ steps\.changed-files.outputs.all_changed_files \}\}/, 'changed files invocation missing');
-  assert.match(content, /eutelo guard \$\{\{ inputs.paths \}\}/, 'guard invocation must support explicit paths input');
+  assert.match(content, /npm ci/, 'dependency install step missing');
+  assert.match(content, /npx eutelo guard \$\{\{ steps\.changed-files.outputs.all_changed_files \}\}/, 'changed files invocation missing');
+  assert.match(content, /npx eutelo guard \$\{\{ inputs.paths \}\}/, 'guard invocation must support explicit paths input');
 });
 
 test('composite action mirrors guard workflow expectations for setup, install, and env wiring', () => {
@@ -47,7 +47,7 @@ test('composite action mirrors guard workflow expectations for setup, install, a
 
   assert.match(content, /using: 'composite'/, 'composite action missing using field');
   assert.match(content, /actions\/setup-node@v4/, 'setup-node not wired in composite action');
-  assert.match(content, /npm install -g @eutelo\/cli/, 'composite action missing CLI install');
+  assert.match(content, /npm ci/, 'composite action missing dependency install');
   assert.match(content, /EUTELO_GUARD_API_ENDPOINT: \$\{\{ env.EUTELO_GUARD_API_ENDPOINT \}\}/);
   assert.match(
     content,

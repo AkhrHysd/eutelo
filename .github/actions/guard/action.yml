@@ -34,7 +34,7 @@ runs:
       working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
       run: |
         set -euo pipefail
-        npm install -g @eutelo/cli
+        npm ci
 
     - name: Run eutelo guard
       shell: bash
@@ -43,6 +43,7 @@ runs:
         EUTELO_GUARD_API_ENDPOINT: ${{ env.EUTELO_GUARD_API_ENDPOINT }}
         EUTELO_GUARD_API_KEY: ${{ env.EUTELO_GUARD_API_KEY }}
         EUTELO_GUARD_MODEL: ${{ env.EUTELO_GUARD_MODEL }}
+        EUTELO_GUARD_DEBUG: ${{ env.EUTELO_GUARD_DEBUG }}
       run: |
         set -euo pipefail
-        eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}
+        npx eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}

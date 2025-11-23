@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import pathModule from 'node:path';
 
 type NodeFsError = Error & { code?: string };
 
@@ -25,10 +25,12 @@ export class TemplateNotFoundError extends Error {
 export class TemplateService {
   private readonly templateRoot: string;
   private readonly overrideRoot?: string;
+  private readonly path: any;
 
   constructor({ templateRoot, overrideRoot }: TemplateServiceOptions) {
     this.templateRoot = templateRoot;
     this.overrideRoot = overrideRoot;
+    this.path = pathModule as any;
   }
 
   async render(templateName: string, variables: TemplateVariables): Promise<string> {
@@ -58,10 +60,20 @@ export class TemplateService {
   }
 
   private resolveTemplatePath(templateName: string): string {
+    const path = this.path;
+    if (templateName.startsWith('.')) {
+      return path.resolve(process.cwd(), templateName);
+    }
+
     if (this.overrideRoot) {
       const fileName = path.basename(templateName);
       return path.resolve(this.overrideRoot, fileName);
     }
+
+    if (path.isAbsolute(templateName)) {
+      return templateName;
+    }
+
     return path.resolve(this.templateRoot, templateName);
   }
 }
