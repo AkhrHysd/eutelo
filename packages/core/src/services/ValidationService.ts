@@ -21,10 +21,13 @@ type ScannedDocument = {
   feature?: string;
   subfeature?: string;
   parent?: string;
+  parents: string[];
   type?: string;
   purpose?: string;
   kind?: DocumentKind;
 };
+
+type RelationFields = { parent: string[]; related: string[] };
 
 export type RunChecksOptions = {
   cwd: string;
@@ -74,7 +77,7 @@ type NamingRule = {
   buildPath(doc: ScannedDocument, docsRoot: string): string | undefined;
 };
 
-const DEFAULT_ROOT_PARENT_IDS = new Set(['PRINCIPLE-GLOBAL']);
+const DEFAULT_ROOT_PARENT_IDS = new Set<string>();
 
 const DEFAULT_NAMING_RULES: NamingRule[] = [
   {
@@ -160,12 +163,15 @@ const DEFAULT_NAMING_RULES: NamingRule[] = [
   }
 ];
 
+const DEFAULT_RELATION_FIELDS: RelationFields = { parent: ['parent'], related: ['related'] };
+
 export class ValidationService {
   private readonly fileSystemAdapter: FileSystemAdapter;
   private readonly docsRoot: string;
   private readonly schemaByKind: Map<string, FrontmatterSchemaConfig>;
   private readonly rootParentIds: Set<string>;
   private readonly namingRules: NamingRule[];
+  private readonly relationFieldsByKind: Map<string, RelationFields>;
 
   constructor({
     fileSystemAdapter,
@@ -179,6 +185,7 @@ export class ValidationService {
     this.schemaByKind = buildSchemaMap(frontmatterSchemas);
     this.rootParentIds = new Set(rootParentIds && rootParentIds.length > 0 ? rootParentIds : DEFAULT_ROOT_PARENT_IDS);
     this.namingRules = scaffold ? buildNamingRulesFromScaffold(scaffold) : DEFAULT_NAMING_RULES;
+    this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
   }
 
   async runChecks({ cwd }: RunChecksOptions): Promise<ValidationReport> {
@@ -218,10 +225,16 @@ export class ValidationService {
       const id = normalizeField(frontmatter.id);
       const feature = normalizeField(frontmatter.feature);
       const subfeature = normalizeField(frontmatter.subfeature);
-      const parent = normalizeField(frontmatter.parent);
       const type = normalizeField(frontmatter.type);
       const purpose = normalizeField(frontmatter.purpose);
       const kind = classifyDocumentKind(id ?? fileName);
+      const schemaKey = normalizeDocumentKind(kind ?? type ?? '');
+      const relations =
+        this.relationFieldsByKind.get(schemaKey) ??
+        this.relationFieldsByKind.get('*') ??
+        DEFAULT_RELATION_FIELDS;
+      const parents = collectRelationIds(frontmatter, relations.parent);
+      const parent = parents[0];
       if (!kind) {
         continue;
       }
@@ -234,6 +247,7 @@ export class ValidationService {
         feature,
         subfeature,
         parent,
+        parents,
         type,
         purpose,
         kind
@@ -270,8 +284,13 @@ export class ValidationService {
       const schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
       const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.kind);
       for (const field of requiredFields) {
-        const value = (doc as Record<string, string | undefined>)[field];
-        if (!value) {
+        const rawValue = (doc as Record<string, unknown>)[field];
+        const isMissing =
+          rawValue === undefined ||
+          rawValue === null ||
+          (typeof rawValue === 'string' && rawValue.trim().length === 0) ||
+          (Array.isArray(rawValue) && rawValue.length === 0);
+        if (isMissing) {
           issues.push({
             type: 'missingField',
             field,
@@ -319,21 +338,23 @@ export class ValidationService {
       }
     }
     for (const doc of docs) {
-      const parentId = doc.parent;
-      if (!parentId) {
+      const parentIds = doc.parents && doc.parents.length > 0 ? doc.parents : doc.parent ? [doc.parent] : [];
+      if (parentIds.length === 0) {
         continue;
       }
-      if (this.rootParentIds.has(parentId)) {
-        continue;
-      }
-      if (!knownIds.has(parentId)) {
-        issues.push({
-          type: 'parentNotFound',
-          parentId,
-          path: doc.relativePath,
-          id: doc.id,
-          message: `Referenced parent ${parentId} was not found.`
-        });
+      for (const parentId of parentIds) {
+        if (this.rootParentIds.has(parentId)) {
+          continue;
+        }
+        if (!knownIds.has(parentId)) {
+          issues.push({
+            type: 'parentNotFound',
+            parentId,
+            path: doc.relativePath,
+            id: doc.id,
+            message: `Referenced parent ${parentId} was not found.`
+          });
+        }
       }
     }
     return issues;
@@ -468,6 +489,59 @@ function collectRequiredFields(schema: FrontmatterSchemaConfig): string[] {
     }
   }
   return required.length > 0 ? required : getDefaultRequiredFields();
+}
+
+function buildRelationFields(schemas?: FrontmatterSchemaConfig[]): Map<string, RelationFields> {
+  const map = new Map<string, RelationFields>();
+  for (const schema of schemas ?? []) {
+    const parent: string[] = [];
+    const related: string[] = [];
+    for (const [fieldName, definition] of Object.entries(schema.fields ?? {})) {
+      if (!fieldName) continue;
+      if (definition?.relation === 'parent') {
+        parent.push(fieldName);
+      } else if (definition?.relation === 'related') {
+        related.push(fieldName);
+      }
+    }
+    if (parent.length === 0 && related.length === 0) {
+      continue;
+    }
+    map.set(normalizeDocumentKind(schema.kind), { parent, related });
+  }
+  return map;
+}
+
+function collectRelationIds(frontmatter: ParsedFrontmatter, fields: string[]): string[] {
+  const values: string[] = [];
+  for (const field of fields) {
+    const raw = frontmatter[field];
+    if (!raw) continue;
+    values.push(...parseIdList(raw));
+  }
+  return Array.from(new Set(values));
+}
+
+function parseIdList(rawValue: string): string[] {
+  if (!rawValue) return [];
+  const trimmed = rawValue.trim();
+  if (!trimmed) return [];
+  const normalized = trimmed.replace(/'/g, '"');
+  if (normalized.startsWith('[') && normalized.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(normalized);
+      if (Array.isArray(parsed)) {
+        return parsed.map((entry) => String(entry).trim()).filter(Boolean);
+      }
+    } catch {
+      // fall through to comma parsing
+    }
+  }
+  return normalized
+    .replace(/[\[\]]/g, '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function getDefaultRequiredFields(kind?: DocumentKind): string[] {

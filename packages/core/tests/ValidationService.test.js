@@ -48,7 +48,7 @@ function cleanup(dirPath) {
 
 test('ValidationService reports no issues for valid documents', async () => {
   const adapter = new RealFsAdapter();
-  const service = new ValidationService({ fileSystemAdapter: adapter });
+  const service = new ValidationService({ fileSystemAdapter: adapter, rootParentIds: ['PRINCIPLE-GLOBAL'] });
   const cwd = setupWorkspace((root) => {
     writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/PRD-AUTH.md', [
       'id: PRD-AUTH',
@@ -75,7 +75,7 @@ test('ValidationService reports no issues for valid documents', async () => {
 
 test('ValidationService flags missing mandatory fields', async () => {
   const adapter = new RealFsAdapter();
-  const service = new ValidationService({ fileSystemAdapter: adapter });
+  const service = new ValidationService({ fileSystemAdapter: adapter, rootParentIds: ['PRINCIPLE-GLOBAL'] });
   const cwd = setupWorkspace((root) => {
     writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/PRD-AUTH.md', [
       'id: PRD-AUTH',
@@ -95,7 +95,7 @@ test('ValidationService flags missing mandatory fields', async () => {
 
 test('ValidationService detects mismatched file names', async () => {
   const adapter = new RealFsAdapter();
-  const service = new ValidationService({ fileSystemAdapter: adapter });
+  const service = new ValidationService({ fileSystemAdapter: adapter, rootParentIds: ['PRINCIPLE-GLOBAL'] });
   const cwd = setupWorkspace((root) => {
     writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/AUTH-PRD.md', [
       'id: PRD-AUTH',
@@ -117,7 +117,7 @@ test('ValidationService detects mismatched file names', async () => {
 
 test('ValidationService reports missing parent references', async () => {
   const adapter = new RealFsAdapter();
-  const service = new ValidationService({ fileSystemAdapter: adapter });
+  const service = new ValidationService({ fileSystemAdapter: adapter, rootParentIds: ['PRINCIPLE-GLOBAL'] });
   const cwd = setupWorkspace((root) => {
     writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/PRD-AUTH.md', [
       'id: PRD-AUTH',
@@ -148,6 +148,7 @@ test('ValidationService honors custom frontmatter schema requirements', async ()
   const adapter = new RealFsAdapter();
   const service = new ValidationService({
     fileSystemAdapter: adapter,
+    rootParentIds: ['PRINCIPLE-GLOBAL'],
     frontmatterSchemas: [
       {
         kind: 'prd',
@@ -183,6 +184,7 @@ test('ValidationService uses scaffold naming rules from config', async () => {
   const adapter = new RealFsAdapter();
   const service = new ValidationService({
     fileSystemAdapter: adapter,
+    rootParentIds: ['PRINCIPLE-GLOBAL'],
     scaffold: {
       'document.prd': {
         id: 'document.prd',

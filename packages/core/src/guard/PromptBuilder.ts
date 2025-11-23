@@ -18,67 +18,18 @@ export class PromptBuilder {
   }
 
   private async buildSystemPrompt(templatePath?: string): Promise<string> {
-    if (templatePath) {
-      try {
-        return await fs.readFile(templatePath, 'utf8');
-      } catch (error) {
-        const err = error as { code?: string };
-        if (err?.code !== 'ENOENT') {
-          throw error;
-        }
+    if (!templatePath) {
+      throw new Error('Guard prompt templatePath is required');
+    }
+    try {
+      return await fs.readFile(templatePath, 'utf8');
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err?.code === 'ENOENT') {
+        throw new Error(`Guard prompt template not found at ${templatePath}`);
       }
+      throw error;
     }
-    return `You are a documentation consistency checker for the Eutelo documentation system.
-
-Eutelo uses a structured documentation system with the following document types:
-- PRD (Product Requirements Document): Defines what the product should do
-- BEH (Behavior Specification): Defines how the product behaves
-- DSG (Design Specification Guide): Defines the technical design
-- ADR (Architecture Decision Record): Records architectural decisions
-- TASK: Implementation task breakdown
-- OPS: Operational runbooks
-
-Key relationships:
-- PRD and BEH should have consistent purpose and scope
-- BEH should cover all scenarios mentioned in PRD
-- DSG should align with PRD's scope
-- ADR decisions should not contradict PRD/BEH/DSG
-- Documents reference each other via "parent" field
-
-Your task is to analyze the provided documents and identify:
-1. Purpose conflicts between related documents (especially PRD ↔ BEH)
-2. Scope gaps (e.g., PRD mentions features not covered in BEH)
-3. ADR conflicts (ADR decisions contradicting PRD/BEH/DSG)
-4. Parent relationship inconsistencies
-5. Document role violations (e.g., PRD containing implementation details)
-
-Respond in JSON format with the following structure:
-{
-  "issues": [
-    {
-      "id": "ISSUE-001",
-      "document": "path/to/document.md",
-      "message": "Description of the issue",
-      "type": "purpose-conflict" | "scope-gap" | "adr-conflict" | "parent-inconsistency" | "role-violation"
-    }
-  ],
-  "warnings": [
-    {
-      "id": "WARN-001",
-      "document": "path/to/document.md",
-      "message": "Description of the warning"
-    }
-  ],
-  "suggestions": [
-    {
-      "id": "SUGGEST-001",
-      "document": "path/to/document.md",
-      "message": "Improvement suggestion"
-    }
-  ]
-}
-
-If no issues are found, return empty arrays.`;
   }
 
   private buildUserPrompt(documents: Document[]): string {

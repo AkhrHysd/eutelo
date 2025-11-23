@@ -5,26 +5,8 @@ import type { TemplateService } from './TemplateService.js';
 
 const ADR_SEQUENCE_PAD = 4;
 const PLACEHOLDER_PATTERN = /\{([A-Z0-9_-]+)\}/g;
-const DOCUMENT_TYPE_TO_SCAFFOLD_ID: Record<DocumentType, string> = {
-  prd: 'document.prd',
-  beh: 'document.beh',
-  'sub-prd': 'document.sub-prd',
-  'sub-beh': 'document.sub-beh',
-  dsg: 'document.dsg',
-  adr: 'document.adr',
-  task: 'document.task',
-  ops: 'document.ops'
-};
 
-export type DocumentType =
-  | 'prd'
-  | 'beh'
-  | 'sub-prd'
-  | 'sub-beh'
-  | 'dsg'
-  | 'adr'
-  | 'task'
-  | 'ops';
+export type DocumentType = string;
 
 type FileSystemAdapter = {
   exists(targetPath: string): Promise<boolean>;
@@ -43,7 +25,8 @@ export type AddDocumentServiceDependencies = {
 
 export type ResolveOutputPathOptions = {
   cwd: string;
-  type: DocumentType;
+  type?: DocumentType;
+  scaffoldId?: string;
   feature?: string;
   sub?: string;
   name?: string;
@@ -52,7 +35,8 @@ export type ResolveOutputPathOptions = {
 
 export type AddDocumentOptions = {
   cwd: string;
-  type: DocumentType;
+  type?: DocumentType;
+  scaffoldId?: string;
   feature?: string;
   sub?: string;
   name?: string;
@@ -77,7 +61,8 @@ export class FileAlreadyExistsError extends Error {
 }
 
 type DocumentBlueprint = {
-  documentType: DocumentType;
+  id: string;
+  kind: DocumentType;
   scaffold: ScaffoldTemplateConfig;
   requiresFeature: boolean;
   requiresSub: boolean;
@@ -144,7 +129,8 @@ export class AddDocumentService {
   private readonly templateService: TemplateService;
   private readonly clock: () => Date;
   private readonly docsRoot: string;
-  private readonly blueprints: Record<DocumentType, DocumentBlueprint>;
+  private readonly blueprintsById: Map<string, DocumentBlueprint>;
+  private readonly blueprintsByKind: Map<string, DocumentBlueprint>;
 
   constructor({
     fileSystemAdapter,
@@ -157,12 +143,14 @@ export class AddDocumentService {
     this.templateService = templateService;
     this.clock = clock;
     this.docsRoot = docsRoot;
-    this.blueprints = buildDocumentBlueprints(scaffold);
+    const { byId, byKind } = buildDocumentBlueprints(scaffold);
+    this.blueprintsById = byId;
+    this.blueprintsByKind = byKind;
   }
 
   resolveOutputPath(options: ResolveOutputPathOptions): string {
-    const { cwd, type } = options;
-    const blueprint = this.getBlueprint(type);
+    const { cwd, type, scaffoldId } = options;
+    const blueprint = this.getBlueprint({ type, scaffoldId });
     const context = this.buildContext({
       definition: blueprint,
       feature: options.feature,
@@ -176,8 +164,16 @@ export class AddDocumentService {
     return path.resolve(cwd, relative);
   }
 
-  async addDocument({ cwd, type, feature, sub, name, dryRun = false }: AddDocumentOptions): Promise<AddDocumentResult> {
-    const blueprint = this.getBlueprint(type);
+  async addDocument({
+    cwd,
+    type,
+    scaffoldId,
+    feature,
+    sub,
+    name,
+    dryRun = false
+  }: AddDocumentOptions): Promise<AddDocumentResult> {
+    const blueprint = this.getBlueprint({ type, scaffoldId });
     const context = this.buildContext({ definition: blueprint, feature, sub, name });
     const baseTokens = this.buildTokenMap(context, { includeDate: false });
     let sequence: string | undefined;
@@ -316,12 +312,24 @@ export class AddDocumentService {
     return applyPlaceholders(parentPattern, tokens);
   }
 
-  private getBlueprint(type: DocumentType): DocumentBlueprint {
-    const blueprint = this.blueprints[type];
-    if (!blueprint) {
-      throw new Error(`Unsupported document type: ${type}`);
+  private getBlueprint({ type, scaffoldId }: { type?: DocumentType; scaffoldId?: string }): DocumentBlueprint {
+    if (scaffoldId) {
+      const byId = this.blueprintsById.get(scaffoldId);
+      if (byId) {
+        return byId;
+      }
     }
-    return blueprint;
+    if (type) {
+      const byId = this.blueprintsById.get(type);
+      if (byId) {
+        return byId;
+      }
+      const byKind = this.blueprintsByKind.get(type.toLowerCase());
+      if (byKind) {
+        return byKind;
+      }
+    }
+    throw new Error(`Unsupported document type or scaffold: ${scaffoldId ?? type ?? 'unknown'}`);
   }
 }
 
@@ -329,30 +337,37 @@ export function createAddDocumentService(deps: AddDocumentServiceDependencies): 
   return new AddDocumentService(deps);
 }
 
-function buildDocumentBlueprints(scaffold: Record<string, ScaffoldTemplateConfig>): Record<DocumentType, DocumentBlueprint> {
-  if (!scaffold) {
+function buildDocumentBlueprints(
+  scaffold: Record<string, ScaffoldTemplateConfig>
+): { byId: Map<string, DocumentBlueprint>; byKind: Map<string, DocumentBlueprint> } {
+  if (!scaffold || Object.keys(scaffold).length === 0) {
     throw new Error('scaffold configuration is required');
   }
-  const entries = {} as Record<DocumentType, DocumentBlueprint>;
-  for (const [documentType, scaffoldId] of Object.entries(DOCUMENT_TYPE_TO_SCAFFOLD_ID)) {
-    const templateConfig = scaffold[scaffoldId];
-    if (!templateConfig) {
-      throw new Error(`Missing scaffold configuration for "${scaffoldId}"`);
+  const byId = new Map<string, DocumentBlueprint>();
+  const byKind = new Map<string, DocumentBlueprint>();
+  for (const entry of Object.values(scaffold)) {
+    if (!entry?.id || !entry.kind) {
+      throw new Error('scaffold entries must define id and kind');
     }
-    const requiresFeature = usesPlaceholder(templateConfig, 'FEATURE');
-    const requiresSub = usesPlaceholder(templateConfig, 'SUB');
-    const requiresName = usesPlaceholder(templateConfig, 'NAME');
-    const usesSequence = usesPlaceholder(templateConfig, 'SEQUENCE');
-    entries[documentType as DocumentType] = {
-      documentType: documentType as DocumentType,
-      scaffold: templateConfig,
+    const requiresFeature = usesPlaceholder(entry, 'FEATURE');
+    const requiresSub = usesPlaceholder(entry, 'SUB');
+    const requiresName = usesPlaceholder(entry, 'NAME');
+    const usesSequence = usesPlaceholder(entry, 'SEQUENCE');
+    const blueprint: DocumentBlueprint = {
+      id: entry.id,
+      kind: entry.kind.toLowerCase(),
+      scaffold: entry,
       requiresFeature,
       requiresSub,
       requiresName,
       usesSequence
     };
+    byId.set(entry.id, blueprint);
+    if (!byKind.has(blueprint.kind)) {
+      byKind.set(blueprint.kind, blueprint);
+    }
   }
-  return entries;
+  return { byId, byKind };
 }
 
 function usesPlaceholder(config: ScaffoldTemplateConfig, placeholder: string): boolean {

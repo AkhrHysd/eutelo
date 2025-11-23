@@ -68,6 +68,7 @@ export class DocumentScanner {
   private readonly parser: FrontmatterParser;
   private readonly pathMatchers: PathMatcher[];
   private readonly mentionPattern: RegExp;
+  private readonly relationFieldsByKind: Map<string, RelationFields>;
 
   constructor({
     fileSystemAdapter,
@@ -79,9 +80,11 @@ export class DocumentScanner {
     this.fs = fileSystemAdapter ?? new DefaultFileSystemAdapter();
     this.docsRoot = docsRoot;
     const dynamicAllowed = buildAllowedFields(allowedFields, frontmatterSchemas);
-    this.parser = new FrontmatterParser({ allowedFields: dynamicAllowed });
+    const requiredFields = buildRequiredFields(frontmatterSchemas);
+    this.parser = new FrontmatterParser({ allowedFields: dynamicAllowed, requiredFields });
     this.pathMatchers = buildPathMatchers(scaffold) ?? DEFAULT_PATH_MATCHERS;
     this.mentionPattern = buildMentionPattern(scaffold) ?? DEFAULT_MENTION_PATTERN;
+    this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
   }
 
   async scan({ cwd }: { cwd: string }): Promise<DocumentScanResult> {
@@ -152,8 +155,12 @@ export class DocumentScanner {
 
     const normalizedPath = normalizePath(path.relative(root, absolutePath));
     const type = normalizeDocumentType(frontmatter.type, normalizedPath, this.pathMatchers);
-    const parentIds = parseIdList(frontmatter.parent);
-    const relatedIds = parseIdList(frontmatter.related);
+    const relations =
+      this.relationFieldsByKind.get(type) ??
+      this.relationFieldsByKind.get('*') ??
+      DEFAULT_RELATION_FIELDS;
+    const parentIds = collectRelationIds(frontmatter, relations.parent);
+    const relatedIds = collectRelationIds(frontmatter, relations.related);
     const tags = parseIdList(frontmatter.tags);
     const owners = parseIdList(frontmatter.owners);
     const mentionIds = extractMentions(removeFrontmatter(content), this.mentionPattern);
@@ -205,8 +212,14 @@ function normalizeDocumentType(
   return 'unknown';
 }
 
-function parseIdList(rawValue: string | undefined): string[] {
+function parseIdList(rawValue: unknown): string[] {
   if (!rawValue) {
+    return [];
+  }
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((value) => String(value).trim()).filter(Boolean);
+  }
+  if (typeof rawValue !== 'string') {
     return [];
   }
   const trimmed = rawValue.trim();
@@ -263,6 +276,18 @@ function buildAllowedFields(
     }
   }
   return Array.from(fields);
+}
+
+function buildRequiredFields(schemas?: FrontmatterSchemaConfig[]): string[] {
+  const required = new Set<string>(['id', 'type']);
+  for (const schema of schemas ?? []) {
+    for (const [field, definition] of Object.entries(schema.fields ?? {})) {
+      if (definition?.required) {
+        required.add(field);
+      }
+    }
+  }
+  return Array.from(required);
 }
 
 function buildPathMatchers(scaffold?: Record<string, ScaffoldTemplateConfig>): PathMatcher[] | null {
@@ -334,4 +359,54 @@ function convertTemplateToIdPattern(template: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+type RelationFields = { parent: string[]; related: string[] };
+
+const DEFAULT_RELATION_FIELDS: RelationFields = { parent: ['parent'], related: ['related'] };
+
+function buildRelationFields(schemas?: FrontmatterSchemaConfig[]): Map<string, RelationFields> {
+  const relations = new Map<string, RelationFields>();
+  for (const schema of schemas ?? []) {
+    const parent: string[] = [];
+    const related: string[] = [];
+    for (const [fieldName, field] of Object.entries(schema.fields ?? {})) {
+      if (!fieldName) continue;
+      if (field?.relation === 'parent') {
+        parent.push(fieldName);
+      } else if (field?.relation === 'related') {
+        related.push(fieldName);
+      }
+    }
+    if (parent.length === 0 && related.length === 0) {
+      continue;
+    }
+    relations.set(schema.kind.toLowerCase(), {
+      parent,
+      related
+    });
+  }
+  return relations;
+}
+
+function collectRelationIds(frontmatter: Record<string, unknown>, fields: string[]): string[] {
+  const values: string[] = [];
+  for (const field of fields) {
+    const raw = frontmatter[field];
+    if (raw === undefined) {
+      continue;
+    }
+    if (Array.isArray(raw)) {
+      for (const entry of raw) {
+        const normalized = String(entry ?? '').trim();
+        if (normalized) {
+          values.push(normalized);
+        }
+      }
+      continue;
+    }
+    const list = parseIdList(raw as string);
+    values.push(...list);
+  }
+  return Array.from(new Set(values));
 }

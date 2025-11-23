@@ -39,7 +39,8 @@ export class DocumentLoader {
     const { fileSystemAdapter, allowedFields, frontmatterSchemas, scaffold } = dependencies;
     this.fileSystemAdapter = fileSystemAdapter;
     this.parser = new FrontmatterParser({
-      allowedFields: buildAllowedFields(allowedFields, frontmatterSchemas)
+      allowedFields: buildAllowedFields(allowedFields, frontmatterSchemas),
+      requiredFields: buildRequiredFields(frontmatterSchemas)
     });
     this.typeMatchers = buildTypeMatchers(scaffold);
   }
@@ -183,6 +184,18 @@ function buildAllowedFields(
     }
   }
   return Array.from(fields);
+}
+
+function buildRequiredFields(schemas?: FrontmatterSchemaConfig[]): string[] | undefined {
+  const required = new Set<string>(['id', 'type']);
+  for (const schema of schemas ?? []) {
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields ?? {})) {
+      if (fieldDef?.required) {
+        required.add(fieldName);
+      }
+    }
+  }
+  return required.size > 0 ? Array.from(required) : undefined;
 }
 
 function buildTypeMatchers(scaffold?: Record<string, ScaffoldTemplateConfig>): Array<{ kind: string; regex: RegExp }> {

@@ -331,7 +331,8 @@ function normalizeConfigFragment(raw: unknown, context: string): Partial<EuteloC
       throw new ConfigValidationError('frontmatter must be an object', context);
     }
     const schemas = normalizeFrontmatterSchemas(raw.frontmatter.schemas, context);
-    normalized.frontmatter = { schemas };
+    const rootParentIds = normalizeRootParentIds(raw.frontmatter.rootParentIds, context);
+    normalized.frontmatter = { schemas, ...(rootParentIds ? { rootParentIds } : {}) };
   }
 
   if (raw.guard !== undefined) {
@@ -399,6 +400,27 @@ function normalizeVariables(
     result[key] = entry;
   }
   return result;
+}
+
+function normalizeRootParentIds(value: unknown, context: string): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new ConfigValidationError('frontmatter.rootParentIds must be an array of strings', context);
+  }
+  const normalized = value
+    .map((entry, index) => {
+      if (typeof entry !== 'string') {
+        throw new ConfigValidationError(
+          `frontmatter.rootParentIds[${index}] must be a string`,
+          context
+        );
+      }
+      return entry.trim();
+    })
+    .filter((entry) => entry.length > 0);
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function normalizeFrontmatterSchemas(value: unknown, context: string): FrontmatterSchemaConfig[] {
@@ -471,6 +493,22 @@ function normalizeFrontmatterField(
       );
     }
     schema.enum = value.enum.slice();
+  }
+  if (value.relation !== undefined) {
+    if (typeof value.relation !== 'string') {
+      throw new ConfigValidationError(
+        `frontmatter.schemas[${schemaIndex}].fields["${fieldName}"].relation must be a string`,
+        context
+      );
+    }
+    const normalizedRelation = value.relation.trim();
+    if (!['parent', 'related'].includes(normalizedRelation)) {
+      throw new ConfigValidationError(
+        `frontmatter.schemas[${schemaIndex}].fields["${fieldName}"].relation must be "parent" or "related"`,
+        context
+      );
+    }
+    schema.relation = normalizedRelation as FrontmatterFieldSchema['relation'];
   }
   return schema;
 }

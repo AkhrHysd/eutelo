@@ -60,6 +60,7 @@ type GuardCliOptions = {
   format?: string;
   failOnError?: boolean;
   warnOnly?: boolean;
+  check?: string;
 };
 
 type GraphBuildCliOptions = {
@@ -289,10 +290,12 @@ async function runGuardCommand(
   const normalizedDocuments = normalizeGuardDocuments(documents, argv);
   const formatOverride = resolveFormatArgument(argv);
   const format = normalizeGuardFormat(formatOverride ?? options.format);
+  const checkOverride = resolveOptionValue(argv, '--check') ?? options.check;
   const warnOnly = Boolean(options.warnOnly);
   const failOnError = warnOnly ? false : options.failOnError ?? true;
   const result = await guardService.run({
     documents: normalizedDocuments,
+    checkId: typeof checkOverride === 'string' ? checkOverride : undefined,
     format,
     warnOnly,
     failOnError
@@ -863,6 +866,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--format <format>', 'Output format (text or json)')
     .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
     .option('--warn-only', 'Never exit with code 2, even when issues are detected')
+    .option('--check <id>', 'Guard prompt id to execute (config.guard.prompts key)')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
       const configPath = resolveOptionValue(argv, '--config');
@@ -870,7 +874,9 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         await withConfig(configPath, async (config) => {
           const configuredGuardService = createGuardService({
             fileSystemAdapter,
-            prompts: config.guard.prompts
+            prompts: config.guard.prompts,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold
           });
           await runGuardCommand(configuredGuardService, documents, options, argv);
         });

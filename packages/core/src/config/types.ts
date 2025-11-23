@@ -14,6 +14,7 @@ export interface FrontmatterFieldSchema {
   type: FrontmatterFieldType;
   required?: boolean;
   enum?: string[];
+  relation?: 'parent' | 'related';
 }
 
 export interface FrontmatterSchemaConfig {
