@@ -54,16 +54,15 @@ function runPreflightChecks() {
   
   try {
     // package-lock.jsonを削除して再生成（file:依存の状態で確実に）
-    console.log('  → Regenerating package-lock.json with file: dependencies...');
+    console.log('  → Installing dependencies with file: protocol...');
     try {
       execSync('rm -f package-lock.json', { cwd: ROOT_DIR, stdio: 'pipe' });
     } catch {
       // 無視
     }
-    execSync('npm install --package-lock-only', { cwd: ROOT_DIR, stdio: 'inherit' });
-    
-    console.log('\n  → npm ci...');
-    execSync('npm ci', { cwd: ROOT_DIR, stdio: 'inherit' });
+    // npm installで依存関係をインストール（package-lock.jsonも生成される）
+    // これにより、file:依存のパッケージが実際にインストールされ、TypeScriptが解決できるようになる
+    execSync('npm install', { cwd: ROOT_DIR, stdio: 'inherit' });
     
     console.log('\n  → npm run build...');
     execSync('npm run build', { cwd: ROOT_DIR, stdio: 'inherit' });
@@ -375,6 +374,17 @@ function main() {
   console.log('🔄 Ensuring dependencies are in local mode for preflight checks...\n');
   if (!restoreDependencies()) {
     console.warn('⚠️  Failed to restore dependencies, but continuing...');
+  }
+
+  // TypeScript references を package.json の依存関係から自動生成
+  console.log('🔄 Syncing TypeScript references from package.json...\n');
+  try {
+    execSync('node scripts/sync-tsconfig-references.js', {
+      cwd: ROOT_DIR,
+      stdio: 'pipe',
+    });
+  } catch {
+    console.warn('⚠️  Failed to sync TypeScript references, but continuing...');
   }
 
   // プレフライトチェック（file:依存の状態で実行）

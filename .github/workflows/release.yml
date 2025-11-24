@@ -83,9 +83,11 @@ jobs:
           set -euo pipefail
           # 依存関係を確実にローカル（file:）状態に戻す
           node scripts/convert-deps-for-publish.js local || true
+          # TypeScript references を package.json の依存関係から自動生成
+          node scripts/sync-tsconfig-references.js || true
           # package-lock.jsonを削除して再生成（file:依存の状態で）
           rm -f package-lock.json
-          npm install --package-lock-only
+          npm install
 
       - name: Run release flow
         env:

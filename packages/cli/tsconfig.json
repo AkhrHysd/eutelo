@@ -7,9 +7,12 @@
     "tsBuildInfoFile": "./dist/cli.tsbuildinfo"
   },
   "references": [
+    { "path": "../commander" },
     { "path": "../core" },
     { "path": "../infrastructure" },
-    { "path": "../commander" }
+    { "path": "../preset-default" }
   ],
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }
