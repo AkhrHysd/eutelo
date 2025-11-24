@@ -264,6 +264,13 @@ function verifyInstallation(packageName, distTag = 'latest') {
       JSON.stringify(testPackageJson, null, 2)
     );
     
+    // 既存の package-lock.json を削除（警告を避けるため）
+    try {
+      execSync('rm -f package-lock.json', { cwd: testDir, stdio: 'pipe' });
+    } catch {
+      // 無視
+    }
+    
     // npm install を実行
     console.log(`  → Installing ${packageName}@${distTag}...`);
     execSync('npm install', {
