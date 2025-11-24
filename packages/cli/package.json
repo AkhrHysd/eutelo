@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/cli",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "bin": {
     "eutelo": "./bin/eutelo.js"
@@ -23,11 +23,11 @@
     "postpublish": "node ../../scripts/convert-deps-for-publish.js local"
   },
   "dependencies": {
-    "@eutelo/distribution": "file:../distribution",
-    "@eutelo/core": "file:../core",
-    "@eutelo/infrastructure": "file:../infrastructure",
-    "@eutelo/commander": "file:../commander",
-    "@eutelo/preset-default": "file:../preset-default",
+    "@eutelo/distribution": "^0.1.0",
+    "@eutelo/core": "^0.2.3",
+    "@eutelo/infrastructure": "^0.1.0",
+    "@eutelo/commander": "^0.0.1",
+    "@eutelo/preset-default": "^0.1.0",
     "dotenv": "^16.4.5"
   }
 }

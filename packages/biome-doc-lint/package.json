@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/biome-doc-lint",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,7 +17,7 @@
     "@biomejs/biome": ">=1.9.0"
   },
   "dependencies": {
-    "@eutelo/core": "file:../core"
+    "@eutelo/core": "^0.2.3"
   },
   "publishConfig": {
     "access": "public",
