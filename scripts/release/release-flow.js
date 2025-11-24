@@ -418,14 +418,38 @@ function main() {
 
   // 結果サマリー
   console.log('\n📊 Publication Summary:');
-  const successful = publishResults.filter(r => r.success).length;
-  const failed = publishResults.filter(r => !r.success && !r.skipped).length;
-  const skipped = publishResults.filter(r => r.skipped).length;
-  console.log(`  Successful: ${successful}`);
-  console.log(`  Skipped: ${skipped}`);
-  console.log(`  Failed: ${failed}`);
+  const successful = publishResults.filter(r => r.success && !r.skipped);
+  const failed = publishResults.filter(r => !r.success && !r.skipped);
+  const skipped = publishResults.filter(r => r.skipped);
+  
+  console.log(`  Successful: ${successful.length}`);
+  if (successful.length > 0) {
+    successful.forEach(r => {
+      const packageName = getPackageName(r.package);
+      console.log(`    ✓ ${packageName || r.package}`);
+    });
+  }
+  
+  console.log(`  Skipped: ${skipped.length}`);
+  if (skipped.length > 0) {
+    skipped.forEach(r => {
+      const packageName = getPackageName(r.package);
+      console.log(`    ⚠ ${packageName || r.package} (${r.reason || 'already published'})`);
+    });
+  }
+  
+  console.log(`  Failed: ${failed.length}`);
+  if (failed.length > 0) {
+    failed.forEach(r => {
+      const packageName = getPackageName(r.package);
+      console.log(`    ✗ ${packageName || r.package}`);
+      if (r.error) {
+        console.log(`      Error: ${r.error}`);
+      }
+    });
+  }
 
-  if (failed > 0) {
+  if (failed.length > 0) {
     console.error('\n✗ Some packages failed to publish');
     console.error('\n💡 Rollback instructions:');
     console.error('  1. Check which packages were successfully published');
