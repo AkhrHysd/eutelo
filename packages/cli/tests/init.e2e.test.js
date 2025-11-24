@@ -79,3 +79,30 @@ test('init respects EUTELO_DOCS_ROOT override', () => {
 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test('init uses docsRoot from config file when provided', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-e2e-'));
+  try {
+    const configPath = path.join(cwd, 'eutelo.config.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          docsRoot: 'custom-root'
+        },
+        null,
+        2
+      )
+    );
+
+    const result = runCli(['init', '--config', 'eutelo.config.json'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(fs.existsSync(path.join(cwd, 'custom-root')), 'custom docsRoot should be created');
+    assert.ok(
+      fs.existsSync(path.join(cwd, 'custom-root', 'architecture/adr')),
+      'custom docsRoot should include nested structure'
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

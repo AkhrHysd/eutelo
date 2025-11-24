@@ -156,3 +156,45 @@ test('add commands honor EUTELO_DOCS_ROOT override', () => {
     cleanup(cwd);
   }
 });
+
+test('add commands use project-local config templates and docsRoot', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-add-config-'));
+  try {
+    const templatesDir = path.join(cwd, 'templates');
+    fs.mkdirSync(templatesDir, { recursive: true });
+    const templatePath = path.join(templatesDir, '_custom-prd.md');
+    fs.writeFileSync(
+      templatePath,
+      ['---', 'id: {ID}', 'parent: {PARENT}', 'feature: {FEATURE}', 'purpose: custom', '---', '', '# Body', ''].join('\n'),
+      'utf8'
+    );
+
+    const config = {
+      docsRoot: 'custom-docs-config',
+      scaffold: {
+        'document.prd': {
+          id: 'document.prd',
+          kind: 'prd',
+          path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+          template: './templates/_custom-prd.md',
+          variables: {
+            ID: 'PRD-{FEATURE}',
+            PARENT: 'ROOT-LOCAL'
+          }
+        }
+      }
+    };
+    fs.writeFileSync(path.join(cwd, 'eutelo.config.json'), JSON.stringify(config, null, 2));
+
+    const result = runCli(['add', 'prd', 'AUTH', '--config', 'eutelo.config.json'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+
+    const target = path.join(cwd, 'custom-docs-config', 'product', 'features', 'AUTH', 'PRD-AUTH.md');
+    assert.ok(fs.existsSync(target), 'PRD should be created under custom docs root');
+    const frontmatter = readFrontmatter(target);
+    assert.equal(frontmatter.parent, 'ROOT-LOCAL');
+    assert.equal(frontmatter.purpose, 'custom');
+  } finally {
+    cleanup(cwd);
+  }
+});

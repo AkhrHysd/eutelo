@@ -1,8 +1,9 @@
 import path from 'node:path';
 import type { FileSystemAdapter } from '@eutelo/infrastructure';
 import { FrontmatterParser } from '../doc-lint/frontmatter-parser.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
 
-export type DocumentType = 'prd' | 'sub-prd' | 'beh' | 'sub-beh' | 'dsg' | 'adr' | 'task' | 'ops';
+export type DocumentType = string;
 
 export type Document = {
   path: string;
@@ -27,10 +28,21 @@ export type DocumentLoadResult = {
 export class DocumentLoader {
   private readonly fileSystemAdapter: FileSystemAdapter;
   private readonly parser: FrontmatterParser;
+  private readonly typeMatchers: Array<{ kind: string; regex: RegExp }>;
 
-  constructor(dependencies: { fileSystemAdapter: FileSystemAdapter }) {
-    this.fileSystemAdapter = dependencies.fileSystemAdapter;
-    this.parser = new FrontmatterParser();
+  constructor(dependencies: {
+    fileSystemAdapter: FileSystemAdapter;
+    allowedFields?: string[];
+    frontmatterSchemas?: FrontmatterSchemaConfig[];
+    scaffold?: Record<string, ScaffoldTemplateConfig>;
+  }) {
+    const { fileSystemAdapter, allowedFields, frontmatterSchemas, scaffold } = dependencies;
+    this.fileSystemAdapter = fileSystemAdapter;
+    this.parser = new FrontmatterParser({
+      allowedFields: buildAllowedFields(allowedFields, frontmatterSchemas),
+      requiredFields: buildRequiredFields(frontmatterSchemas)
+    });
+    this.typeMatchers = buildTypeMatchers(scaffold);
   }
 
   async loadDocuments(documentPaths: string[]): Promise<DocumentLoadResult> {
@@ -80,7 +92,7 @@ export class DocumentLoader {
       throw new Error(`Missing required fields: id=${id}, type=${type}`);
     }
 
-    const documentType = inferDocumentType(docPath, type);
+    const documentType = inferDocumentType(docPath, type, this.typeMatchers);
     if (!documentType) {
       throw new Error(`Unknown document type: ${type}`);
     }
@@ -99,35 +111,20 @@ export class DocumentLoader {
   }
 }
 
-function inferDocumentType(filePath: string, frontmatterType: string | undefined): DocumentType | null {
-  const fileName = path.basename(filePath);
+function inferDocumentType(
+  filePath: string,
+  frontmatterType: string | undefined,
+  matchers: Array<{ kind: string; regex: RegExp }>
+): DocumentType | null {
   const normalizedType = frontmatterType?.toLowerCase().trim();
-
-  if (normalizedType === 'prd' || fileName.match(/^PRD-/i)) {
-    return 'prd';
+  if (normalizedType) {
+    return normalizedType;
   }
-  if (normalizedType === 'sub-prd' || fileName.match(/^SUB-PRD-/i)) {
-    return 'sub-prd';
+  const relative = normalizeRelativePath(filePath);
+  const matched = matchers.find((candidate) => candidate.regex.test(relative));
+  if (matched) {
+    return matched.kind;
   }
-  if (normalizedType === 'beh' || fileName.match(/^BEH-/i)) {
-    return 'beh';
-  }
-  if (normalizedType === 'sub-beh' || fileName.match(/^SUB-BEH-/i)) {
-    return 'sub-beh';
-  }
-  if (normalizedType === 'dsg' || fileName.match(/^DSG-/i)) {
-    return 'dsg';
-  }
-  if (normalizedType === 'adr' || fileName.match(/^ADR-/i)) {
-    return 'adr';
-  }
-  if (normalizedType === 'task' || fileName.match(/^TASK-/i)) {
-    return 'task';
-  }
-  if (normalizedType === 'ops' || fileName.match(/^_template-ops/i)) {
-    return 'ops';
-  }
-
   return null;
 }
 
@@ -168,3 +165,75 @@ function extractContentWithoutFrontmatter(content: string): string {
   return lines.slice(endIndex + 1).join('\n').trim();
 }
 
+function buildAllowedFields(
+  explicit?: string[],
+  schemas?: FrontmatterSchemaConfig[]
+): string[] | undefined {
+  if (explicit && explicit.length > 0) {
+    return explicit;
+  }
+  if (!schemas) {
+    return undefined;
+  }
+  const fields = new Set<string>(['id', 'type', 'feature', 'purpose', 'parent']);
+  for (const schema of schemas) {
+    for (const fieldName of Object.keys(schema.fields ?? {})) {
+      if (fieldName) {
+        fields.add(fieldName);
+      }
+    }
+  }
+  return Array.from(fields);
+}
+
+function buildRequiredFields(schemas?: FrontmatterSchemaConfig[]): string[] | undefined {
+  const required = new Set<string>(['id', 'type']);
+  for (const schema of schemas ?? []) {
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields ?? {})) {
+      if (fieldDef?.required) {
+        required.add(fieldName);
+      }
+    }
+  }
+  return required.size > 0 ? Array.from(required) : undefined;
+}
+
+function buildTypeMatchers(scaffold?: Record<string, ScaffoldTemplateConfig>): Array<{ kind: string; regex: RegExp }> {
+  if (!scaffold) {
+    return [];
+  }
+  const matchers: Array<{ kind: string; regex: RegExp }> = [];
+  for (const entry of Object.values(scaffold)) {
+    if (!entry?.path || !entry.kind) {
+      continue;
+    }
+    matchers.push({ kind: entry.kind.toLowerCase(), regex: templateToRegex(entry.path) });
+  }
+  return matchers;
+}
+
+function templateToRegex(template: string): RegExp {
+  let pattern = '';
+  let lastIndex = 0;
+  const placeholder = /\{[A-Z0-9_-]+\}/gi;
+  let match: RegExpExecArray | null;
+  while ((match = placeholder.exec(template)) !== null) {
+    if (match.index > lastIndex) {
+      pattern += escapeRegExp(template.slice(lastIndex, match.index));
+    }
+    pattern += '[^/]+';
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < template.length) {
+    pattern += escapeRegExp(template.slice(lastIndex));
+  }
+  return new RegExp(pattern, 'i');
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeRelativePath(filePath: string): string {
+  return filePath.split(path.sep).join('/');
+}

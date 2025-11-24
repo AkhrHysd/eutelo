@@ -20,6 +20,8 @@ declare module 'node:path' {
     dirname(p: string): string;
     basename(p: string): string;
     sep: string;
+    extname(p: string): string;
+    posix: PathModule;
   }
   const path: PathModule;
   export default path;
@@ -66,12 +68,38 @@ declare module 'node:fs' {
 }
 
 declare module 'node:module' {
-  export function createRequire(path: string): { resolve(id: string): string };
+  export interface NodeRequire {
+    (id: string): any;
+    resolve(id: string): string;
+  }
+  export function createRequire(path: string): NodeRequire;
+}
+
+declare module 'node:url' {
+  export interface FileUrl {
+    href: string;
+  }
+  export function pathToFileURL(path: string): FileUrl;
+  export function fileURLToPath(url: string | FileUrl): string;
+}
+
+declare module 'node:vm' {
+  export function runInNewContext(
+    code: string,
+    context: Record<string, unknown>,
+    options?: { filename?: string }
+  ): unknown;
 }
 
 declare module 'node:process' {
   const proc: typeof process;
   export = proc;
+}
+
+declare namespace NodeJS {
+  interface ErrnoException extends Error {
+    code?: string;
+  }
 }
 
 declare global {
@@ -82,6 +110,10 @@ declare global {
 
   function setTimeout(callback: () => void, delay: number): number;
   function clearTimeout(timeoutId: number): void;
+  function setInterval(handler: () => void, timeout?: number): number;
+  function clearInterval(identifier?: number): void;
+  function setImmediate(handler: () => void): number;
+  function clearImmediate(identifier?: number): void;
 
   interface RequestInfo {
     toString(): string;
@@ -119,5 +151,9 @@ declare global {
 
   const AbortController: {
     new (): AbortController;
+  };
+
+  var Buffer: {
+    from(input: string | Uint8Array, encoding?: string): Uint8Array;
   };
 }

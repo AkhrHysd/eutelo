@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
 import { buildRequiredDirectories, REQUIRED_DIRECTORIES } from '../constants/requiredDirectories.js';
+import type { ScaffoldTemplateConfig } from '../config/types.js';
 import type { TemplateService } from './TemplateService.js';
 import type { DocumentType } from './AddDocumentService.js';
 
@@ -62,6 +63,7 @@ export type ScaffoldServiceDependencies = {
   logger?: Logger;
   templateService?: TemplateService;
   docsRoot?: string;
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
   clock?: () => Date;
 };
 
@@ -72,16 +74,25 @@ export class ScaffoldService {
   private readonly docsRoot: string;
   private readonly requiredDirectories: readonly string[];
   private readonly clock: () => Date;
+  private readonly prdScaffold: ScaffoldTemplateConfig;
 
   constructor({
     fileSystemAdapter,
     logger = noopLogger,
     templateService,
     docsRoot = resolveDocsRoot(),
+    scaffold,
     clock = () => new Date()
   }: ScaffoldServiceDependencies) {
     if (!fileSystemAdapter) {
       throw new Error('fileSystemAdapter is required');
+    }
+    if (!scaffold) {
+      throw new Error('scaffold configuration is required');
+    }
+    const prdScaffold = scaffold['document.prd'];
+    if (!prdScaffold) {
+      throw new Error('scaffold configuration for "document.prd" is required');
     }
     this.fileSystemAdapter = fileSystemAdapter;
     this.logger = logger;
@@ -89,6 +100,7 @@ export class ScaffoldService {
     this.docsRoot = docsRoot;
     this.requiredDirectories = buildRequiredDirectories(docsRoot);
     this.clock = clock;
+    this.prdScaffold = prdScaffold;
   }
 
   async computeInitPlan({ cwd }: ComputeInitPlanOptions): Promise<string[]> {
@@ -148,13 +160,9 @@ export class ScaffoldService {
     const features = await this.discoverFeatureDirectories(cwd);
     const plan: SyncPlanEntry[] = [];
     for (const feature of features) {
-      const relativePath = path.join(
-        this.docsRoot,
-        'product',
-        'features',
-        feature.directoryName,
-        `PRD-${feature.featureId}.md`
-      );
+      const tokens = buildFeatureTokens(feature.featureId);
+      const relativeDocPath = normalizeRelativeDocPath(applyPlaceholders(this.prdScaffold.path, tokens));
+      const relativePath = path.join(this.docsRoot, relativeDocPath);
       const absolutePath = path.resolve(cwd, relativePath);
       const exists = await this.fileSystemAdapter.exists(absolutePath);
       if (!exists) {
@@ -185,13 +193,11 @@ export class ScaffoldService {
     if (!checkOnly) {
       const timestamp = this.clock().toISOString().slice(0, 10);
       for (const entry of plan) {
-        const rendered = await this.templateService.render('_template-prd.md', {
-          FEATURE: entry.featureId,
-          SUB: '',
-          DATE: timestamp,
-          ID: `PRD-${entry.featureId}`,
-          PARENT: 'PRINCIPLE-GLOBAL'
-        });
+        const tokens = buildFeatureTokens(entry.featureId);
+        tokens.DATE = timestamp;
+        tokens.ID = applyPlaceholders(this.prdScaffold.variables?.ID ?? '', tokens);
+        tokens.PARENT = applyPlaceholders(this.prdScaffold.variables?.PARENT ?? '', tokens);
+        const rendered = await this.templateService.render(this.prdScaffold.template, tokens);
         const result = await this.fileSystemAdapter.writeIfNotExists(entry.absolutePath, rendered);
         if (!result.written) {
           this.logger.warn?.(`Skipped writing existing file: ${entry.relativePath}`);
@@ -247,4 +253,31 @@ function normalizeFeatureIdentifier(value: string): string {
 
 export function createScaffoldService(dependencies: ScaffoldServiceDependencies): ScaffoldService {
   return new ScaffoldService(dependencies);
+}
+
+function buildFeatureTokens(featureId: string): Record<string, string> {
+  return {
+    FEATURE: featureId,
+    SUB: '',
+    NAME: '',
+    SEQUENCE: ''
+  };
+}
+
+function applyPlaceholders(template: string, tokens: Record<string, string>): string {
+  if (!template) {
+    return '';
+  }
+  return template.replace(/\{([A-Z0-9_-]+)\}/g, (_, key: string) => tokens[key] ?? '');
+}
+
+function normalizeRelativeDocPath(relativePath: string): string {
+  const segments = relativePath
+    .split(/[\\/]+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return '';
+  }
+  return path.join(...segments);
 }

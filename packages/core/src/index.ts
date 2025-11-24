@@ -70,7 +70,8 @@ export type {
   BuildGraphOptions as GraphBuildOptions,
   GraphSummary,
   ImpactAnalysisResult,
-  NodeNeighborhood
+  NodeNeighborhood,
+  GraphServiceDependencies
 } from './services/GraphService.js';
 export { GraphSerializer } from './graph/GraphSerializer.js';
 export type {
@@ -80,3 +81,23 @@ export type {
   GraphRelationType,
   ImpactFinding
 } from './graph/types.js';
+export {
+  loadConfig,
+  defineConfig
+} from './config/index.js';
+export type {
+  EuteloConfig,
+  EuteloConfigResolved,
+  ConfigResolutionMeta,
+  ConfigResolutionLayerMeta,
+  FrontmatterSchemaConfig,
+  FrontmatterFieldSchema,
+  GuardPromptConfig,
+  ScaffoldTemplateConfig
+} from './config/types.js';
+export {
+  ConfigError,
+  ConfigFileNotFoundError,
+  ConfigParseError,
+  ConfigValidationError
+} from './config/errors.js';

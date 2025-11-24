@@ -5,10 +5,15 @@ import { DocumentLoader } from '../guard/DocumentLoader.js';
 import type { LLMClient } from '../guard/LLMClient.js';
 import { OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
 import { PromptBuilder } from '../guard/PromptBuilder.js';
+import type { FrontmatterSchemaConfig, GuardPromptConfig, ScaffoldTemplateConfig } from '../config/types.js';
 
 export type GuardServiceDependencies = {
   fileSystemAdapter?: FileSystemAdapter;
   llmClient?: LLMClient;
+  prompts?: Record<string, GuardPromptConfig>;
+  allowedFields?: string[];
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
 };
 
 export type GuardOutputFormat = 'text' | 'json';
@@ -18,6 +23,10 @@ export type RunGuardOptions = {
    * A list of document paths that should be checked. The CLI will inject user-provided paths here.
    */
   documents: string[];
+  /**
+   * Which guard prompt (from config.guard.prompts) to execute.
+   */
+  checkId?: string;
   /**
    * Preferred output format. The CLI still controls the actual rendering, but the service can
    * adjust its behavior (e.g. prompt) depending on the requested format.
@@ -79,12 +88,21 @@ export class GuardService {
   private readonly promptBuilder: PromptBuilder;
   private readonly analyzer: Analyzer;
   private readonly llmClient: LLMClient | null;
+  private readonly prompts: Record<string, GuardPromptConfig>;
+  private readonly hasCustomLLMClient: boolean;
 
   constructor(deps: GuardServiceDependencies = {}) {
     const fileSystemAdapter = deps.fileSystemAdapter ?? new DefaultFileSystemAdapter();
-    this.documentLoader = new DocumentLoader({ fileSystemAdapter });
+    this.documentLoader = new DocumentLoader({
+      fileSystemAdapter,
+      allowedFields: deps.allowedFields,
+      frontmatterSchemas: deps.frontmatterSchemas,
+      scaffold: deps.scaffold
+    });
     this.promptBuilder = new PromptBuilder();
     this.analyzer = new Analyzer();
+    this.prompts = deps.prompts ?? {};
+    this.hasCustomLLMClient = Boolean(deps.llmClient);
 
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
     const validStubModes = ['success', 'issues', 'warnings', 'connection-error'];
@@ -95,8 +113,10 @@ export class GuardService {
       const apiKey = process.env.EUTELO_GUARD_API_KEY;
       const model = process.env.EUTELO_GUARD_MODEL;
 
-      if (endpoint && apiKey) {
-        this.llmClient = deps.llmClient ?? new OpenAICompatibleLLMClient({ endpoint, apiKey, model });
+      if (deps.llmClient) {
+        this.llmClient = deps.llmClient;
+      } else if (endpoint && apiKey) {
+        this.llmClient = new OpenAICompatibleLLMClient({ endpoint, apiKey, model });
       } else {
         this.llmClient = null;
       }
@@ -105,6 +125,8 @@ export class GuardService {
 
   async run(options: RunGuardOptions): Promise<GuardRunResult> {
     const documents = normalizeDocuments(options.documents);
+    const checkId = typeof options.checkId === 'string' && options.checkId.trim().length > 0 ? options.checkId.trim() : 'guard.default';
+    const promptConfig = this.prompts[checkId];
 
     if (documents.length === 0) {
       return {
@@ -121,36 +143,43 @@ export class GuardService {
       return this.runStubMode(documents, stubMode);
     }
 
-    // Check for required environment variables before proceeding
-    const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
-    const apiKey = process.env.EUTELO_GUARD_API_KEY;
-
-    if (!endpoint || !apiKey) {
-      const missingVars: string[] = [];
-      if (!endpoint) missingVars.push('EUTELO_GUARD_API_ENDPOINT');
-      if (!apiKey) missingVars.push('EUTELO_GUARD_API_KEY');
-
+    if (!promptConfig) {
       return {
-        summary: `Required environment variables are missing: ${missingVars.join(', ')}. Please set these environment variables to use the guard service.`,
+        summary: `Guard prompt "${checkId}" is not configured.`,
         issues: [],
         warnings: [],
         suggestions: [],
         error: {
           type: 'configuration',
-          message: `Missing required environment variables: ${missingVars.join(', ')}`
+          message: `Missing guard prompt configuration for "${checkId}".`
         }
       };
     }
 
+    // Check for required environment variables before proceeding
+    const endpoint = process.env.EUTELO_GUARD_API_ENDPOINT;
+    const apiKey = process.env.EUTELO_GUARD_API_KEY;
+
     if (!this.llmClient) {
+      const missingVars: string[] = [];
+      if (!this.hasCustomLLMClient) {
+        if (!endpoint) missingVars.push('EUTELO_GUARD_API_ENDPOINT');
+        if (!apiKey) missingVars.push('EUTELO_GUARD_API_KEY');
+      }
       return {
-        summary: 'LLM client initialization failed. Please check your environment variables.',
+        summary:
+          missingVars.length > 0
+            ? `Required environment variables are missing: ${missingVars.join(', ')}. Please set these environment variables to use the guard service.`
+            : 'LLM client initialization failed. Please check your environment variables.',
         issues: [],
         warnings: [],
         suggestions: [],
         error: {
           type: 'configuration',
-          message: 'LLM client could not be initialized.'
+          message:
+            missingVars.length > 0
+              ? `Missing required environment variables: ${missingVars.join(', ')}`
+              : 'LLM client could not be initialized.'
         }
       };
     }
@@ -227,14 +256,16 @@ export class GuardService {
         );
       }
 
-      const { systemPrompt, userPrompt } = this.promptBuilder.buildPrompt({
-        documents: loadResult.documents
+      const { systemPrompt, userPrompt } = await this.promptBuilder.buildPrompt({
+        documents: loadResult.documents,
+        promptConfig
       });
 
       const llmResponse = await this.llmClient.generate({
         prompt: userPrompt,
         systemPrompt,
-        temperature: 0.3
+        temperature: promptConfig.temperature ?? 0.3,
+        model: promptConfig.model
       });
 
       // Note: LLM response logging is handled by CLI layer to avoid duplicate output

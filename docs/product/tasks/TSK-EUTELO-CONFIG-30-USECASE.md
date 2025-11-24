@@ -29,24 +29,24 @@ last_updated: "2025-11-22"
 
 ## TDD Plan
 ### Red
-- [ ] ハードコーディング前提の UseCase を壊すテストを作成
-- [ ] 設定変更時に UseCase の挙動が変わらないと Red になるテストを作成
+- [x] ハードコーディング前提の UseCase を壊すテストを作成
+- [x] 設定変更時に UseCase の挙動が変わらないと Red になるテストを作成
 
 ### Green
-- [ ] scaffold/guard/frontmatter/graph を config-driven に書き換え
-- [ ] 最小限のパスで BEH シナリオを Green 化
+- [x] scaffold/guard/frontmatter/graph を config-driven に書き換え
+- [x] 最小限のパスで BEH シナリオを Green 化
 
 ### Refactor
-- [ ] UseCase の責務境界を整理  
-- [ ] Adapter 依存を排除（CLI は別レイヤ）
+- [x] UseCase の責務境界を整理  
+- [x] Adapter 依存を排除（CLI は別レイヤ）
 
 ## Acceptance Criteria
-- [ ] UseCase から世界観（Dento）の痕跡が全消滅
-- [ ] どの preset でも切り替え可能
+- [x] UseCase から世界観（Dento）の痕跡が全消滅
+- [x] どの preset でも切り替え可能
 
 ## DoD
-- [ ] 単体テストと結合テストが安定
-- [ ] BEH の主要シナリオがすべて通過
+- [x] 単体テストと結合テストが安定
+- [x] BEH の主要シナリオがすべて通過
 
 ## Risks / Dependencies
 - リスク：graph の依存解析が壊れやすい

@@ -28,23 +28,23 @@ last_updated: "2025-11-22"
 
 ## TDD Plan
 ### Red
-- [ ] CLI が旧仕様のハードロジックに依存するテストを書く
-- [ ] CI Action が preset なしで壊れる Red テストを書く
+- [x] CLI が旧仕様のハードロジックに依存するテストを書く
+- [x] CI Action が preset なしで壊れる Red テストを書く
 
 ### Green
-- [ ] CLI を UseCase アダプタにリファクタ
-- [ ] CI Action を `eutelo guard` に集約
+- [x] CLI を UseCase アダプタにリファクタ
+- [x] CI Action を `eutelo guard` に集約
 
 ### Refactor
-- [ ] コマンドの help / debug ログ改善
-- [ ] CI の差分検出ロジックを最適化
+- [x] コマンドの help / debug ログ改善
+- [x] CI の差分検出ロジックを最適化
 
 ## Acceptance Criteria
-- [ ] CLI が設定・preset 切替に完全対応
-- [ ] GitHub Actions 用アクションが単純化
+- [x] CLI が設定・preset 切替に完全対応
+- [x] GitHub Actions 用アクションが単純化
 
 ## DoD
-- [ ] docs/ops に CLI / CI の Runbook 更新済み
+- [x] docs/ops に CLI / CI の Runbook 更新済み
 
 ## Risks / Dependencies
 - 依存：TSK-EUTELO-CONFIG-30-USECASE

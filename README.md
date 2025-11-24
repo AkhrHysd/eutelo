@@ -1,6 +1,7 @@
 # EUTELO documentation
 
-Eutelo は、目的駆動・構造化ドキュメントの思想に基づいたドキュメント管理ツールキットです。
+Eutelo は、目的駆動・構造化ドキュメントの思想に基づいたドキュメント管理ツールキットです。  
+CLI は `eutelo.config.*` と preset を自動で解決し、設定に従って Scaffold / Guard / Check / Graph を実行します（デフォルトで `@eutelo/preset-default` を読み込み、ローカル設定で上書きできます）。
 
 ## インストール
 
@@ -33,11 +34,12 @@ npm install @eutelo/distribution
 
 ## CLI コマンド
 
-> **注意**: CLIコマンドは以下のいずれかの方法で実行してください。
+> **注意**: CLIコマンドは以下のいずれかの方法で実行してください。  
+> すべてのコマンドは `--config <path>` オプションを受け取り、特定の `eutelo.config.*` を参照できます。オプションを省略するとプロジェクトルートの設定を自動検出し、preset とマージした上で UseCase を 1 回だけ呼び出します。
 
 ### 実行方法
 
-**方法1: `pnpm exec`を使用（推奨）**
+**方法1: `pnpm exec`/`npm exec` を使用（推奨）**
 
 `@eutelo/eutelo`または`@eutelo/cli`をインストールしている場合、`pnpm exec`で実行できます：
 
@@ -52,7 +54,18 @@ pnpm exec eutelo init
 pnpm exec eutelo add prd <feature>
 ```
 
-**方法2: `package.json`の`scripts`に追加（推奨）**
+**方法2: `npx` を使用**
+
+プロジェクト依存をインストール済みならグローバル導入なしで実行できます（CI では必ず `npm ci` 後に `npx` を推奨）。
+
+```bash
+npm ci
+npx eutelo init
+npx eutelo check --format=json
+npx eutelo guard docs/**/*.md --warn-only
+```
+
+**方法3: `package.json`の`scripts`に追加（推奨）**
 
 ```json
 {
@@ -63,7 +76,7 @@ pnpm exec eutelo add prd <feature>
 }
 ```
 
-**方法3: `node_modules/.bin`を直接参照**
+**方法4: `node_modules/.bin`を直接参照**
 
 ```json
 {
@@ -73,14 +86,14 @@ pnpm exec eutelo add prd <feature>
 }
 ```
 
-**方法4: グローバルインストール（オプション）**
+**方法5: グローバルインストール（オプション）**
 
 ```bash
 npm install -g @eutelo/cli
 eutelo init
 ```
 
-> **注意**: `npx eutelo`は動作しません。`npx`は`eutelo`というパッケージ名を探すため、スコープ付きパッケージ（`@eutelo/cli`）では使用できません。
+> **補足**: すべてのコマンドは設定駆動です。テンプレートパスや docsRoot をローカル設定で上書きする場合、テンプレート/スキーマへの相対パスは「設定ファイルの位置」または「カレントディレクトリ」から解決されます。
 
 ### `eutelo init`
 
@@ -193,6 +206,18 @@ pnpm exec eutelo guard docs/**/*.md             # 指定したドキュメント
 pnpm exec eutelo guard --format json             # JSON形式で出力
 pnpm exec eutelo guard --warn-only               # エラーでも終了コード2を返さない
 pnpm exec eutelo guard --fail-on-error           # 問題検出時に終了コード2を返す（デフォルト）
+# preset を切り替えた場合でも、設定を再解決して 1 回だけ UseCase を呼び出します
+# guard プロンプトは config.guard.prompts から読み込まれるため、preset なしでは実行できません
+```
+
+### `eutelo config inspect`
+
+`eutelo.config.*` と preset を解決し、マージ後の設定を確認します。
+
+```bash
+pnpm exec eutelo config inspect                         # プロジェクトルートの設定を解決
+pnpm exec eutelo config inspect --config ./eutelo.config.yaml
+pnpm exec eutelo config inspect --format json           # JSON 形式で出力
 ```
 
 ## 開発用コマンド
@@ -284,3 +309,7 @@ jobs:
 ### テンプレート
 
 すぐに試せる PR/メイン/手動実行向けテンプレートは `packages/distribution/examples/ci/` 配下にあります。自分のリポジトリへコピーし、シークレットや `working-directory` を必要に応じて上書きしてください。
+
+### CI 実行のポイント
+- ワークフローではグローバルインストールではなく `npm ci` + `npx eutelo guard ...` を推奨します（本リポジトリの `.github/workflows/guard.yml` も同様）。
+- LLM 用の環境変数は Secrets/Vars で渡し、preset やローカル設定の差し替えをしてもワークフローは変更不要です。

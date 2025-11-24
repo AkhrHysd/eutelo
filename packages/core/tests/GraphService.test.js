@@ -99,3 +99,54 @@ test('GraphService describeNode and impact traverse neighbors', async () => {
     cleanup(cwd);
   }
 });
+
+test('GraphService builds parent edges based on schema relation markers', async () => {
+  const cwd = setupWorkspace((root) => {
+    const docsRoot = path.join(root, 'docs');
+    writeDoc(docsRoot, 'specs/SPEC-ROOT.md', [
+      'id: SPEC-ROOT',
+      'type: spec',
+      'title: Root Doc',
+      'purpose: Root purpose'
+    ]);
+    writeDoc(docsRoot, 'specs/SPEC-CHILD.md', [
+      'id: SPEC-CHILD',
+      'type: spec',
+      'title: Child Doc',
+      'purpose: Child purpose',
+      'parentDocument: SPEC-ROOT'
+    ]);
+  });
+
+  const service = new GraphService({
+    docsRoot: 'docs',
+    frontmatterSchemas: [
+      {
+        kind: 'spec',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string', required: true },
+          parentDocument: { type: 'string', relation: 'parent' }
+        }
+      }
+    ],
+    scaffold: {
+      'document.spec': {
+        id: 'document.spec',
+        kind: 'spec',
+        path: 'specs/{ID}.md',
+        template: '_template-spec.md'
+      }
+    }
+  });
+
+  try {
+    const graph = await service.buildGraph({ cwd });
+    const parentEdge = graph.edges.find(
+      (edge) => edge.relation === 'parent' && edge.from === 'SPEC-ROOT' && edge.to === 'SPEC-CHILD'
+    );
+    assert.ok(parentEdge, 'parent relation should be derived from schema relation metadata');
+  } finally {
+    cleanup(cwd);
+  }
+});

@@ -1,0 +1,36 @@
+{
+  "name": "@eutelo/preset-default",
+  "version": "0.1.0",
+  "description": "Default Dento/Eutelo conventions exposed as a preset for the configurable framework",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "prompts",
+    "schemas",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "eutelo",
+    "preset",
+    "documentation"
+  ],
+  "dependencies": {
+    "@eutelo/core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

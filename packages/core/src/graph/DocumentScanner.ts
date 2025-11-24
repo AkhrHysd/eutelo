@@ -2,6 +2,7 @@ import path from 'node:path';
 import { FileSystemAdapter as DefaultFileSystemAdapter } from '@eutelo/infrastructure';
 import { FrontmatterParser } from '../doc-lint/frontmatter-parser.js';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
+import type { ScaffoldTemplateConfig, FrontmatterSchemaConfig } from '../config/types.js';
 import type {
   DocumentScanResult,
   DocumentScanError,
@@ -19,10 +20,10 @@ type FileSystemReader = {
 export type DocumentScannerDependencies = {
   fileSystemAdapter?: FileSystemReader;
   docsRoot?: string;
+  allowedFields?: string[];
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
 };
-
-const DOCUMENT_NAME_PATTERN =
-  /(PRD|SUB-PRD|BEH|SUB-BEH|DSG|ADR|TASK|TSK|OPS|OPS-|ADR|PRINCIPLE)-[A-Z0-9-]+\.md$/i;
 
 const DEFAULT_ALLOWED_FIELDS = [
   'id',
@@ -45,16 +46,45 @@ const DEFAULT_ALLOWED_FIELDS = [
   'related_beh',
   'scope'
 ];
+const DEFAULT_PATH_MATCHERS: PathMatcher[] = [
+  { kind: 'prd', regex: /^product\/features\/[^/]+\/PRD-[^/]+\.md$/i },
+  { kind: 'sub-prd', regex: /^product\/features\/[^/]+\/SUB-PRD-[^/]+\.md$/i },
+  { kind: 'beh', regex: /^product\/features\/[^/]+\/BEH-[^/]+\.md$/i },
+  { kind: 'sub-beh', regex: /^product\/features\/[^/]+\/BEH-[^/]+-[^/]+\.md$/i },
+  { kind: 'dsg', regex: /^architecture\/design\/[^/]+\/DSG-[^/]+\.md$/i },
+  { kind: 'sub-design', regex: /^architecture\/design\/[^/]+\/DSG-[^/]+-[^/]+\.md$/i },
+  { kind: 'adr', regex: /^architecture\/adr\/ADR-[^/]+\.md$/i },
+  { kind: 'task', regex: /^tasks\/TASK-[^/]+\.md$/i },
+  { kind: 'ops', regex: /^ops\/OPS-[^/]+\.md$/i }
+];
+
+const DEFAULT_MENTION_PATTERN = /\b(?:PRD|SUB-PRD|BEH|SUB-BEH|DSG|ADR|TASK|TSK|OPS)-[A-Z0-9-]+\b/g;
+
+type PathMatcher = { kind: DocumentKind; regex: RegExp };
 
 export class DocumentScanner {
   private readonly fs: FileSystemReader;
   private readonly docsRoot: string;
   private readonly parser: FrontmatterParser;
+  private readonly pathMatchers: PathMatcher[];
+  private readonly mentionPattern: RegExp;
+  private readonly relationFieldsByKind: Map<string, RelationFields>;
 
-  constructor({ fileSystemAdapter, docsRoot = resolveDocsRoot() }: DocumentScannerDependencies = {}) {
+  constructor({
+    fileSystemAdapter,
+    docsRoot = resolveDocsRoot(),
+    allowedFields,
+    scaffold,
+    frontmatterSchemas
+  }: DocumentScannerDependencies = {}) {
     this.fs = fileSystemAdapter ?? new DefaultFileSystemAdapter();
     this.docsRoot = docsRoot;
-    this.parser = new FrontmatterParser({ allowedFields: DEFAULT_ALLOWED_FIELDS });
+    const dynamicAllowed = buildAllowedFields(allowedFields, frontmatterSchemas);
+    const requiredFields = buildRequiredFields(frontmatterSchemas);
+    this.parser = new FrontmatterParser({ allowedFields: dynamicAllowed, requiredFields });
+    this.pathMatchers = buildPathMatchers(scaffold) ?? DEFAULT_PATH_MATCHERS;
+    this.mentionPattern = buildMentionPattern(scaffold) ?? DEFAULT_MENTION_PATTERN;
+    this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
   }
 
   async scan({ cwd }: { cwd: string }): Promise<DocumentScanResult> {
@@ -87,17 +117,17 @@ export class DocumentScanner {
 
   private async collectMarkdownFiles(root: string): Promise<string[]> {
     const resolved: string[] = [];
-    await this.walk(root, resolved);
+    await this.walk(root, resolved, root);
     return resolved;
   }
 
-  private async walk(current: string, bucket: string[]): Promise<void> {
+  private async walk(current: string, bucket: string[], root: string): Promise<void> {
     const entries = await this.fs.readDir(current);
     for (const entry of entries) {
       const absolute = path.join(current, entry);
       const stat = await this.fs.stat(absolute);
       if (stat.isDirectory()) {
-        await this.walk(absolute, bucket);
+        await this.walk(absolute, bucket, root);
         continue;
       }
 
@@ -105,11 +135,14 @@ export class DocumentScanner {
         continue;
       }
 
-      if (!DOCUMENT_NAME_PATTERN.test(entry)) {
+      if (!entry.toLowerCase().endsWith('.md')) {
         continue;
       }
 
-      bucket.push(absolute);
+      const relative = normalizePath(path.relative(root, absolute));
+      if (this.pathMatchers.length === 0 || this.pathMatchers.some((matcher) => matcher.regex.test(relative))) {
+        bucket.push(absolute);
+      }
     }
   }
 
@@ -121,12 +154,16 @@ export class DocumentScanner {
     }
 
     const normalizedPath = normalizePath(path.relative(root, absolutePath));
-    const type = normalizeDocumentType(frontmatter.type, normalizedPath);
-    const parentIds = parseIdList(frontmatter.parent);
-    const relatedIds = parseIdList(frontmatter.related);
+    const type = normalizeDocumentType(frontmatter.type, normalizedPath, this.pathMatchers);
+    const relations =
+      this.relationFieldsByKind.get(type) ??
+      this.relationFieldsByKind.get('*') ??
+      DEFAULT_RELATION_FIELDS;
+    const parentIds = collectRelationIds(frontmatter, relations.parent);
+    const relatedIds = collectRelationIds(frontmatter, relations.related);
     const tags = parseIdList(frontmatter.tags);
     const owners = parseIdList(frontmatter.owners);
-    const mentionIds = extractMentions(removeFrontmatter(content));
+    const mentionIds = extractMentions(removeFrontmatter(content), this.mentionPattern);
 
     return {
       id: frontmatter.id,
@@ -151,14 +188,19 @@ function normalizePath(target: string): string {
   return target.split(path.sep).join('/');
 }
 
-function normalizeDocumentType(value: string | undefined, relativePath: string): DocumentKind {
-  const normalized = value?.toLowerCase();
-  if (normalized) {
-    if (normalized === 'behavior') return 'beh';
-    if (normalized === 'doc') return 'unknown';
-    return (normalized as DocumentKind) ?? 'unknown';
+function normalizeDocumentType(
+  value: string | undefined,
+  relativePath: string,
+  matchers: PathMatcher[]
+): DocumentKind {
+  const matched = matchers.find((matcher) => matcher.regex.test(relativePath));
+  if (matched) {
+    return matched.kind;
   }
-
+  const normalized = value?.trim();
+  if (normalized) {
+    return normalized.toLowerCase();
+  }
   if (relativePath.includes('SUB-PRD')) return 'sub-prd';
   if (relativePath.includes('/PRD-')) return 'prd';
   if (relativePath.includes('SUB-BEH')) return 'sub-beh';
@@ -170,8 +212,14 @@ function normalizeDocumentType(value: string | undefined, relativePath: string):
   return 'unknown';
 }
 
-function parseIdList(rawValue: string | undefined): string[] {
+function parseIdList(rawValue: unknown): string[] {
   if (!rawValue) {
+    return [];
+  }
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((value) => String(value).trim()).filter(Boolean);
+  }
+  if (typeof rawValue !== 'string') {
     return [];
   }
   const trimmed = rawValue.trim();
@@ -204,12 +252,161 @@ function removeFrontmatter(content: string): string {
   return content.slice(match[0].length);
 }
 
-const MENTION_PATTERN = /\b(?:PRD|BEH|DSG|ADR|TASK|TSK|OPS|SUB-PRD|SUB-BEH)-[A-Z0-9-]+\b/g;
-
-function extractMentions(body: string): string[] {
-  const matches = body.match(MENTION_PATTERN);
+function extractMentions(body: string, pattern: RegExp): string[] {
+  const matches = body.match(pattern);
   if (!matches) {
     return [];
   }
   return Array.from(new Set(matches));
+}
+
+function buildAllowedFields(
+  explicit?: string[],
+  schemas?: FrontmatterSchemaConfig[]
+): string[] {
+  if (explicit && explicit.length > 0) {
+    return Array.from(new Set(explicit));
+  }
+  const fields = new Set<string>(DEFAULT_ALLOWED_FIELDS);
+  for (const schema of schemas ?? []) {
+    for (const field of Object.keys(schema.fields ?? {})) {
+      if (field) {
+        fields.add(field);
+      }
+    }
+  }
+  return Array.from(fields);
+}
+
+function buildRequiredFields(schemas?: FrontmatterSchemaConfig[]): string[] {
+  const required = new Set<string>(['id', 'type']);
+  for (const schema of schemas ?? []) {
+    for (const [field, definition] of Object.entries(schema.fields ?? {})) {
+      if (definition?.required) {
+        required.add(field);
+      }
+    }
+  }
+  return Array.from(required);
+}
+
+function buildPathMatchers(scaffold?: Record<string, ScaffoldTemplateConfig>): PathMatcher[] | null {
+  if (!scaffold || Object.keys(scaffold).length === 0) {
+    return null;
+  }
+  const matchers: PathMatcher[] = [];
+  for (const entry of Object.values(scaffold)) {
+    if (!entry?.kind || !entry.path) {
+      continue;
+    }
+    const regex = templateToRegex(entry.path);
+    matchers.push({ kind: entry.kind.toLowerCase(), regex });
+  }
+  return matchers.length > 0 ? matchers : null;
+}
+
+function templateToRegex(template: string): RegExp {
+  let pattern = '';
+  let lastIndex = 0;
+  const placeholder = /\{[A-Z0-9_-]+\}/gi;
+  let match: RegExpExecArray | null;
+  while ((match = placeholder.exec(template)) !== null) {
+    if (match.index > lastIndex) {
+      pattern += escapeRegExp(template.slice(lastIndex, match.index));
+    }
+    pattern += '[^/]+';
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < template.length) {
+    pattern += escapeRegExp(template.slice(lastIndex));
+  }
+  return new RegExp(`^${pattern}$`, 'i');
+}
+
+function buildMentionPattern(scaffold?: Record<string, ScaffoldTemplateConfig>): RegExp | null {
+  if (!scaffold) {
+    return null;
+  }
+  const patterns: string[] = [];
+  for (const entry of Object.values(scaffold)) {
+    const template = entry?.variables?.ID;
+    if (!template) continue;
+    patterns.push(convertTemplateToIdPattern(template));
+  }
+  if (patterns.length === 0) {
+    return null;
+  }
+  return new RegExp(`\\b(?:${patterns.join('|')})\\b`, 'g');
+}
+
+function convertTemplateToIdPattern(template: string): string {
+  let pattern = '';
+  let lastIndex = 0;
+  const placeholder = /\{[A-Z0-9_-]+\}/gi;
+  let match: RegExpExecArray | null;
+  while ((match = placeholder.exec(template)) !== null) {
+    if (match.index > lastIndex) {
+      pattern += escapeRegExp(template.slice(lastIndex, match.index));
+    }
+    pattern += '[A-Z0-9-]+';
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < template.length) {
+    pattern += escapeRegExp(template.slice(lastIndex));
+  }
+  return pattern;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+type RelationFields = { parent: string[]; related: string[] };
+
+const DEFAULT_RELATION_FIELDS: RelationFields = { parent: ['parent'], related: ['related'] };
+
+function buildRelationFields(schemas?: FrontmatterSchemaConfig[]): Map<string, RelationFields> {
+  const relations = new Map<string, RelationFields>();
+  for (const schema of schemas ?? []) {
+    const parent: string[] = [];
+    const related: string[] = [];
+    for (const [fieldName, field] of Object.entries(schema.fields ?? {})) {
+      if (!fieldName) continue;
+      if (field?.relation === 'parent') {
+        parent.push(fieldName);
+      } else if (field?.relation === 'related') {
+        related.push(fieldName);
+      }
+    }
+    if (parent.length === 0 && related.length === 0) {
+      continue;
+    }
+    relations.set(schema.kind.toLowerCase(), {
+      parent,
+      related
+    });
+  }
+  return relations;
+}
+
+function collectRelationIds(frontmatter: Record<string, unknown>, fields: string[]): string[] {
+  const values: string[] = [];
+  for (const field of fields) {
+    const raw = frontmatter[field];
+    if (raw === undefined) {
+      continue;
+    }
+    if (Array.isArray(raw)) {
+      for (const entry of raw) {
+        const normalized = String(entry ?? '').trim();
+        if (normalized) {
+          values.push(normalized);
+        }
+      }
+      continue;
+    }
+    const list = parseIdList(raw as string);
+    values.push(...list);
+  }
+  return Array.from(new Set(values));
 }
