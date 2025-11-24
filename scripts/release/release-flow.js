@@ -140,29 +140,50 @@ function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
       return { success: true, dryRun: true };
     } else {
       console.log(`  → Publishing with tag: ${distTag}...`);
-      execSync(
-        `npm publish --provenance --access public --tag ${distTag}`,
-        {
-          cwd: join(ROOT_DIR, 'packages', packageDir),
-          stdio: 'inherit',
+      try {
+        // stderr をキャプチャして、stdout は継承（表示）
+        execSync(
+          `npm publish --provenance --access public --tag ${distTag}`,
+          {
+            cwd: join(ROOT_DIR, 'packages', packageDir),
+            stdio: ['inherit', 'inherit', 'pipe'],
+            encoding: 'utf-8',
+          }
+        );
+        console.log(`  ✓ Successfully published: ${packageName}`);
+        return { success: true };
+      } catch (publishError) {
+        // execSync のエラーから stderr を取得
+        const stderr = publishError.stderr?.toString() || '';
+        const stdout = publishError.stdout?.toString() || '';
+        const errorMessage = publishError.message || '';
+        const fullError = stderr || stdout || errorMessage;
+        
+        // エラー出力を表示
+        if (stderr) {
+          console.error(stderr);
         }
-      );
-      console.log(`  ✓ Successfully published: ${packageName}`);
-      return { success: true };
+        
+        // 403エラー（既に公開済み）の場合はスキップ
+        if (
+          fullError.includes('403') ||
+          fullError.includes('cannot publish over') ||
+          fullError.includes('previously published versions') ||
+          fullError.includes('You cannot publish over')
+        ) {
+          console.log(`  ⚠ Skipped (already published): ${packageName}`);
+          return { success: true, skipped: true };
+        }
+        
+        console.error(`  ✗ Failed to publish ${packageName}`);
+        console.error(`  Error details: ${fullError}`);
+        throw publishError; // 再スローして外側の catch で処理
+      }
     }
   } catch (error) {
+    // 外側の catch は dry-run の場合やその他のエラー用
     const errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message || '';
     const fullError = errorOutput || error.message || 'Unknown error';
-    
-    // 403エラー（既に公開済み）の場合はスキップ
-    if (
-      errorOutput.includes('403') ||
-      errorOutput.includes('cannot publish over') ||
-      errorOutput.includes('previously published versions')
-    ) {
-      console.log(`  ⚠ Skipped (already published): ${packageName}`);
-      return { success: true, skipped: true };
-    }
     
     console.error(`  ✗ Failed to publish ${packageName}`);
     console.error(`  Error details: ${fullError}`);
