@@ -53,7 +53,16 @@ function runPreflightChecks() {
   console.log('🔍 Running preflight checks...\n');
   
   try {
-    console.log('  → npm ci...');
+    // package-lock.jsonを削除して再生成（file:依存の状態で確実に）
+    console.log('  → Regenerating package-lock.json with file: dependencies...');
+    try {
+      execSync('rm -f package-lock.json', { cwd: ROOT_DIR, stdio: 'pipe' });
+    } catch {
+      // 無視
+    }
+    execSync('npm install --package-lock-only', { cwd: ROOT_DIR, stdio: 'inherit' });
+    
+    console.log('\n  → npm ci...');
     execSync('npm ci', { cwd: ROOT_DIR, stdio: 'inherit' });
     
     console.log('\n  → npm run build...');

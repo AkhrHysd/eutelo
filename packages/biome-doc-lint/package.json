@@ -17,7 +17,7 @@
     "@biomejs/biome": ">=1.9.0"
   },
   "dependencies": {
-    "@eutelo/core": "^0.2.3"
+    "@eutelo/core": "file:../core"
   },
   "publishConfig": {
     "access": "public",
