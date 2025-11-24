@@ -98,16 +98,14 @@ function convertDependenciesForPublish() {
  * 依存関係を復元（semver → file:）
  */
 function restoreDependencies() {
-  console.log('🔄 Restoring dependencies to local...\n');
   try {
     execSync('node scripts/convert-deps-for-publish.js local', {
       cwd: ROOT_DIR,
-      stdio: 'inherit',
+      stdio: 'pipe',
     });
-    console.log('✓ Dependencies restored\n');
     return true;
   } catch {
-    console.error('✗ Failed to restore dependencies');
+    // エラーは無視（既にローカル状態の可能性がある）
     return false;
   }
 }
@@ -364,14 +362,20 @@ function main() {
   }
   console.log('✓ Version validation passed\n');
 
-  // プレフライトチェック
+  // 依存関係をローカル（file:）に確実に戻す（プレフライトチェック前）
+  console.log('🔄 Ensuring dependencies are in local mode for preflight checks...\n');
+  if (!restoreDependencies()) {
+    console.warn('⚠️  Failed to restore dependencies, but continuing...');
+  }
+
+  // プレフライトチェック（file:依存の状態で実行）
   if (!skipPreflight) {
     if (!runPreflightChecks()) {
       process.exit(1);
     }
   }
 
-  // 依存関係置換
+  // 依存関係置換（公開用に semver に変換）
   if (!convertDependenciesForPublish()) {
     process.exit(1);
   }

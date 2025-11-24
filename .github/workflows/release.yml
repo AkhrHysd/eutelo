@@ -78,6 +78,14 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
           echo "//registry.npmjs.org/:always-auth=true" >> ~/.npmrc
 
+      - name: Ensure dependencies are in local mode
+        run: |
+          set -euo pipefail
+          # 依存関係を確実にローカル（file:）状態に戻す
+          node scripts/convert-deps-for-publish.js local || true
+          # package-lock.jsonを再生成
+          npm install --package-lock-only || true
+
       - name: Run release flow
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
