@@ -1,6 +1,6 @@
 # 🧾 CHANGELOG
 
-このファイルは、`eslint-plugin-eutelo-docs` パッケージの変更履歴を記録します。
+このファイルは、`@eutelo/eslint-plugin-docs` パッケージの変更履歴を記録します。
 
 ---
 

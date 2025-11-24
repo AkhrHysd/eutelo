@@ -33,7 +33,7 @@ function isPackagePublished(packageName, version) {
  * パッケージ名のマッピング（ディレクトリ名からパッケージ名へ）
  */
 const PACKAGE_NAME_MAP = {
-  'eslint-plugin-docs': 'eslint-plugin-eutelo-docs',
+  'eslint-plugin-docs': '@eutelo/eslint-plugin-docs',
 };
 
 /**

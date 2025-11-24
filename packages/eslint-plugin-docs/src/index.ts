@@ -92,7 +92,7 @@ const docLintRule: RuleModule = {
 };
 
 const plugin: ESLintPlugin = {
-  meta: { name: 'eslint-plugin-eutelo-docs', version: '0.1.0' },
+  meta: { name: '@eutelo/eslint-plugin-docs', version: '0.1.0' },
   rules: { 'doc-lint': docLintRule },
   configs: {
     recommended: {

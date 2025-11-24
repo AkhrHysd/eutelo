@@ -25,7 +25,7 @@ yarn add @eutelo/eutelo
 - **@eutelo/distribution** - ドキュメントテンプレートと構成ガイド
 - **@eutelo/cli** - コマンドラインインターフェース
 - **@eutelo/biome-doc-lint** - Biome用のドキュメントリンター
-- **eslint-plugin-eutelo-docs** - ESLint用のドキュメントプラグイン
+- **@eutelo/eslint-plugin-docs** - ESLint用のドキュメントプラグイン
 
 ## 使用方法
 
@@ -60,7 +60,7 @@ import templates from '@eutelo/distribution/templates';
 
 ```json
 {
-  "plugins": ["eslint-plugin-eutelo-docs"],
+  "plugins": ["@eutelo/eslint-plugin-docs"],
   "rules": {
     "eutelo-docs/require-frontmatter": "error"
   }

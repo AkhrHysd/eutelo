@@ -1,5 +1,5 @@
 {
-  "name": "eslint-plugin-eutelo-docs",
+  "name": "@eutelo/eslint-plugin-docs",
   "version": "0.3.0",
   "type": "module",
   "main": "./dist/index.js",

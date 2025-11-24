@@ -28,7 +28,7 @@
     "@eutelo/cli": "file:../cli",
     "@eutelo/biome-doc-lint": "file:../biome-doc-lint",
     "@eutelo/commander": "file:../commander",
-    "eslint-plugin-eutelo-docs": "file:../eslint-plugin-docs"
+    "@eutelo/eslint-plugin-docs": "file:../eslint-plugin-docs"
   },
   "peerDependencies": {
     "@biomejs/biome": ">=1.9.0",

@@ -15,7 +15,7 @@
  * - @eutelo/distribution
  * - @eutelo/cli
  * - @eutelo/biome-doc-lint
- * - eslint-plugin-eutelo-docs
+ * - @eutelo/eslint-plugin-docs
  */
 
 // このファイルは、メタパッケージとして機能するためのプレースホルダーです。
