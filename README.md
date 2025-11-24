@@ -1,62 +1,64 @@
 # EUTELO documentation
 
-Eutelo は、目的駆動・構造化ドキュメントの思想に基づいたドキュメント管理ツールキットです。  
-CLI は `eutelo.config.*` と preset を自動で解決し、設定に従って Scaffold / Guard / Check / Graph を実行します（デフォルトで `@eutelo/preset-default` を読み込み、ローカル設定で上書きできます）。
+[日本語](README.jp.md) | English
 
-## インストール
+Eutelo is a documentation toolkit based on the philosophy of purpose-driven, structured documentation.  
+The CLI automatically resolves `eutelo.config.*` and presets, then executes Scaffold / Guard / Check / Graph according to the configuration (by default, it loads `@eutelo/preset-default`, which can be overridden by local configuration).
 
-### メタパッケージからインストール（推奨）
+## Installation
 
-すべてのパッケージを一度にインストール：
+### Install from Meta Package (Recommended)
+
+Install all packages at once:
 
 ```bash
 npm install @eutelo/eutelo
-# または
+# or
 pnpm add @eutelo/eutelo
-# または
+# or
 yarn add @eutelo/eutelo
 ```
 
-### 個別パッケージからインストール
+### Install Individual Packages
 
-必要なパッケージのみをインストール：
+Install only the packages you need:
 
 ```bash
-# CLIツールのみ
+# CLI tool only
 npm install @eutelo/cli
 
-# コア機能のみ
+# Core functionality only
 npm install @eutelo/core
 
-# テンプレートのみ
+# Templates only
 npm install @eutelo/distribution
 ```
 
-## CLI コマンド
+## CLI Commands
 
-> **注意**: CLIコマンドは以下のいずれかの方法で実行してください。  
-> すべてのコマンドは `--config <path>` オプションを受け取り、特定の `eutelo.config.*` を参照できます。オプションを省略するとプロジェクトルートの設定を自動検出し、preset とマージした上で UseCase を 1 回だけ呼び出します。
+> **Note**: CLI commands should be executed using one of the following methods.  
+> All commands accept the `--config <path>` option to reference a specific `eutelo.config.*`. If omitted, the command automatically detects the configuration at the project root, merges it with presets, and calls the UseCase once.
 
-### 実行方法
+### Execution Methods
 
-**方法1: `pnpm exec`/`npm exec` を使用（推奨）**
+**Method 1: Using `pnpm exec`/`npm exec` (Recommended)**
 
-`@eutelo/eutelo`または`@eutelo/cli`をインストールしている場合、`pnpm exec`で実行できます：
+If you have `@eutelo/eutelo` or `@eutelo/cli` installed, you can execute commands with `pnpm exec`:
 
 ```bash
-# まずインストール
+# First, install
 pnpm add -w @eutelo/eutelo
-# または
+# or
 pnpm add -w @eutelo/cli
 
-# その後、コマンドを実行
+# Then, execute commands
 pnpm exec eutelo init
 pnpm exec eutelo add prd <feature>
 ```
 
-**方法2: `npx` を使用**
+**Method 2: Using `npx`**
 
-プロジェクト依存をインストール済みならグローバル導入なしで実行できます（CI では必ず `npm ci` 後に `npx` を推奨）。
+You can execute commands without global installation if project dependencies are already installed (in CI, always use `npm ci` followed by `npx`).
 
 ```bash
 npm ci
@@ -65,7 +67,7 @@ npx eutelo check --format=json
 npx eutelo guard docs/**/*.md --warn-only
 ```
 
-**方法3: `package.json`の`scripts`に追加（推奨）**
+**Method 3: Add to `package.json` `scripts` (Recommended)**
 
 ```json
 {
@@ -76,7 +78,7 @@ npx eutelo guard docs/**/*.md --warn-only
 }
 ```
 
-**方法4: `node_modules/.bin`を直接参照**
+**Method 4: Direct Reference to `node_modules/.bin`**
 
 ```json
 {
@@ -86,94 +88,97 @@ npx eutelo guard docs/**/*.md --warn-only
 }
 ```
 
-**方法5: グローバルインストール（オプション）**
+**Method 5: Global Installation (Optional)**
 
 ```bash
 npm install -g @eutelo/cli
 eutelo init
 ```
 
-> **補足**: すべてのコマンドは設定駆動です。テンプレートパスや docsRoot をローカル設定で上書きする場合、テンプレート/スキーマへの相対パスは「設定ファイルの位置」または「カレントディレクトリ」から解決されます。
+> **Note**: All commands are configuration-driven. When overriding template paths or docsRoot in local configuration, relative paths to templates/schemas are resolved from "the location of the configuration file" or "the current directory".  
+> You can also override settings with the following environment variables:
+> - `EUTELO_DOCS_ROOT`: Path to the documentation root directory (overrides `docsRoot` in the configuration file)
+> - `EUTELO_TEMPLATE_ROOT`: Path to the template root directory (overrides preset templates)
 
 ### `eutelo init`
 
-プロジェクトに Eutelo ドキュメント構造を初期化します。
+Initializes the Eutelo documentation structure in your project.
 
 ```bash
 pnpm exec eutelo init
-pnpm exec eutelo init --dry-run  # ディレクトリを作成せずに確認
+pnpm exec eutelo init --dry-run  # Preview without creating directories
 ```
 
 ### `eutelo add`
 
-テンプレートからドキュメントを生成します。
+Generates documents from templates.
 
 ```bash
-# PRD（Product Requirements Document）を生成
+# Generate a PRD (Product Requirements Document)
 pnpm exec eutelo add prd <feature>
 
-# BEH（Behavior Specification）を生成
+# Generate a BEH (Behavior Specification)
 pnpm exec eutelo add beh <feature>
 
-# SUB-PRD（Sub Product Requirements Document）を生成
+# Generate a SUB-PRD (Sub Product Requirements Document)
 pnpm exec eutelo add sub-prd <feature> <sub>
 
-# SUB-BEH（Sub Behavior Specification）を生成
+# Generate a SUB-BEH (Sub Behavior Specification)
 pnpm exec eutelo add sub-beh <feature> <sub>
 
-# DSG（Design Specification）を生成
+# Generate a DSG (Design Specification)
 pnpm exec eutelo add dsg <feature>
 
-# ADR（Architecture Decision Record）を生成
+# Generate an ADR (Architecture Decision Record)
 pnpm exec eutelo add adr <feature>
 
-# TASK（Task Plan）を生成
+# Generate a TASK (Task Plan)
 pnpm exec eutelo add task <name>
 
-# OPS（Operations Runbook）を生成
+# Generate an OPS (Operations Runbook)
 pnpm exec eutelo add ops <name>
 ```
 
 ### `eutelo lint`
 
-ドキュメントファイルに対して lint を実行します。
+Runs linting on documentation files.
 
 ```bash
-pnpm exec eutelo lint                    # すべてのドキュメントを lint
-pnpm exec eutelo lint docs/**/*.md       # 指定したパスを lint
-pnpm exec eutelo lint --format json      # JSON形式で出力
+pnpm exec eutelo lint                    # Lint all documents
+pnpm exec eutelo lint docs/**/*.md       # Lint specified paths
+pnpm exec eutelo lint --format json      # Output in JSON format
 ```
 
 ### `eutelo sync`
 
-現在の構造に基づいて、不足しているドキュメントアーティファクトを生成します。
+Generates missing documentation artifacts based on the current structure.
 
 ```bash
-pnpm exec eutelo sync                    # 不足しているドキュメントを生成
-pnpm exec eutelo sync --check-only       # 生成せずにレポートのみ
+pnpm exec eutelo sync                    # Generate missing documents
+pnpm exec eutelo sync --check-only       # Report only without generating
 ```
 
 ### `eutelo check`
 
-Eutelo ドキュメント構造と frontmatter の一貫性を検証します。
+Validates Eutelo documentation structure and frontmatter consistency.
 
 ```bash
-pnpm exec eutelo check                   # 構造と frontmatter を検証
-pnpm exec eutelo check --format json     # JSON形式で出力
-pnpm exec eutelo check --ci              # CI向けのJSON出力
+pnpm exec eutelo check                   # Validate structure and frontmatter
+pnpm exec eutelo check --format json     # Output in JSON format
+pnpm exec eutelo check --ci              # CI-friendly JSON output
 ```
 
 ### `eutelo guard`
 
-実験的なドキュメントガード一貫性チェックを実行します。
+Runs experimental document guard consistency checks.
 
-**環境変数の設定**
+**Environment Variable Configuration**
 
-`eutelo guard` コマンドを使用するには、以下の環境変数を設定する必要があります。環境変数は以下のいずれかの方法で設定できます：
+To use the `eutelo guard` command, you need to set the following environment variables. You can set them using either of the following methods:
 
-1. **`.env`ファイルを使用（推奨）**
+1. **Using `.env` file (Recommended)**
    
-   プロジェクトルートに`.env`ファイルを作成し、以下の変数を設定します：
+   Create a `.env` file in the project root and set the following variables:
 
    ```bash
    EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
@@ -182,14 +187,14 @@ pnpm exec eutelo check --ci              # CI向けのJSON出力
    EUTELO_GUARD_DEBUG=false
    ```
 
-   `.env.example`ファイルをコピーして`.env`を作成できます：
+   You can copy the `.env.example` file to create `.env`:
 
    ```bash
    cp .env.example .env
-   # .envファイルを編集してAPIキーを設定
+   # Edit the .env file to set your API key
    ```
 
-2. **環境変数を直接設定**
+2. **Set environment variables directly**
 
    ```bash
    export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
@@ -198,73 +203,79 @@ pnpm exec eutelo check --ci              # CI向けのJSON出力
    pnpm exec eutelo guard
    ```
 
-**使用方法**
+**Usage**
 
 ```bash
-pnpm exec eutelo guard                           # ガードチェックを実行
-pnpm exec eutelo guard docs/**/*.md             # 指定したドキュメントをチェック
-pnpm exec eutelo guard --format json             # JSON形式で出力
-pnpm exec eutelo guard --warn-only               # エラーでも終了コード2を返さない
-pnpm exec eutelo guard --fail-on-error           # 問題検出時に終了コード2を返す（デフォルト）
-# preset を切り替えた場合でも、設定を再解決して 1 回だけ UseCase を呼び出します
-# guard プロンプトは config.guard.prompts から読み込まれるため、preset なしでは実行できません
+pnpm exec eutelo guard                           # Run guard checks
+pnpm exec eutelo guard docs/**/*.md             # Check specified documents
+pnpm exec eutelo guard --format json             # Output in JSON format
+pnpm exec eutelo guard --warn-only               # Don't exit with code 2 even on errors
+pnpm exec eutelo guard --fail-on-error           # Exit with code 2 when issues are detected (default)
+pnpm exec eutelo guard --check <id>              # Execute a specific guard prompt ID
+# Even when switching presets, the configuration is resolved and UseCase is called once
+# Guard prompts are loaded from config.guard.prompts, so execution is not possible without a preset
+```
+
+### `eutelo graph`
+
+Operates and analyzes the dependency graph between documents.
+
+#### `eutelo graph build`
+
+Builds and outputs the document graph.
+
+```bash
+pnpm exec eutelo graph build                    # Output graph in JSON format
+pnpm exec eutelo graph build --format mermaid   # Output in Mermaid format
+pnpm exec eutelo graph build --output graph.json # Write to file
+```
+
+#### `eutelo graph show <documentId>`
+
+Displays parent-child relationships and related nodes for a specified document.
+
+```bash
+pnpm exec eutelo graph show <documentId>        # Display document relationships
+```
+
+#### `eutelo graph impact <documentId>`
+
+Analyzes the impact scope (1-hop / 2-hop dependencies) of a specified document.
+
+```bash
+pnpm exec eutelo graph impact <documentId>      # Analyze impact scope
+pnpm exec eutelo graph impact <documentId> --depth 5  # Specify search depth (default: 3)
+```
+
+#### `eutelo graph summary`
+
+Displays graph-wide statistics (node count, edge count, orphan nodes, etc.).
+
+```bash
+pnpm exec eutelo graph summary                  # Display graph statistics
 ```
 
 ### `eutelo config inspect`
 
-`eutelo.config.*` と preset を解決し、マージ後の設定を確認します。
+Resolves `eutelo.config.*` and presets, showing the merged configuration.
 
 ```bash
-pnpm exec eutelo config inspect                         # プロジェクトルートの設定を解決
+pnpm exec eutelo config inspect                         # Resolve configuration at project root
 pnpm exec eutelo config inspect --config ./eutelo.config.yaml
-pnpm exec eutelo config inspect --format json           # JSON 形式で出力
+pnpm exec eutelo config inspect --format json           # Output in JSON format
 ```
 
-## 開発用コマンド
+## For Developers
 
-このリポジトリの開発に使用するコマンドです。
+For commands and procedures used for development of this repository, see [Documentation for Developers](DEVELOPERS.md).
 
-### ビルドとテスト
+## Running guard in CI
 
-```bash
-npm run build    # すべてのパッケージをビルド
-npm run clean    # ビルド成果物を削除
-npm test         # ビルドしてからテストを実行
-```
+Eutelo provides reusable workflows and Composite Actions for running `eutelo guard` in GitHub Actions. If you want to introduce it with minimal configuration, choose one of the following:
 
-### 依存関係の管理
+### Call Reusable Workflow
 
-```bash
-npm run deps:publish  # 依存関係を公開用（バージョン番号）に変換
-npm run deps:local    # 依存関係をローカル開発用（file:）に変換
-```
-
-### パッケージの公開
-
-```bash
-# コアパッケージを公開
-npm run publish:core
-
-# プラグインパッケージを公開
-npm run publish:plugins
-
-# CLIパッケージを公開
-npm run publish:cli
-
-# メタパッケージを公開
-npm run publish:meta
-
-# すべてのパッケージを公開
-npm run publish:all
-```
-
-## CI での guard 実行方法
-
-Eutelo には、GitHub Actions で `eutelo guard` を実行するための再利用ワークフローと Composite Action を用意しています。最小設定で導入したい場合は、次のいずれかを選んでください。
-
-### 再利用ワークフローを呼び出す
-
-`.github/workflows/guard.yml` を `workflow_call` で呼び出し、必要なシークレットを渡します。
+Call `.github/workflows/guard.yml` with `workflow_call` and pass the required secrets.
 
 ```yaml
 name: Guard
@@ -280,15 +291,15 @@ jobs:
       EUTELO_GUARD_API_ENDPOINT: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}
       EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
     with:
-      # 必要に応じて上書き
+      # Override as needed
       paths: docs/**/*.md
       working-directory: .
       format: text
 ```
 
-### Composite Action を直接使う
+### Use Composite Action Directly
 
-独自のワークフロー内で `.github/actions/guard` をステップとして呼び出すこともできます。`env` に API 情報をセットし、`with` で入力を上書きします。
+You can also call `.github/actions/guard` as a step within your own workflow. Set API information in `env` and override inputs with `with`.
 
 ```yaml
 jobs:
@@ -306,10 +317,10 @@ jobs:
           format: text
 ```
 
-### テンプレート
+### Templates
 
-すぐに試せる PR/メイン/手動実行向けテンプレートは `packages/distribution/examples/ci/` 配下にあります。自分のリポジトリへコピーし、シークレットや `working-directory` を必要に応じて上書きしてください。
+Ready-to-use templates for PR/main/manual execution are located under `packages/distribution/examples/ci/`. Copy them to your repository and override secrets and `working-directory` as needed.
 
-### CI 実行のポイント
-- ワークフローではグローバルインストールではなく `npm ci` + `npx eutelo guard ...` を推奨します（本リポジトリの `.github/workflows/guard.yml` も同様）。
-- LLM 用の環境変数は Secrets/Vars で渡し、preset やローカル設定の差し替えをしてもワークフローは変更不要です。
+### CI Execution Points
+- In workflows, we recommend `npm ci` + `npx eutelo guard ...` instead of global installation (same as this repository's `.github/workflows/guard.yml`).
+- Pass LLM environment variables via Secrets/Vars; workflows don't need to change even when presets or local configurations are swapped.
