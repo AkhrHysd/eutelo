@@ -152,6 +152,8 @@ function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
     }
   } catch (error) {
     const errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message || '';
+    const fullError = errorOutput || error.message || 'Unknown error';
+    
     // 403エラー（既に公開済み）の場合はスキップ
     if (
       errorOutput.includes('403') ||
@@ -161,8 +163,10 @@ function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
       console.log(`  ⚠ Skipped (already published): ${packageName}`);
       return { success: true, skipped: true };
     }
-    console.error(`  ✗ Failed to publish ${packageName}: ${error.message}`);
-    return { success: false, error: error.message };
+    
+    console.error(`  ✗ Failed to publish ${packageName}`);
+    console.error(`  Error details: ${fullError}`);
+    return { success: false, error: fullError };
   }
 }
 
