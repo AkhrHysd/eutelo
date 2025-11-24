@@ -29,7 +29,7 @@ last_updated: "2025-11-22"
 ## TDD Plan
 ### Red
 - [ ] 旧 Eutelo の PRD/BEH/DSG/ADR を読み込むテストを壊す
-- [ ] config 変更時に挙動が変わらないことを検証する Red 書く
+- [x] config 変更時に挙動が変わらないことを検証する Red 書く
 
 ### Green
 - [ ] Dento で全ドキュメントが生成・チェックできる
