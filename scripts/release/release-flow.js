@@ -1,0 +1,418 @@
+#!/usr/bin/env node
+
+/**
+ * リリースフロー実行スクリプト
+ * 順序付き公開、依存関係置換、リリースノート生成などを統合
+ */
+
+import { execSync } from 'child_process';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { validateVersionConsistency } from './version-validator.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROOT_DIR = join(__dirname, '../..');
+
+/**
+ * 公開順序定義
+ */
+const PUBLISH_ORDER = [
+  'core',
+  'infrastructure',
+  'distribution',
+  'preset-default',
+  'commander',
+  'cli',
+  'eutelo',
+  'biome-doc-lint',
+  'eslint-plugin-docs',
+];
+
+/**
+ * パッケージ名のマッピング（ディレクトリ名からパッケージ名へ）
+ */
+function getPackageName(packageDir) {
+  const packagePath = join(ROOT_DIR, 'packages', packageDir, 'package.json');
+  if (!existsSync(packagePath)) {
+    return null;
+  }
+  try {
+    const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
+    return pkg.name;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * プレフライトチェック
+ */
+function runPreflightChecks() {
+  console.log('🔍 Running preflight checks...\n');
+  
+  try {
+    console.log('  → npm ci...');
+    execSync('npm ci', { cwd: ROOT_DIR, stdio: 'inherit' });
+    
+    console.log('\n  → npm run build...');
+    execSync('npm run build', { cwd: ROOT_DIR, stdio: 'inherit' });
+    
+    console.log('\n  → npm test...');
+    execSync('npm test', { cwd: ROOT_DIR, stdio: 'inherit' });
+    
+    console.log('\n  → npx eutelo guard --ci --json --fail-on-error...');
+    execSync('npx eutelo guard --ci --json --fail-on-error', { 
+      cwd: ROOT_DIR, 
+      stdio: 'inherit' 
+    });
+    
+    console.log('\n✓ Preflight checks passed\n');
+    return true;
+  } catch {
+    console.error('\n✗ Preflight checks failed');
+    return false;
+  }
+}
+
+/**
+ * 依存関係を置換（file: → semver）
+ */
+function convertDependenciesForPublish() {
+  console.log('🔄 Converting dependencies for publish...\n');
+  try {
+    execSync('node scripts/convert-deps-for-publish.js publish', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+    });
+    console.log('✓ Dependencies converted\n');
+    return true;
+  } catch {
+    console.error('✗ Failed to convert dependencies');
+    return false;
+  }
+}
+
+/**
+ * 依存関係を復元（semver → file:）
+ */
+function restoreDependencies() {
+  console.log('🔄 Restoring dependencies to local...\n');
+  try {
+    execSync('node scripts/convert-deps-for-publish.js local', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+    });
+    console.log('✓ Dependencies restored\n');
+    return true;
+  } catch {
+    console.error('✗ Failed to restore dependencies');
+    return false;
+  }
+}
+
+/**
+ * パッケージを公開
+ */
+function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
+  const packageName = getPackageName(packageDir);
+  if (!packageName) {
+    console.error(`✗ Package not found: ${packageDir}`);
+    return { success: false, error: 'package_not_found' };
+  }
+
+  console.log(`\n📦 Publishing ${packageName}...`);
+
+  try {
+    if (dryRun) {
+      console.log('  → Running npm pack (dry-run)...');
+      execSync(`npm pack --dry-run`, {
+        cwd: join(ROOT_DIR, 'packages', packageDir),
+        stdio: 'inherit',
+      });
+      return { success: true, dryRun: true };
+    } else {
+      console.log(`  → Publishing with tag: ${distTag}...`);
+      execSync(
+        `npm publish --provenance --access public --tag ${distTag}`,
+        {
+          cwd: join(ROOT_DIR, 'packages', packageDir),
+          stdio: 'inherit',
+        }
+      );
+      console.log(`  ✓ Successfully published: ${packageName}`);
+      return { success: true };
+    }
+  } catch (error) {
+    const errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message || '';
+    // 403エラー（既に公開済み）の場合はスキップ
+    if (
+      errorOutput.includes('403') ||
+      errorOutput.includes('cannot publish over') ||
+      errorOutput.includes('previously published versions')
+    ) {
+      console.log(`  ⚠ Skipped (already published): ${packageName}`);
+      return { success: true, skipped: true };
+    }
+    console.error(`  ✗ Failed to publish ${packageName}: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 順序付き公開
+ */
+function publishPackagesInOrder(distTag = 'latest', dryRun = false) {
+  console.log('🚀 Starting ordered package publication...\n');
+  
+  const results = [];
+  let shouldStop = false;
+
+  for (const pkgDir of PUBLISH_ORDER) {
+    if (shouldStop) {
+      console.log(`\n⚠ Skipping remaining packages due to previous failure`);
+      results.push({ package: pkgDir, skipped: true, reason: 'previous_failure' });
+      continue;
+    }
+
+    const result = publishPackage(pkgDir, distTag, dryRun);
+    results.push({ package: pkgDir, ...result });
+
+    if (!result.success && !result.skipped) {
+      shouldStop = true;
+      console.error(`\n✗ Publication stopped due to failure in ${pkgDir}`);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * ポスト検証: npm view でバージョン確認
+ */
+function verifyPublishedVersion(packageName, version, distTag = 'latest') {
+  try {
+    const result = execSync(`npm view ${packageName}@${distTag} version`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
+    const publishedVersion = result.trim();
+    if (publishedVersion === version) {
+      console.log(`  ✓ ${packageName}@${distTag} is ${version}`);
+      return true;
+    } else {
+      console.warn(`  ⚠ ${packageName}@${distTag} is ${publishedVersion}, expected ${version}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`  ✗ Failed to verify ${packageName}: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * ポスト検証: npm install でインストール確認
+ */
+function verifyInstallation(packageName, distTag = 'latest') {
+  const testDir = join(ROOT_DIR, '.release-test');
+  try {
+    // 一時ディレクトリを作成
+    execSync(`mkdir -p ${testDir}`, { stdio: 'pipe' });
+    
+    // package.json を作成
+    const testPackageJson = {
+      name: 'release-test',
+      version: '1.0.0',
+      dependencies: {
+        [packageName]: distTag === 'latest' ? 'latest' : `${distTag}`,
+      },
+    };
+    writeFileSync(
+      join(testDir, 'package.json'),
+      JSON.stringify(testPackageJson, null, 2)
+    );
+    
+    // npm install を実行
+    console.log(`  → Installing ${packageName}@${distTag}...`);
+    execSync('npm install', {
+      cwd: testDir,
+      stdio: 'inherit',
+    });
+    
+    console.log(`  ✓ Successfully installed ${packageName}@${distTag}`);
+    return true;
+  } catch (error) {
+    console.error(`  ✗ Failed to install ${packageName}: ${error.message}`);
+    return false;
+  } finally {
+    // クリーンアップ
+    try {
+      execSync(`rm -rf ${testDir}`, { stdio: 'pipe' });
+    } catch {
+      // 無視
+    }
+  }
+}
+
+/**
+ * ポスト検証を実行
+ */
+function runPostVerification(distTag = 'latest', dryRun = false) {
+  if (dryRun) {
+    console.log('\n⏭ Skipping post-verification (dry-run mode)');
+    return true;
+  }
+
+  console.log('\n🔍 Running post-verification...\n');
+
+  const verificationResults = [];
+  
+  // 主要パッケージの検証
+  const keyPackages = ['@eutelo/cli', '@eutelo/eutelo'];
+  
+  for (const packageName of keyPackages) {
+    // バージョン確認
+    const packageDir = PUBLISH_ORDER.find(dir => {
+      const name = getPackageName(dir);
+      return name === packageName;
+    });
+    
+    if (packageDir) {
+      const packagePath = join(ROOT_DIR, 'packages', packageDir, 'package.json');
+      if (existsSync(packagePath)) {
+        const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
+        const versionVerified = verifyPublishedVersion(packageName, pkg.version, distTag);
+        verificationResults.push({ package: packageName, versionVerified });
+      }
+    }
+    
+    // インストール確認
+    const installVerified = verifyInstallation(packageName, distTag);
+    verificationResults.push({ package: packageName, installVerified });
+  }
+
+  const allPassed = verificationResults.every(r => r.versionVerified !== false && r.installVerified !== false);
+  
+  if (allPassed) {
+    console.log('\n✓ Post-verification passed');
+  } else {
+    console.warn('\n⚠ Some post-verification checks failed');
+  }
+  
+  return allPassed;
+}
+
+/**
+ * 監査証跡を記録
+ */
+function recordAuditLog(publishResults, distTag, dryRun) {
+  const auditLog = {
+    timestamp: new Date().toISOString(),
+    commitSha: process.env.GITHUB_SHA || 'unknown',
+    workflowRun: process.env.GITHUB_RUN_ID || 'unknown',
+    workflowUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+      : 'unknown',
+    distTag,
+    dryRun,
+    packages: publishResults.map(r => ({
+      package: r.package,
+      packageName: getPackageName(r.package),
+      success: r.success,
+      skipped: r.skipped || false,
+      error: r.error || null,
+    })),
+  };
+
+  const logPath = join(ROOT_DIR, `release-${Date.now()}.json`);
+  writeFileSync(logPath, JSON.stringify(auditLog, null, 2));
+  console.log(`\n📝 Audit log saved to: ${logPath}`);
+  
+  return auditLog;
+}
+
+/**
+ * メイン処理
+ */
+function main() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const distTag = args.find(arg => arg.startsWith('--tag='))?.split('=')[1] || 'latest';
+  const skipPreflight = args.includes('--skip-preflight');
+
+  console.log('🎯 Eutelo Release Flow\n');
+  console.log(`  Dry-run: ${dryRun}`);
+  console.log(`  Dist-tag: ${distTag}`);
+  console.log(`  Skip preflight: ${skipPreflight}\n`);
+
+  // バージョン整合性検証
+  console.log('📋 Validating version consistency...\n');
+  const versionResults = validateVersionConsistency();
+  if (!versionResults.valid) {
+    console.error('❌ Version validation failed');
+    for (const err of versionResults.errors) {
+      console.error(`  - ${err}`);
+    }
+    process.exit(1);
+  }
+  if (versionResults.warnings.length > 0) {
+    console.warn('⚠️  Version warnings:');
+    for (const warn of versionResults.warnings) {
+      console.warn(`  - ${warn}`);
+    }
+  }
+  console.log('✓ Version validation passed\n');
+
+  // プレフライトチェック
+  if (!skipPreflight) {
+    if (!runPreflightChecks()) {
+      process.exit(1);
+    }
+  }
+
+  // 依存関係置換
+  if (!convertDependenciesForPublish()) {
+    process.exit(1);
+  }
+
+  // 順序付き公開
+  const publishResults = publishPackagesInOrder(distTag, dryRun);
+
+  // 依存関係復元
+  if (!dryRun) {
+    restoreDependencies();
+  }
+
+  // 監査証跡を記録
+  // 監査証跡を記録
+  recordAuditLog(publishResults, distTag, dryRun);
+
+  // ポスト検証
+  if (!dryRun) {
+    runPostVerification(distTag, dryRun);
+  }
+
+  // 結果サマリー
+  console.log('\n📊 Publication Summary:');
+  const successful = publishResults.filter(r => r.success).length;
+  const failed = publishResults.filter(r => !r.success && !r.skipped).length;
+  const skipped = publishResults.filter(r => r.skipped).length;
+  console.log(`  Successful: ${successful}`);
+  console.log(`  Skipped: ${skipped}`);
+  console.log(`  Failed: ${failed}`);
+
+  if (failed > 0) {
+    console.error('\n✗ Some packages failed to publish');
+    console.error('\n💡 Rollback instructions:');
+    console.error('  1. Check which packages were successfully published');
+    console.error('  2. If needed, deprecate published versions: npm deprecate <package>@<version> "<reason>"');
+    console.error('  3. Fix the issue and re-run the release flow');
+    process.exit(1);
+  }
+
+  console.log('\n✓ Release flow completed successfully');
+}
+
+main();
+

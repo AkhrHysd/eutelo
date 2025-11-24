@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: false
+      dist_tag:
+        description: 'Distribution tag (latest or next)'
+        required: false
+        default: 'latest'
+        type: choice
+        options:
+          - latest
+          - next
+      dry_run:
+        description: 'Dry run mode (pack only, no publish)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  release:
+    name: Release Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from tag
+        id: tag_version
+        if: github.event_name == 'push'
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Set version from input
+        id: input_version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            echo "Error: Version is required for manual dispatch"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Set final version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "version=${{ steps.tag_version.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.input_version.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure npm for provenance
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "//registry.npmjs.org/:always-auth=true" >> ~/.npmrc
+
+      - name: Run release flow
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          
+          DRY_RUN_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          
+          DIST_TAG="${{ github.event.inputs.dist_tag || 'latest' }}"
+          
+          node scripts/release/release-flow.js $DRY_RUN_FLAG --tag=$DIST_TAG
+
+      - name: Create release notes
+        if: success() && github.event.inputs.dry_run != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const tag = `v${version}`;
+            
+            // 簡易的なリリースノート生成
+            const releaseNotes = `# Release ${tag}
+            
+            Automated release from CI.
+            
+            ## Packages Published
+            - All @eutelo/* packages have been published with version ${version}
+            
+            See the [CHANGELOG](./CHANGELOG.md) for detailed changes.
+            `;
+            
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Release ${tag}`,
+              body: releaseNotes,
+              draft: false,
+              prerelease: false,
+            });
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-audit-log
+          path: |
+            release-*.json
+          retention-days: 90
+

@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/preset-default",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Default Dento/Eutelo conventions exposed as a preset for the configurable framework",
   "type": "module",
   "main": "./dist/index.js",
@@ -27,7 +27,7 @@
     "documentation"
   ],
   "dependencies": {
-    "@eutelo/core": "workspace:*"
+    "@eutelo/core": "file:../core"
   },
   "publishConfig": {
     "access": "public",
