@@ -9,6 +9,7 @@
     "./config": "./dist/config/index.js"
   },
   "dependencies": {
+    "@eutelo/infrastructure": "file:../infrastructure",
     "yaml": "^2.8.1"
   },
   "files": [
