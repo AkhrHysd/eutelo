@@ -41,7 +41,17 @@
 
 ---
 
-## [0.2.3] - 2025-01-XX
+## [Unreleased]
+### Added
+- DocumentType拡張機能: Configで定義されたカスタムDocumentTypeが自動的にCLIコマンドとして利用可能になる機能を追加
+- DocumentTypeRegistry: Configから解決されたDocumentTypeの一覧とメタデータを管理するレジストリを追加
+- カスタムDocumentTypeのサポート: `eutelo.config.*`でscaffoldエントリを定義すると、自動的に`eutelo add <custom-type>`コマンドが生成される
+- 未登録DocumentTypeの警告機能: ValidationServiceとGraphServiceで未登録のDocumentTypeに対して警告を出力する機能を追加
+### Changed
+- AddDocumentService: Configからscaffoldエントリを検索するように変更し、未登録DocumentTypeに対して`DocumentTypeNotFoundError`をスロー
+- CLI: Config解決後にscaffoldエントリから動的にサブコマンドを生成するように変更（既存の固定コマンドとの後方互換性を維持）
+- ValidationService: Configから解決されたDocumentTypeのみを許可し、未登録DocumentTypeに対して警告を出力
+- GraphService: 未登録DocumentTypeのドキュメントを警告として記録する機能を追加
 ### Fixed
 - GuardService: エラーハンドリングを改善し、より詳細なエラーメッセージを表示
 - GuardService: デバッグモードでエラーの詳細情報（エラータイプ、スタックトレースなど）を出力する機能を追加

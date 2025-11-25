@@ -2,7 +2,8 @@ import path from 'node:path';
 import { FileSystemAdapter as DefaultFileSystemAdapter } from '@eutelo/infrastructure';
 import { FrontmatterParser } from '../doc-lint/frontmatter-parser.js';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
-import type { ScaffoldTemplateConfig, FrontmatterSchemaConfig } from '../config/types.js';
+import type { ScaffoldTemplateConfig, FrontmatterSchemaConfig, EuteloConfigResolved } from '../config/types.js';
+import { DocumentTypeRegistry } from '../config/DocumentTypeRegistry.js';
 import type {
   DocumentScanResult,
   DocumentScanError,
@@ -69,6 +70,7 @@ export class DocumentScanner {
   private readonly pathMatchers: PathMatcher[];
   private readonly mentionPattern: RegExp;
   private readonly relationFieldsByKind: Map<string, RelationFields>;
+  private readonly documentTypeRegistry: DocumentTypeRegistry | null;
 
   constructor({
     fileSystemAdapter,
@@ -85,6 +87,30 @@ export class DocumentScanner {
     this.pathMatchers = buildPathMatchers(scaffold) ?? DEFAULT_PATH_MATCHERS;
     this.mentionPattern = buildMentionPattern(scaffold) ?? DEFAULT_MENTION_PATTERN;
     this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
+    
+    // Create DocumentTypeRegistry if scaffold is available
+    if (scaffold && frontmatterSchemas) {
+      // Build a minimal EuteloConfigResolved for DocumentTypeRegistry
+      const config: EuteloConfigResolved = {
+        presets: [],
+        docsRoot: this.docsRoot,
+        scaffold,
+        frontmatter: {
+          schemas: frontmatterSchemas,
+          rootParentIds: []
+        },
+        guard: {
+          prompts: {}
+        },
+        sources: {
+          cwd: '',
+          layers: []
+        }
+      };
+      this.documentTypeRegistry = new DocumentTypeRegistry(config);
+    } else {
+      this.documentTypeRegistry = null;
+    }
   }
 
   async scan({ cwd }: { cwd: string }): Promise<DocumentScanResult> {
@@ -165,6 +191,15 @@ export class DocumentScanner {
     const owners = parseIdList(frontmatter.owners);
     const mentionIds = extractMentions(removeFrontmatter(content), this.mentionPattern);
 
+    // Check if document type is registered in config
+    const warnings = [...issues.map((issue) => issue.message)];
+    if (this.documentTypeRegistry && type && type !== 'unknown') {
+      const normalizedType = type.toLowerCase();
+      if (!this.documentTypeRegistry.hasDocumentType(normalizedType)) {
+        warnings.push(`Unknown document type: ${type}. This type is not defined in the configuration.`);
+      }
+    }
+
     return {
       id: frontmatter.id,
       type,
@@ -178,7 +213,7 @@ export class DocumentScanner {
       owners,
       lastUpdated: frontmatter.last_updated,
       path: normalizedPath,
-      warnings: issues.map((issue) => issue.message),
+      warnings,
       absolutePath
     };
   }

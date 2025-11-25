@@ -316,6 +316,8 @@ pnpm exec eutelo init --dry-run  # Preview without creating directories
 
 Generates documents from templates.
 
+#### Built-in Document Types
+
 ```bash
 # Generate a PRD (Product Requirements Document)
 pnpm exec eutelo add prd <feature>
@@ -341,6 +343,64 @@ pnpm exec eutelo add task <name>
 # Generate an OPS (Operations Runbook)
 pnpm exec eutelo add ops <name>
 ```
+
+#### Custom Document Types
+
+Eutelo supports custom document types defined in your configuration. When you define a scaffold entry with a `kind` in your `eutelo.config.*`, it automatically becomes available as a CLI command.
+
+**Example: Adding a Custom Document Type**
+
+1. **Create a template file** (e.g., `templates/_template-custom.md`):
+```markdown
+---
+id: CUSTOM-{FEATURE}
+type: custom
+feature: {FEATURE}
+---
+
+# Custom Document: {FEATURE}
+```
+
+2. **Define the scaffold entry** in `eutelo.config.ts`:
+```typescript
+export default defineConfig({
+  scaffold: {
+    'document.custom': {
+      id: 'document.custom',
+      kind: 'custom',
+      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
+      template: '_template-custom.md',
+      variables: {
+        ID: 'CUSTOM-{FEATURE}'
+      }
+    }
+  },
+  frontmatter: {
+    schemas: [
+      {
+        kind: 'custom',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string', required: true },
+          feature: { type: 'string', required: true }
+        }
+      }
+    ]
+  }
+});
+```
+
+3. **Use the custom command**:
+```bash
+pnpm exec eutelo add custom <feature>
+```
+
+The command `eutelo add custom <feature>` is automatically generated based on the scaffold configuration. The command arguments are determined by the placeholders used in the scaffold's `path` and `variables`:
+- `{FEATURE}` → requires `<feature>` argument
+- `{SUB}` → requires `<sub>` argument
+- `{NAME}` → requires `<name>` argument
+
+**Note**: Custom document types are validated during `eutelo check` and included in `eutelo graph`. Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
 
 ### `eutelo lint`
 

@@ -98,6 +98,7 @@ CHANGELOG.md
 | 上位設計 | `DSG-{FEATURE}.md` | `DSG-AUTH.md` |
 | 詳細設計 | `DSG-{FEATURE}-{SUB}.md` | `DSG-AUTH-LOGIN.md` |
 | 契約定義 | `{SUB}-openapi.yaml` / `{SUB}-schema.json` | `LOGIN-openapi.yaml` |
+| カスタム種別 | `{TYPE}-{FEATURE}.md` | `CUSTOM-AUTH.md`（設定で定義） |
 | ADR | `ADR-{SEQ}-{topic}.md` | `ADR-0001-token-expiry.md` |
 | タスク | `TSK-{FEATURE}.md` | `TSK-AUTH.md` |
 | Runbook | `runbook-{topic}.md` | `runbook-deploy.md` |
