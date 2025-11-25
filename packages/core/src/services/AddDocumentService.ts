@@ -60,6 +60,19 @@ export class FileAlreadyExistsError extends Error {
   }
 }
 
+export class DocumentTypeNotFoundError extends Error {
+  readonly documentType: string;
+  readonly availableTypes: string[];
+
+  constructor(documentType: string, availableTypes: string[]) {
+    const typesList = availableTypes.length > 0 ? availableTypes.join(', ') : '(none)';
+    super(`Document type '${documentType}' not found. Available types: ${typesList}`);
+    this.name = 'DocumentTypeNotFoundError';
+    this.documentType = documentType;
+    this.availableTypes = availableTypes;
+  }
+}
+
 type DocumentBlueprint = {
   id: string;
   kind: DocumentType;
@@ -158,7 +171,7 @@ export class AddDocumentService {
       name: options.name,
       sequence: options.sequence
     });
-    const tokens = this.buildTokenMap(context, { includeDate: false });
+    const tokens = this.buildTokenMap(context, blueprint, { includeDate: false });
     const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
     const relative = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
     return path.resolve(cwd, relative);
@@ -175,7 +188,7 @@ export class AddDocumentService {
   }: AddDocumentOptions): Promise<AddDocumentResult> {
     const blueprint = this.getBlueprint({ type, scaffoldId });
     const context = this.buildContext({ definition: blueprint, feature, sub, name });
-    const baseTokens = this.buildTokenMap(context, { includeDate: false });
+    const baseTokens = this.buildTokenMap(context, blueprint, { includeDate: false });
     let sequence: string | undefined;
 
     if (blueprint.usesSequence) {
@@ -187,11 +200,17 @@ export class AddDocumentService {
       context.sequence = sequence;
     }
 
-    const tokens = this.buildTokenMap(context, { includeDate: true });
+    const tokens = this.buildTokenMap(context, blueprint, { includeDate: true });
     const id = this.resolveId(blueprint, tokens);
-    const parent = this.resolveParent(blueprint, tokens);
     tokens.ID = id;
-    tokens.PARENT = parent;
+    
+    // frontmatterDefaults.parent が設定されている場合はそれを優先、そうでなければ variables.PARENT を使用
+    if (blueprint.scaffold.frontmatterDefaults?.parent) {
+      tokens.PARENT = applyPlaceholders(blueprint.scaffold.frontmatterDefaults.parent, tokens);
+    } else {
+      const parent = this.resolveParent(blueprint, tokens);
+      tokens.PARENT = parent;
+    }
 
     const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
     const relativePath = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
@@ -241,6 +260,7 @@ export class AddDocumentService {
 
   private buildTokenMap(
     context: DocumentContext,
+    blueprint: DocumentBlueprint,
     { includeDate }: { includeDate: boolean }
   ): Record<string, string> {
     const tokens: Record<string, string> = {
@@ -252,6 +272,12 @@ export class AddDocumentService {
     if (includeDate) {
       tokens.DATE = formatDate(this.clock());
     }
+    
+    // frontmatterDefaults から type を取得してトークンに追加
+    if (blueprint.scaffold.frontmatterDefaults?.type) {
+      tokens.TYPE = applyPlaceholders(blueprint.scaffold.frontmatterDefaults.type, tokens);
+    }
+    
     return tokens;
   }
 
@@ -313,23 +339,38 @@ export class AddDocumentService {
   }
 
   private getBlueprint({ type, scaffoldId }: { type?: DocumentType; scaffoldId?: string }): DocumentBlueprint {
+    // scaffoldId が指定されている場合は id で検索
     if (scaffoldId) {
       const byId = this.blueprintsById.get(scaffoldId);
       if (byId) {
         return byId;
       }
+      // scaffoldId が見つからない場合
+      const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+      throw new DocumentTypeNotFoundError(`scaffold:${scaffoldId}`, availableTypes);
     }
+
+    // type が指定されている場合は kind で検索
     if (type) {
+      const normalizedType = type.toLowerCase();
+      // まず id として検索（後方互換性のため）
       const byId = this.blueprintsById.get(type);
       if (byId) {
         return byId;
       }
-      const byKind = this.blueprintsByKind.get(type.toLowerCase());
+      // kind で検索
+      const byKind = this.blueprintsByKind.get(normalizedType);
       if (byKind) {
         return byKind;
       }
+      // type が見つからない場合
+      const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+      throw new DocumentTypeNotFoundError(type, availableTypes);
     }
-    throw new Error(`Unsupported document type or scaffold: ${scaffoldId ?? type ?? 'unknown'}`);
+
+    // type も scaffoldId も指定されていない場合
+    const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+    throw new DocumentTypeNotFoundError('unknown', availableTypes);
   }
 }
 

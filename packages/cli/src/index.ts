@@ -22,9 +22,11 @@ import {
   RuleEngine,
   resolveDocsRoot,
   loadConfig,
-  ConfigError
+  ConfigError,
+  DocumentTypeNotFoundError,
+  DocumentTypeRegistry
 } from '@eutelo/core';
-import type { EuteloConfigResolved } from '@eutelo/core';
+import type { EuteloConfigResolved, ScaffoldTemplateConfig } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
 // Load .env file from project root (where CLI is executed)
@@ -198,21 +200,31 @@ async function runCheckCommand(
   const useJson = normalizedFormat === 'json' || Boolean(options.ci);
   const report = await validationService.runChecks({ cwd: process.cwd() });
   const hasIssues = report.issues.length > 0;
+  const hasWarnings = report.warnings && report.warnings.length > 0;
 
   if (useJson) {
     const indent = options.ci ? 0 : 2;
     process.stdout.write(`${JSON.stringify(report, null, indent)}\n`);
   } else {
-    if (!hasIssues) {
+    if (!hasIssues && !hasWarnings) {
       process.stdout.write('No issues found. Documentation structure looks good.\n');
     } else {
-      process.stdout.write(`Found ${report.issues.length} issue(s):\n`);
-      for (const issue of report.issues) {
-        process.stdout.write(`- [${issue.type}] ${issue.path}: ${issue.message}\n`);
+      if (hasIssues) {
+        process.stdout.write(`Found ${report.issues.length} issue(s):\n`);
+        for (const issue of report.issues) {
+          process.stdout.write(`- [${issue.type}] ${issue.path}: ${issue.message}\n`);
+        }
+      }
+      if (hasWarnings && report.warnings) {
+        process.stdout.write(`\nWarning(s) (non-blocking):\n`);
+        for (const warning of report.warnings) {
+          process.stdout.write(`- [${warning.type}] ${warning.path}: ${warning.message}\n`);
+        }
       }
     }
   }
 
+  // Only set exit code to error if there are actual issues (not warnings)
   process.exitCode = hasIssues ? CHECK_EXIT_CODES.VALIDATION_ERROR : CHECK_EXIT_CODES.SUCCESS;
 }
 
@@ -569,6 +581,11 @@ function handleCommandError(error: unknown): void {
     process.stderr.write(`Error: File already exists at ${error.filePath}\n`);
   } else if (error instanceof TemplateNotFoundError) {
     process.stderr.write(`Error: Template not found (${error.templateName})\n`);
+  } else if (error instanceof DocumentTypeNotFoundError) {
+    process.stderr.write(`Error: ${error.message}\n`);
+    if (error.availableTypes.length > 0) {
+      process.stderr.write(`Available document types: ${error.availableTypes.join(', ')}\n`);
+    }
   } else if (error instanceof ConfigError) {
     process.stderr.write(`Error: ${error.message}\n`);
   } else if (error instanceof Error) {
@@ -616,6 +633,133 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const add = program.command('add').description('Generate documentation from templates');
   const graph = program.command('graph').description('Inspect the document dependency graph');
   const configCommand = program.command('config').description('Inspect or debug Eutelo configuration');
+
+  // Track registered command names to avoid duplicates with fixed commands
+  const registeredCommands = new Set<string>(['prd', 'beh', 'sub-prd', 'sub-beh', 'dsg', 'adr', 'task', 'ops']);
+
+  // Helper function to check if scaffold requires specific placeholders
+  function usesPlaceholder(scaffold: ScaffoldTemplateConfig, placeholder: string): boolean {
+    const token = `{${placeholder}}`;
+    if (scaffold.path.includes(token)) {
+      return true;
+    }
+    if (scaffold.variables) {
+      for (const value of Object.values(scaffold.variables)) {
+        if (typeof value === 'string' && value.includes(token)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Helper function to determine command arguments based on scaffold config
+  function determineCommandArgs(scaffold: ScaffoldTemplateConfig): string {
+    const requiresFeature = usesPlaceholder(scaffold, 'FEATURE');
+    const requiresSub = usesPlaceholder(scaffold, 'SUB');
+    const requiresName = usesPlaceholder(scaffold, 'NAME');
+
+    if (requiresFeature && requiresSub) {
+      return '<feature> <sub>';
+    } else if (requiresFeature) {
+      return '<feature>';
+    } else if (requiresName) {
+      return '<name>';
+    }
+    return '';
+  }
+
+  // Helper function to build params from command arguments
+  function buildAddParams(
+    scaffold: ScaffoldTemplateConfig,
+    args: Record<string, string>
+  ): AddParams {
+    const params: AddParams = {};
+    if (usesPlaceholder(scaffold, 'FEATURE')) {
+      params.feature = args.feature;
+    }
+    if (usesPlaceholder(scaffold, 'SUB')) {
+      params.sub = args.sub;
+    }
+    if (usesPlaceholder(scaffold, 'NAME')) {
+      params.name = args.name;
+    }
+    return params;
+  }
+
+  // Dynamically generate commands from config
+  // This will be called before program.parseAsync
+  async function registerDynamicCommands(): Promise<void> {
+    try {
+      const config = await getResolvedConfigCached();
+      const registry = new DocumentTypeRegistry(config);
+      const documentTypes = registry.getDocumentTypes();
+
+      for (const type of documentTypes) {
+        // Skip if already registered as fixed command
+        if (registeredCommands.has(type)) {
+          continue;
+        }
+
+        const scaffold = registry.getScaffoldConfig(type);
+        if (!scaffold) {
+          continue;
+        }
+
+        const commandArgs = determineCommandArgs(scaffold);
+        const commandName = `${type}${commandArgs ? ` ${commandArgs}` : ''}`;
+
+        // Register dynamic command
+        add
+          .command(commandName)
+          .description(`Generate a ${type.toUpperCase()} document`)
+          .option('--config <path>', 'Path to eutelo.config.*')
+          .action(async (...actionArgs: unknown[]) => {
+            const configPath = resolveOptionValue(argv, '--config');
+            try {
+              await withConfig(configPath, async (resolvedConfig) => {
+                const docsRoot = resolveDocsRootFromConfig(resolvedConfig);
+                const addDocumentService = createAddDocumentService({
+                  fileSystemAdapter,
+                  templateService,
+                  docsRoot,
+                  scaffold: resolvedConfig.scaffold
+                });
+
+                // Parse arguments based on scaffold requirements
+                const args: Record<string, string> = {};
+                let argIndex = 0;
+                if (usesPlaceholder(scaffold, 'FEATURE')) {
+                  args.feature = actionArgs[argIndex] as string;
+                  argIndex++;
+                }
+                if (usesPlaceholder(scaffold, 'SUB')) {
+                  args.sub = actionArgs[argIndex] as string;
+                  argIndex++;
+                }
+                if (usesPlaceholder(scaffold, 'NAME')) {
+                  args.name = actionArgs[0] as string;
+                }
+
+                const params = buildAddParams(scaffold, args);
+                await executeAddDocument(addDocumentService, type, params);
+              });
+            } catch (error) {
+              handleCommandError(error);
+            }
+          });
+
+        registeredCommands.add(type);
+      }
+    } catch (error) {
+      // If config loading fails, just continue without dynamic commands
+      // This maintains backward compatibility
+      if (error instanceof ConfigError) {
+        // Silently ignore config errors during command registration
+        // Commands will fail later with proper error messages
+      }
+    }
+  }
 
   program
     .command('lint [paths...]')
@@ -988,6 +1132,40 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         handleCommandError(error);
       }
     });
+
+  // Register dynamic commands from config before parsing
+  await registerDynamicCommands();
+
+  // Check for unknown document types before parsing
+  // This handles cases where a user tries to use an unknown document type
+  const addIndex = argv.indexOf('add');
+  if (addIndex !== -1 && addIndex + 1 < argv.length) {
+    const documentType = argv[addIndex + 1];
+    // Skip if it's an option (starts with --)
+    if (documentType && !documentType.startsWith('--')) {
+      // Check if this is a registered command
+      const isRegistered = registeredCommands.has(documentType);
+      if (!isRegistered) {
+        // Check if it's a known document type from config
+        try {
+          const config = await getResolvedConfigCached();
+          const registry = new DocumentTypeRegistry(config);
+          const documentTypes = registry.getDocumentTypes();
+          if (!documentTypes.includes(documentType)) {
+            // Unknown document type - throw error
+            const availableTypes = registry.getDocumentTypes();
+            handleCommandError(new DocumentTypeNotFoundError(documentType, availableTypes));
+            return;
+          }
+        } catch (error) {
+          // If config loading fails, let commander handle the error
+          if (error instanceof ConfigError) {
+            // Silently continue - commander will handle unknown commands
+          }
+        }
+      }
+    }
+  }
 
   await program.parseAsync(argv);
 }

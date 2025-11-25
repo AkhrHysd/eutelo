@@ -48,6 +48,12 @@
 - すべての内容は **「目的 → 手段 → 成果」** の因果で構成する。  
 - 文書内に **判断・仮説・比較検討** が含まれる場合は ADR に分離する。  
 - 文書1つにつき1つの概念・目的に集中し、複数テーマを混在させない。  
+
+### DocumentType拡張機能
+
+Euteloは設定ファイル（`eutelo.config.*`）でカスタムドキュメント種別を定義できます。設定で定義されたDocumentTypeは自動的にCLIコマンドとして利用可能になり、`eutelo check`や`eutelo graph`でも認識されます。
+
+詳細は `docs/product/features/EUTELO-CONFIG-DOC-TYPES/` を参照してください。  
 - 目的が変わる場合は新しい文書を作成する。
 
 ---

@@ -150,3 +150,92 @@ test('GraphService builds parent edges based on schema relation markers', async 
     cleanup(cwd);
   }
 });
+
+test('GraphService records warnings for unknown document types', async () => {
+  const scaffold = {
+    'document.prd': {
+      id: 'document.prd',
+      kind: 'prd',
+      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+      template: '_template-prd.md'
+    }
+  };
+  const frontmatterSchemas = [
+    {
+      kind: 'prd',
+      fields: {
+        id: { type: 'string', required: true },
+        type: { type: 'string', required: true }
+      }
+    }
+  ];
+  const service = new GraphService({
+    scaffold,
+    frontmatterSchemas
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'custom/UNKNOWN-TYPE.md', [
+      'id: UNKNOWN-TYPE',
+      'type: unknown-type',
+      'purpose: Test'
+    ]);
+  });
+  try {
+    const graph = await service.buildGraph({ cwd });
+    // Unknown document type should still be included in graph
+    const unknownNode = graph.nodes.find((node) => node.id === 'UNKNOWN-TYPE');
+    assert.ok(unknownNode, 'Unknown document type should be included in graph');
+    // But should have warnings
+    assert.ok(unknownNode.warnings && unknownNode.warnings.length > 0, 'Should have warnings');
+    const hasUnknownTypeWarning = unknownNode.warnings.some((w) =>
+      w.includes('Unknown document type')
+    );
+    assert.ok(hasUnknownTypeWarning, 'Should warn about unknown document type');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('GraphService includes registered document types in graph', async () => {
+  const scaffold = {
+    'document.custom': {
+      id: 'document.custom',
+      kind: 'custom',
+      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
+      template: '_template-custom.md'
+    }
+  };
+  const frontmatterSchemas = [
+    {
+      kind: 'custom',
+      fields: {
+        id: { type: 'string', required: true },
+        type: { type: 'string', required: true }
+      }
+    }
+  ];
+  const service = new GraphService({
+    scaffold,
+    frontmatterSchemas
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'custom/CUSTOM-TEST.md', [
+      'id: CUSTOM-TEST',
+      'type: custom',
+      'purpose: Test'
+    ]);
+  });
+  try {
+    const graph = await service.buildGraph({ cwd });
+    const customNode = graph.nodes.find((node) => node.id === 'CUSTOM-TEST');
+    assert.ok(customNode, 'Registered custom document type should be in graph');
+    assert.equal(customNode.type, 'custom');
+    // Should not have warnings for registered types
+    const hasWarnings = customNode.warnings && customNode.warnings.length > 0;
+    const hasUnknownTypeWarning =
+      hasWarnings && customNode.warnings.some((w) => w.includes('Unknown document type'));
+    assert.equal(hasUnknownTypeWarning, false, 'Registered types should not have unknown type warnings');
+  } finally {
+    cleanup(cwd);
+  }
+});

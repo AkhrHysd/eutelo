@@ -5,7 +5,8 @@ import {
   AddDocumentService,
   FileAlreadyExistsError,
   TemplateNotFoundError,
-  TemplateService
+  TemplateService,
+  DocumentTypeNotFoundError
 } from '../dist/index.js';
 
 const DEFAULT_SCAFFOLD = {
@@ -227,4 +228,54 @@ test('ADR sequence increments by scanning existing files', async () => {
   const result = await service.addDocument({ cwd, type: 'adr', feature: 'AUTH' });
   assert.equal(result.id, 'ADR-AUTH-0004');
   assert.ok(adapter.files.has(path.join(adrDir, 'ADR-AUTH-0004.md')));
+});
+
+test('getBlueprint throws DocumentTypeNotFoundError for unknown type', () => {
+  const { service } = createService();
+  assert.throws(
+    () => service.resolveOutputPath({ cwd: '/tmp', type: 'unknown-type', feature: 'AUTH' }),
+    DocumentTypeNotFoundError
+  );
+});
+
+test('getBlueprint throws DocumentTypeNotFoundError with available types list', () => {
+  const { service } = createService();
+  try {
+    service.resolveOutputPath({ cwd: '/tmp', type: 'unknown-type', feature: 'AUTH' });
+    assert.fail('Expected DocumentTypeNotFoundError');
+  } catch (error) {
+    assert.ok(error instanceof DocumentTypeNotFoundError);
+    assert.equal(error.documentType, 'unknown-type');
+    assert.ok(Array.isArray(error.availableTypes));
+    assert.ok(error.availableTypes.length > 0);
+    assert.ok(error.message.includes('Available types:'));
+  }
+});
+
+test('getBlueprint finds scaffold by kind', () => {
+  const { service } = createService();
+  const output = service.resolveOutputPath({
+    cwd: '/tmp',
+    type: 'prd',
+    feature: 'AUTH'
+  });
+  assert.ok(output.includes('PRD-AUTH.md'));
+});
+
+test('getBlueprint finds scaffold by scaffoldId', () => {
+  const { service } = createService();
+  const output = service.resolveOutputPath({
+    cwd: '/tmp',
+    scaffoldId: 'document.prd',
+    feature: 'AUTH'
+  });
+  assert.ok(output.includes('PRD-AUTH.md'));
+});
+
+test('getBlueprint throws DocumentTypeNotFoundError for unknown scaffoldId', () => {
+  const { service } = createService();
+  assert.throws(
+    () => service.resolveOutputPath({ cwd: '/tmp', scaffoldId: 'unknown.id', feature: 'AUTH' }),
+    DocumentTypeNotFoundError
+  );
 });

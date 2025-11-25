@@ -69,6 +69,10 @@ export class GraphBuilder {
 
     for (const document of documents) {
       for (const parentId of document.parentIds) {
+        // parent が '/' の場合はルートドキュメントとして扱い、エッジを作成しない
+        if (parentId === '/') {
+          continue;
+        }
         recordEdge({
           from: parentId,
           to: document.id,
@@ -142,7 +146,9 @@ function computeIntegrity(
   for (const node of nodeMap.values()) {
     const incoming = adjacency.incoming[node.id] ?? [];
     const outgoing = adjacency.outgoing[node.id] ?? [];
-    if (incoming.length === 0 && outgoing.length === 0) {
+    // parentIds が '/' のみの場合はルートドキュメントとして扱い、orphan node ではない
+    const isRootDocument = node.parentIds.length === 1 && node.parentIds[0] === '/';
+    if (incoming.length === 0 && outgoing.length === 0 && !isRootDocument) {
       orphanNodeIds.push(node.id);
     }
   }

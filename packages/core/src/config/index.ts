@@ -7,6 +7,7 @@ export {
   ConfigParseError,
   ConfigValidationError
 } from './errors.js';
+export { DocumentTypeRegistry } from './DocumentTypeRegistry.js';
 export type {
   EuteloConfig,
   EuteloConfigResolved,

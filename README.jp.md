@@ -70,7 +70,11 @@ export default defineConfig({
       template: '_template-prd.md',
       variables: {
         ID: 'PRD-{FEATURE}',
-        PARENT: 'PRINCIPLE-GLOBAL'
+        PARENT: '/'
+      },
+      frontmatterDefaults: {
+        type: 'prd',
+        parent: '/'
       }
     }
   },
@@ -125,6 +129,9 @@ Presetパッケージ名の配列。Presetは順番にマージされ、後のpr
 - `path`: プレースホルダーを含むファイルパスパターン（例：`{FEATURE}`, `{SUB}`）
 - `template`: テンプレートファイルのパス（presetのテンプレートルートまたはプロジェクトルートからの相対パス）
 - `variables`: テンプレートに注入するオプションの変数
+- `frontmatterDefaults`: フロントマターに自動注入される固定値（オプション）：
+  - `type`: 必須。ドキュメントタイプの値（例：`'prd'`, `'behavior'`, `'design'`）。`{FEATURE}`などのテンプレート変数を使用可能。
+  - `parent`: 必須。親ドキュメントのID。ルートドキュメントの場合は`'/'`を使用。`{PARENT}`や`{FEATURE}`などのテンプレート変数を使用可能。
 
 #### `frontmatter`（オプション）
 Frontmatter設定：
@@ -316,6 +323,8 @@ pnpm exec eutelo init --dry-run  # ディレクトリを作成せずに確認
 
 テンプレートからドキュメントを生成します。
 
+#### 組み込みドキュメント種別
+
 ```bash
 # PRD（Product Requirements Document）を生成
 pnpm exec eutelo add prd <feature>
@@ -341,6 +350,69 @@ pnpm exec eutelo add task <name>
 # OPS（Operations Runbook）を生成
 pnpm exec eutelo add ops <name>
 ```
+
+#### カスタムドキュメント種別
+
+Euteloは設定ファイルで定義されたカスタムドキュメント種別をサポートしています。`eutelo.config.*`で`kind`を持つscaffoldエントリを定義すると、自動的にCLIコマンドとして利用可能になります。
+
+**例: カスタムドキュメント種別の追加**
+
+1. **テンプレートファイルを作成**（例: `templates/_template-custom.md`）:
+```markdown
+---
+id: CUSTOM-{FEATURE}
+type: custom
+feature: {FEATURE}
+---
+
+# カスタムドキュメント: {FEATURE}
+```
+
+2. **`eutelo.config.ts`でscaffoldエントリを定義**:
+```typescript
+export default defineConfig({
+  scaffold: {
+    'document.custom': {
+      id: 'document.custom',
+      kind: 'custom',
+      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
+      template: '_template-custom.md',
+      variables: {
+        ID: 'CUSTOM-{FEATURE}',
+        PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'custom',
+        parent: '{PARENT}'
+      }
+    }
+  },
+  frontmatter: {
+    schemas: [
+      {
+        kind: 'custom',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string', required: true },
+          feature: { type: 'string', required: true }
+        }
+      }
+    ]
+  }
+});
+```
+
+3. **カスタムコマンドを使用**:
+```bash
+pnpm exec eutelo add custom <feature>
+```
+
+`eutelo add custom <feature>`コマンドは、scaffold設定に基づいて自動的に生成されます。コマンドの引数は、scaffoldの`path`と`variables`で使用されるプレースホルダーによって決定されます：
+- `{FEATURE}` → `<feature>`引数が必要
+- `{SUB}` → `<sub>`引数が必要
+- `{NAME}` → `<name>`引数が必要
+
+**注意**: カスタムドキュメント種別は`eutelo check`で検証され、`eutelo graph`に含まれます。未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
 
 ### `eutelo lint`
 

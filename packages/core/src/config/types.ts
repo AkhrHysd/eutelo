@@ -2,12 +2,18 @@ export type DocumentKind = string;
 
 export type FrontmatterFieldType = 'string' | 'number' | 'boolean' | 'array' | 'enum' | 'date';
 
+export interface FrontmatterDefaults {
+  type: string; // 必須: Graph作成時に使用される
+  parent: string; // 必須: すべてのkindで必須。ルートドキュメントは '/' を設定。それ以外は親ドキュメントのIDを設定。テンプレート変数を使用可能
+}
+
 export interface ScaffoldTemplateConfig {
   id: string;
   kind: DocumentKind;
   path: string;
   template: string;
   variables?: Record<string, string>;
+  frontmatterDefaults?: FrontmatterDefaults;
 }
 
 export interface FrontmatterFieldSchema {

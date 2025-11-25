@@ -131,6 +131,77 @@ test('add dsg/adr/task/ops cover architecture and ops documents', () => {
   }
 });
 
+test('add custom document type from config works', () => {
+  const cwd = setupProject();
+  try {
+    // Create custom template first
+    const templateDir = path.join(cwd, 'templates');
+    fs.mkdirSync(templateDir, { recursive: true });
+    const templateContent = `---
+id: {ID}
+type: custom
+feature: {FEATURE}
+---
+
+# Custom Document: {FEATURE}
+`;
+    fs.writeFileSync(path.join(templateDir, '_template-custom.md'), templateContent, 'utf8');
+
+    // Create custom config with custom document type
+    const configPath = path.join(cwd, 'eutelo.config.ts');
+    const configContent = `export default {
+      scaffold: {
+        'document.custom': {
+          id: 'document.custom',
+          kind: 'custom',
+          path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
+          template: './templates/_template-custom.md',
+          variables: {
+            ID: 'CUSTOM-{FEATURE}'
+          }
+        }
+      },
+      frontmatter: {
+        schemas: [
+          {
+            kind: 'custom',
+            fields: {
+              id: { type: 'string', required: true },
+              type: { type: 'string', required: true },
+              feature: { type: 'string', required: true }
+            }
+          }
+        ]
+      }
+    };`;
+    fs.writeFileSync(configPath, configContent, 'utf8');
+
+    // Run custom command
+    const result = runCli(['add', 'custom', 'TEST'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+
+    const target = path.join(cwd, 'eutelo-docs/custom/TEST/CUSTOM-TEST.md');
+    assert.ok(fs.existsSync(target), 'Custom document file should exist');
+    const frontmatter = readFrontmatter(target);
+    assert.equal(frontmatter.id, 'CUSTOM-TEST');
+    assert.equal(frontmatter.type, 'custom');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('add unknown document type reports error with available types', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['add', 'unknown-type', 'TEST'], cwd);
+    assert.notEqual(result.status, 0);
+    assert.ok(result.stderr.includes('Document type'), 'Should mention document type');
+    assert.ok(result.stderr.includes('Available types'), 'Should list available types');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
 test('add reports missing templates when template root lacks files', () => {
   const cwd = setupProject();
   const templateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-templates-missing-'));

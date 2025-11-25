@@ -59,7 +59,7 @@ test('ValidationService reports no issues for valid documents', async () => {
     ]);
     writeDoc(path.join(root, 'eutelo-docs'), 'product/features/AUTH/SUB-PRD-LOGIN.md', [
       'id: SUB-PRD-LOGIN',
-      'type: prd',
+      'type: sub-prd',
       'feature: AUTH',
       'purpose: Login improvements',
       'parent: PRD-AUTH'
@@ -231,6 +231,94 @@ test('ValidationService accepts custom root parent ids', async () => {
     const report = await service.runChecks({ cwd });
     const parentIssues = report.issues.filter((entry) => entry.type === 'parentNotFound');
     assert.equal(parentIssues.length, 0);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('ValidationService warns about unknown document types', async () => {
+  const adapter = new RealFsAdapter();
+  const scaffold = {
+    'document.prd': {
+      id: 'document.prd',
+      kind: 'prd',
+      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+      template: '_template-prd.md'
+    }
+  };
+  const frontmatterSchemas = [
+    {
+      kind: 'prd',
+      fields: {
+        id: { type: 'string', required: true },
+        type: { type: 'string', required: true },
+        purpose: { type: 'string', required: true }
+      }
+    }
+  ];
+  const service = new ValidationService({
+    fileSystemAdapter: adapter,
+    scaffold,
+    frontmatterSchemas
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'custom/UNKNOWN-TYPE.md', [
+      'id: UNKNOWN-TYPE',
+      'type: unknown-type',
+      'purpose: Test'
+    ]);
+  });
+  try {
+    const report = await service.runChecks({ cwd });
+    assert.ok(report.warnings, 'Should have warnings');
+    assert.ok(report.warnings.length > 0, 'Should have at least one warning');
+    const unknownTypeWarning = report.warnings.find((w) => w.type === 'unknownDocumentType');
+    assert.ok(unknownTypeWarning, 'Should warn about unknown document type');
+    assert.equal(unknownTypeWarning.documentType, 'unknown-type');
+    // Warnings should not affect exit code (issues should be empty)
+    assert.equal(report.issues.length, 0, 'Warnings should not be in issues');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('ValidationService applies schema for registered document types', async () => {
+  const adapter = new RealFsAdapter();
+  const scaffold = {
+    'document.custom': {
+      id: 'document.custom',
+      kind: 'custom',
+      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
+      template: '_template-custom.md'
+    }
+  };
+  const frontmatterSchemas = [
+    {
+      kind: 'custom',
+      fields: {
+        id: { type: 'string', required: true },
+        type: { type: 'string', required: true },
+        customField: { type: 'string', required: true }
+      }
+    }
+  ];
+  const service = new ValidationService({
+    fileSystemAdapter: adapter,
+    scaffold,
+    frontmatterSchemas
+  });
+  const cwd = setupWorkspace((root) => {
+    writeDoc(path.join(root, 'eutelo-docs'), 'custom/CUSTOM-TEST.md', [
+      'id: CUSTOM-TEST',
+      'type: custom',
+      'purpose: Test'
+      // Missing customField
+    ]);
+  });
+  try {
+    const report = await service.runChecks({ cwd });
+    const missingFieldIssue = report.issues.find((issue) => issue.field === 'customField');
+    assert.ok(missingFieldIssue, 'Should report missing customField');
   } finally {
     cleanup(cwd);
   }

@@ -1,12 +1,15 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
-import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig, EuteloConfigResolved } from '../config/types.js';
+import { DocumentTypeRegistry } from '../config/DocumentTypeRegistry.js';
 
 type FileSystemAdapter = {
   readDir(targetPath: string): Promise<string[]>;
   stat(targetPath: string): Promise<{ isDirectory(): boolean; isFile(): boolean }>;
   readFile(targetPath: string): Promise<string>;
 };
+
+type FileSystemStat = Awaited<ReturnType<FileSystemAdapter['stat']>>;
 
 type DocumentKind = string;
 
@@ -57,10 +60,19 @@ export type ParentNotFoundIssue = {
   message: string;
 };
 
-export type ValidationIssue = MissingFieldIssue | InvalidNameIssue | ParentNotFoundIssue;
+export type UnknownDocumentTypeIssue = {
+  type: 'unknownDocumentType';
+  documentType: string;
+  path: string;
+  id?: string;
+  message: string;
+};
+
+export type ValidationIssue = MissingFieldIssue | InvalidNameIssue | ParentNotFoundIssue | UnknownDocumentTypeIssue;
 
 export type ValidationReport = {
   issues: ValidationIssue[];
+  warnings?: ValidationIssue[]; // 警告（exit codeに影響しない）
 };
 
 export type ValidationServiceDependencies = {
@@ -172,6 +184,7 @@ export class ValidationService {
   private readonly rootParentIds: Set<string>;
   private readonly namingRules: NamingRule[];
   private readonly relationFieldsByKind: Map<string, RelationFields>;
+  private readonly documentTypeRegistry: DocumentTypeRegistry | null;
 
   constructor({
     fileSystemAdapter,
@@ -186,6 +199,30 @@ export class ValidationService {
     this.rootParentIds = new Set(rootParentIds && rootParentIds.length > 0 ? rootParentIds : DEFAULT_ROOT_PARENT_IDS);
     this.namingRules = scaffold ? buildNamingRulesFromScaffold(scaffold) : DEFAULT_NAMING_RULES;
     this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
+    
+    // Create DocumentTypeRegistry if scaffold is available
+    if (scaffold && frontmatterSchemas) {
+      // Build a minimal EuteloConfigResolved for DocumentTypeRegistry
+      const config: EuteloConfigResolved = {
+        presets: [],
+        docsRoot: this.docsRoot,
+        scaffold,
+        frontmatter: {
+          schemas: frontmatterSchemas,
+          rootParentIds: rootParentIds ?? []
+        },
+        guard: {
+          prompts: {}
+        },
+        sources: {
+          cwd: '',
+          layers: []
+        }
+      };
+      this.documentTypeRegistry = new DocumentTypeRegistry(config);
+    } else {
+      this.documentTypeRegistry = null;
+    }
   }
 
   async runChecks({ cwd }: RunChecksOptions): Promise<ValidationReport> {
@@ -203,7 +240,15 @@ export class ValidationService {
       }
       return a.path.localeCompare(b.path);
     });
-    return { issues };
+    
+    // Separate warnings (unknownDocumentType) from errors
+    const errors = issues.filter((issue) => issue.type !== 'unknownDocumentType');
+    const warnings = issues.filter((issue) => issue.type === 'unknownDocumentType');
+    
+    return { 
+      issues: errors,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
   }
 
   async scanDocs({ cwd }: RunChecksOptions): Promise<ScannedDocument[]> {
@@ -235,7 +280,9 @@ export class ValidationService {
         DEFAULT_RELATION_FIELDS;
       const parents = collectRelationIds(frontmatter, relations.parent);
       const parent = parents[0];
-      if (!kind) {
+      // Include document if it has either kind (from ID/fileName) or type (from frontmatter)
+      // This allows custom document types and unknown types to be scanned
+      if (!kind && !type) {
         continue;
       }
       docs.push({
@@ -262,7 +309,7 @@ export class ValidationService {
     const files: string[] = [];
     for (const entry of entries) {
       const entryPath = path.join(targetPath, entry);
-      let stat;
+      let stat: FileSystemStat;
       try {
         stat = await this.fileSystemAdapter.stat(entryPath);
       } catch {
@@ -280,9 +327,34 @@ export class ValidationService {
   private validateFrontmatter(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
-      const schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
-      const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.kind);
+      const docType = doc.type ?? '';
+      const schemaKey = normalizeDocumentKind(docType);
+      
+      // Check if document type is registered in config
+      if (this.documentTypeRegistry && docType) {
+        // hasDocumentType handles normalization internally
+        if (!this.documentTypeRegistry.hasDocumentType(docType)) {
+          // Add warning for unknown document type
+          issues.push({
+            type: 'unknownDocumentType',
+            documentType: docType,
+            path: doc.relativePath,
+            id: doc.id,
+            message: `Unknown document type: ${docType}. This type is not defined in the configuration.`
+          });
+        }
+      }
+      
+      // Try to get schema from DocumentTypeRegistry first, then fall back to schemaByKind
+      let schema: FrontmatterSchemaConfig | undefined;
+      if (this.documentTypeRegistry && docType) {
+        // getFrontmatterSchema handles normalization internally
+        schema = this.documentTypeRegistry.getFrontmatterSchema(docType);
+      }
+      if (!schema) {
+        schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
+      }
+      const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.type);
       for (const field of requiredFields) {
         const rawValue = (doc as Record<string, unknown>)[field];
         const isMissing =
@@ -291,12 +363,38 @@ export class ValidationService {
           (typeof rawValue === 'string' && rawValue.trim().length === 0) ||
           (Array.isArray(rawValue) && rawValue.length === 0);
         if (isMissing) {
+          // parent フィールドは常に必須（ルートドキュメントは '/' を設定）
+          if (field === 'parent') {
+            issues.push({
+              type: 'missingField',
+              field,
+              path: doc.relativePath,
+              id: doc.id,
+              message: `Missing required frontmatter field "${field}". Use '/' for root documents.`
+            });
+          } else {
+            issues.push({
+              type: 'missingField',
+              field,
+              path: doc.relativePath,
+              id: doc.id,
+              message: `Missing required frontmatter field "${field}".`
+            });
+          }
+        }
+      }
+      
+      // parent フィールドが必須であることを検証（schema が存在し、requiredFields に含まれていない場合のみ）
+      // 未登録のドキュメントタイプの場合は警告のみで、エラーにはしない
+      if (schema && !requiredFields.includes('parent')) {
+        const parentValue = doc.parent;
+        if (!parentValue || (typeof parentValue === 'string' && parentValue.trim().length === 0)) {
           issues.push({
             type: 'missingField',
-            field,
+            field: 'parent',
             path: doc.relativePath,
             id: doc.id,
-            message: `Missing required frontmatter field "${field}".`
+            message: `Missing required frontmatter field "parent". Use '/' for root documents.`
           });
         }
       }
@@ -307,11 +405,15 @@ export class ValidationService {
   private validatePathAndName(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      if (!doc.kind) continue;
-      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
+      // Use doc.kind (from ID/fileName classification) for naming rule lookup
+      // This is more reliable than doc.type which may be normalized differently
+      // (e.g., sub-beh template sets type: behavior, but kind is sub-behavior)
+      const kindForRule = doc.kind ?? doc.type;
+      if (!kindForRule) continue;
+      const schemaKey = normalizeDocumentKind(kindForRule);
       const rule = this.namingRules.find((candidate) => candidate.kind === schemaKey);
       // TEMP DEBUG
-      // console.log('DEBUG naming', { path: doc.relativePath, kind: doc.kind, schemaKey, found: rule?.kind });
+      // console.log('DEBUG naming', { path: doc.relativePath, kind: doc.kind, type: doc.type, schemaKey, found: rule?.kind });
       if (!rule) continue;
       const expectedPath = rule.buildPath(doc, this.docsRoot);
       if (!expectedPath) continue;
@@ -343,6 +445,11 @@ export class ValidationService {
         continue;
       }
       for (const parentId of parentIds) {
+        // parent が '/' の場合はルートドキュメントとして扱い、検証をスキップ
+        if (parentId === '/') {
+          continue;
+        }
+        // rootParentIds に含まれる場合も検証をスキップ（後方互換性のため）
         if (this.rootParentIds.has(parentId)) {
           continue;
         }
