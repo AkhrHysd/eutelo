@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
-import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig, EuteloConfigResolved } from '../config/types.js';
+import { DocumentTypeRegistry } from '../config/DocumentTypeRegistry.js';
 
 type FileSystemAdapter = {
   readDir(targetPath: string): Promise<string[]>;
@@ -57,10 +58,19 @@ export type ParentNotFoundIssue = {
   message: string;
 };
 
-export type ValidationIssue = MissingFieldIssue | InvalidNameIssue | ParentNotFoundIssue;
+export type UnknownDocumentTypeIssue = {
+  type: 'unknownDocumentType';
+  documentType: string;
+  path: string;
+  id?: string;
+  message: string;
+};
+
+export type ValidationIssue = MissingFieldIssue | InvalidNameIssue | ParentNotFoundIssue | UnknownDocumentTypeIssue;
 
 export type ValidationReport = {
   issues: ValidationIssue[];
+  warnings?: ValidationIssue[]; // 警告（exit codeに影響しない）
 };
 
 export type ValidationServiceDependencies = {
@@ -172,6 +182,7 @@ export class ValidationService {
   private readonly rootParentIds: Set<string>;
   private readonly namingRules: NamingRule[];
   private readonly relationFieldsByKind: Map<string, RelationFields>;
+  private readonly documentTypeRegistry: DocumentTypeRegistry | null;
 
   constructor({
     fileSystemAdapter,
@@ -186,6 +197,30 @@ export class ValidationService {
     this.rootParentIds = new Set(rootParentIds && rootParentIds.length > 0 ? rootParentIds : DEFAULT_ROOT_PARENT_IDS);
     this.namingRules = scaffold ? buildNamingRulesFromScaffold(scaffold) : DEFAULT_NAMING_RULES;
     this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
+    
+    // Create DocumentTypeRegistry if scaffold is available
+    if (scaffold && frontmatterSchemas) {
+      // Build a minimal EuteloConfigResolved for DocumentTypeRegistry
+      const config: EuteloConfigResolved = {
+        presets: [],
+        docsRoot: this.docsRoot,
+        scaffold,
+        frontmatter: {
+          schemas: frontmatterSchemas,
+          rootParentIds: rootParentIds ?? []
+        },
+        guard: {
+          prompts: {}
+        },
+        sources: {
+          cwd: '',
+          layers: []
+        }
+      };
+      this.documentTypeRegistry = new DocumentTypeRegistry(config);
+    } else {
+      this.documentTypeRegistry = null;
+    }
   }
 
   async runChecks({ cwd }: RunChecksOptions): Promise<ValidationReport> {
@@ -203,7 +238,15 @@ export class ValidationService {
       }
       return a.path.localeCompare(b.path);
     });
-    return { issues };
+    
+    // Separate warnings (unknownDocumentType) from errors
+    const errors = issues.filter((issue) => issue.type !== 'unknownDocumentType');
+    const warnings = issues.filter((issue) => issue.type === 'unknownDocumentType');
+    
+    return { 
+      issues: errors,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
   }
 
   async scanDocs({ cwd }: RunChecksOptions): Promise<ScannedDocument[]> {
@@ -280,7 +323,24 @@ export class ValidationService {
   private validateFrontmatter(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
+      const docType = doc.kind ?? doc.type ?? '';
+      const schemaKey = normalizeDocumentKind(docType);
+      
+      // Check if document type is registered in config
+      if (this.documentTypeRegistry && docType) {
+        const normalizedType = docType.toLowerCase();
+        if (!this.documentTypeRegistry.hasDocumentType(normalizedType)) {
+          // Add warning for unknown document type
+          issues.push({
+            type: 'unknownDocumentType',
+            documentType: docType,
+            path: doc.relativePath,
+            id: doc.id,
+            message: `Unknown document type: ${docType}. This type is not defined in the configuration.`
+          });
+        }
+      }
+      
       const schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
       const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.kind);
       for (const field of requiredFields) {

@@ -60,6 +60,19 @@ export class FileAlreadyExistsError extends Error {
   }
 }
 
+export class DocumentTypeNotFoundError extends Error {
+  readonly documentType: string;
+  readonly availableTypes: string[];
+
+  constructor(documentType: string, availableTypes: string[]) {
+    const typesList = availableTypes.length > 0 ? availableTypes.join(', ') : '(none)';
+    super(`Document type '${documentType}' not found. Available types: ${typesList}`);
+    this.name = 'DocumentTypeNotFoundError';
+    this.documentType = documentType;
+    this.availableTypes = availableTypes;
+  }
+}
+
 type DocumentBlueprint = {
   id: string;
   kind: DocumentType;
@@ -313,23 +326,38 @@ export class AddDocumentService {
   }
 
   private getBlueprint({ type, scaffoldId }: { type?: DocumentType; scaffoldId?: string }): DocumentBlueprint {
+    // scaffoldId が指定されている場合は id で検索
     if (scaffoldId) {
       const byId = this.blueprintsById.get(scaffoldId);
       if (byId) {
         return byId;
       }
+      // scaffoldId が見つからない場合
+      const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+      throw new DocumentTypeNotFoundError(`scaffold:${scaffoldId}`, availableTypes);
     }
+
+    // type が指定されている場合は kind で検索
     if (type) {
+      const normalizedType = type.toLowerCase();
+      // まず id として検索（後方互換性のため）
       const byId = this.blueprintsById.get(type);
       if (byId) {
         return byId;
       }
-      const byKind = this.blueprintsByKind.get(type.toLowerCase());
+      // kind で検索
+      const byKind = this.blueprintsByKind.get(normalizedType);
       if (byKind) {
         return byKind;
       }
+      // type が見つからない場合
+      const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+      throw new DocumentTypeNotFoundError(type, availableTypes);
     }
-    throw new Error(`Unsupported document type or scaffold: ${scaffoldId ?? type ?? 'unknown'}`);
+
+    // type も scaffoldId も指定されていない場合
+    const availableTypes = Array.from(this.blueprintsByKind.keys()).sort();
+    throw new DocumentTypeNotFoundError('unknown', availableTypes);
   }
 }
 

@@ -17,7 +17,8 @@ export type {
 export {
   AddDocumentService,
   createAddDocumentService,
-  FileAlreadyExistsError
+  FileAlreadyExistsError,
+  DocumentTypeNotFoundError
 } from './services/AddDocumentService.js';
 export type {
   AddDocumentOptions,
@@ -83,7 +84,8 @@ export type {
 } from './graph/types.js';
 export {
   loadConfig,
-  defineConfig
+  defineConfig,
+  DocumentTypeRegistry
 } from './config/index.js';
 export type {
   EuteloConfig,
