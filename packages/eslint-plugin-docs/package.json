@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/eslint-plugin-docs",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,7 +22,7 @@
     "eslint": ">=8"
   },
   "dependencies": {
-    "@eutelo/core": "^0.3.0"
+    "@eutelo/core": "^0.4.0"
   },
   "publishConfig": {
     "access": "public",

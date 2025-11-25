@@ -6,7 +6,7 @@
 
 ## 変更履歴
 
-## [0.3.0] - 2025-11-24
+## [0.4.0] - 2025-11-25
 
 ### Added
 - DocumentTypeRegistry: Configから解決されたDocumentTypeの一覧とメタデータを管理するレジストリを追加

@@ -6,7 +6,7 @@
 
 ## 変更履歴
 
-## [0.3.0] - 2025-11-24
+## [0.4.0] - 2025-11-25
 
 ### Changed
 - preset-defaultの更新: すべてのscaffoldエントリに`frontmatterDefaults`を追加し、`prd`、`task`、`ops`は`parent: /`に設定
