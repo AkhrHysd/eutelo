@@ -34,6 +34,209 @@ npm install @eutelo/core
 npm install @eutelo/distribution
 ```
 
+## 設定ファイル
+
+Euteloは設定ファイルを使用して、ドキュメントテンプレート、frontmatterスキーマ、ガードプロンプトを定義します。設定ファイルはTypeScript（`.ts`, `.mts`, `.cts`）、JavaScript（`.js`, `.mjs`, `.cjs`）、JSON（`.json`）、またはYAML（`.yaml`, `.yml`）で記述できます。
+
+### 設定ファイルの場所
+
+Euteloは以下の順序で設定ファイルを自動検索します：
+1. `eutelo.config.ts` / `eutelo.config.mts` / `eutelo.config.cts`
+2. `eutelo.config.js` / `eutelo.config.mjs` / `eutelo.config.cjs`
+3. `eutelo.config.json`
+4. `eutelo.config.yaml` / `eutelo.config.yml`
+
+`--config <path>`オプションでカスタムパスを指定することもできます。
+
+### 設定構造
+
+```typescript
+// eutelo.config.ts
+import { defineConfig } from '@eutelo/core/config';
+
+export default defineConfig({
+  // オプション: 拡張するpresetパッケージ
+  presets: ['@eutelo/preset-default'],
+  
+  // オプション: ドキュメントルートディレクトリ（デフォルト: 'eutelo-docs'）
+  docsRoot: 'docs',
+  
+  // ドキュメント生成用のスキャフォールドテンプレート
+  scaffold: {
+    'feature.prd': {
+      id: 'feature.prd',
+      kind: 'prd',
+      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+      template: '_template-prd.md',
+      variables: {
+        ID: 'PRD-{FEATURE}',
+        PARENT: 'PRINCIPLE-GLOBAL'
+      }
+    }
+  },
+  
+  // Frontmatterスキーマ定義
+  frontmatter: {
+    // ルート親ID（親を持たないドキュメント）
+    rootParentIds: ['PRINCIPLE-GLOBAL'],
+    
+    // 各ドキュメント種別のスキーマ定義
+    schemas: [
+      {
+        kind: 'prd',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string' },
+          parent: { type: 'string', relation: 'parent' },
+          related: { type: 'array', relation: 'related' },
+          tags: { type: 'array' },
+          status: { type: 'enum', enum: ['draft', 'review', 'approved'] }
+        }
+      }
+    ]
+  },
+  
+  // 一貫性チェック用のガードプロンプト
+  guard: {
+    prompts: {
+      'guard.default': {
+        id: 'guard.default',
+        templatePath: 'prompts/guard-system.md',
+        model: 'gpt-4o-mini',
+        temperature: 0.2
+      }
+    }
+  }
+});
+```
+
+### 設定フィールド
+
+#### `presets`（オプション）
+Presetパッケージ名の配列。Presetは順番にマージされ、後のpresetやローカル設定が前の設定を上書きします。
+
+#### `docsRoot`（オプション）
+ドキュメントファイルのルートディレクトリ。デフォルトは`eutelo-docs`。`EUTELO_DOCS_ROOT`環境変数で上書きできます。
+
+#### `scaffold`（オプション）
+スキャフォールドIDからテンプレート設定へのマッピング：
+- `id`: スキャフォールドエントリの一意の識別子
+- `kind`: ドキュメント種別（例：`'prd'`, `'beh'`, `'adr'`）
+- `path`: プレースホルダーを含むファイルパスパターン（例：`{FEATURE}`, `{SUB}`）
+- `template`: テンプレートファイルのパス（presetのテンプレートルートまたはプロジェクトルートからの相対パス）
+- `variables`: テンプレートに注入するオプションの変数
+
+#### `frontmatter`（オプション）
+Frontmatter設定：
+- `rootParentIds`: 親を持たないドキュメントIDの配列
+- `schemas`: 各ドキュメント種別のスキーマ定義の配列
+
+**フィールドタイプ:**
+- `string`: テキストフィールド
+- `number`: 数値フィールド
+- `boolean`: ブールフィールド
+- `array`: 配列フィールド
+- `enum`: 列挙型フィールド（`enum`プロパティに許可値を指定）
+- `date`: 日付フィールド
+
+**フィールドオプション:**
+- `required`: フィールドが必須かどうか（デフォルト: `false`）
+- `enum`: 列挙型フィールドの許可値
+- `relation`: 関係タイプ（`'parent'`または`'related'`）
+
+#### `guard`（オプション）
+ガード設定：
+- `prompts`: プロンプトIDからプロンプト設定へのマッピング
+  - `id`: プロンプトの一意の識別子
+  - `templatePath`: プロンプトテンプレートファイルのパス
+  - `model`: LLMモデル名（例：`'gpt-4o-mini'`, `'gpt-4o'`）
+  - `temperature`: LLMの温度設定（デフォルト: モデルによって異なる）
+
+### 例: JSON設定
+
+```json
+{
+  "presets": ["@eutelo/preset-default"],
+  "docsRoot": "docs",
+  "scaffold": {
+    "feature.prd": {
+      "id": "feature.prd",
+      "kind": "prd",
+      "path": "product/features/{FEATURE}/PRD-{FEATURE}.md",
+      "template": "_template-prd.md"
+    }
+  },
+  "frontmatter": {
+    "rootParentIds": ["PRINCIPLE-GLOBAL"],
+    "schemas": [
+      {
+        "kind": "prd",
+        "fields": {
+          "id": { "type": "string", "required": true },
+          "type": { "type": "string" }
+        }
+      }
+    ]
+  },
+  "guard": {
+    "prompts": {
+      "guard.default": {
+        "id": "guard.default",
+        "templatePath": "prompts/guard-system.md",
+        "model": "gpt-4o-mini"
+      }
+    }
+  }
+}
+```
+
+### 例: YAML設定
+
+```yaml
+presets:
+  - '@eutelo/preset-default'
+
+docsRoot: docs
+
+scaffold:
+  feature.prd:
+    id: feature.prd
+    kind: prd
+    path: product/features/{FEATURE}/PRD-{FEATURE}.md
+    template: _template-prd.md
+
+frontmatter:
+  rootParentIds:
+    - PRINCIPLE-GLOBAL
+  schemas:
+    - kind: prd
+      fields:
+        id:
+          type: string
+          required: true
+        type:
+          type: string
+
+guard:
+  prompts:
+    guard.default:
+      id: guard.default
+      templatePath: prompts/guard-system.md
+      model: gpt-4o-mini
+```
+
+### Presetのマージ
+
+Euteloはpresetとローカル設定ファイルから設定をマージします：
+1. デフォルトpreset（`@eutelo/preset-default`）が常に最初に読み込まれます
+2. `presets`で指定された追加のpresetが順番にマージされます
+3. ローカル設定ファイルがpresetの値を上書きします
+
+マージ後の設定を確認するには：
+```bash
+pnpm exec eutelo config inspect
+```
+
 ## CLI コマンド
 
 > **注意**: CLIコマンドは以下のいずれかの方法で実行してください。  

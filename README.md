@@ -34,6 +34,209 @@ npm install @eutelo/core
 npm install @eutelo/distribution
 ```
 
+## Configuration
+
+Eutelo uses configuration files to define document templates, frontmatter schemas, and guard prompts. Configuration files can be written in TypeScript (`.ts`, `.mts`, `.cts`), JavaScript (`.js`, `.mjs`, `.cjs`), JSON (`.json`), or YAML (`.yaml`, `.yml`).
+
+### Configuration File Location
+
+Eutelo automatically searches for configuration files in the following order:
+1. `eutelo.config.ts` / `eutelo.config.mts` / `eutelo.config.cts`
+2. `eutelo.config.js` / `eutelo.config.mjs` / `eutelo.config.cjs`
+3. `eutelo.config.json`
+4. `eutelo.config.yaml` / `eutelo.config.yml`
+
+You can also specify a custom path using the `--config <path>` option.
+
+### Configuration Structure
+
+```typescript
+// eutelo.config.ts
+import { defineConfig } from '@eutelo/core/config';
+
+export default defineConfig({
+  // Optional: Preset packages to extend
+  presets: ['@eutelo/preset-default'],
+  
+  // Optional: Documentation root directory (default: 'eutelo-docs')
+  docsRoot: 'docs',
+  
+  // Scaffold templates for document generation
+  scaffold: {
+    'feature.prd': {
+      id: 'feature.prd',
+      kind: 'prd',
+      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
+      template: '_template-prd.md',
+      variables: {
+        ID: 'PRD-{FEATURE}',
+        PARENT: 'PRINCIPLE-GLOBAL'
+      }
+    }
+  },
+  
+  // Frontmatter schema definitions
+  frontmatter: {
+    // Root parent IDs (documents without parents)
+    rootParentIds: ['PRINCIPLE-GLOBAL'],
+    
+    // Schema definitions for each document kind
+    schemas: [
+      {
+        kind: 'prd',
+        fields: {
+          id: { type: 'string', required: true },
+          type: { type: 'string' },
+          parent: { type: 'string', relation: 'parent' },
+          related: { type: 'array', relation: 'related' },
+          tags: { type: 'array' },
+          status: { type: 'enum', enum: ['draft', 'review', 'approved'] }
+        }
+      }
+    ]
+  },
+  
+  // Guard prompts for consistency checks
+  guard: {
+    prompts: {
+      'guard.default': {
+        id: 'guard.default',
+        templatePath: 'prompts/guard-system.md',
+        model: 'gpt-4o-mini',
+        temperature: 0.2
+      }
+    }
+  }
+});
+```
+
+### Configuration Fields
+
+#### `presets` (optional)
+Array of preset package names. Presets are merged in order, with later presets and local configuration overriding earlier ones.
+
+#### `docsRoot` (optional)
+Root directory for documentation files. Defaults to `eutelo-docs`. Can be overridden with the `EUTELO_DOCS_ROOT` environment variable.
+
+#### `scaffold` (optional)
+Object mapping scaffold IDs to template configurations:
+- `id`: Unique identifier for the scaffold entry
+- `kind`: Document kind (e.g., `'prd'`, `'beh'`, `'adr'`)
+- `path`: File path pattern with placeholders (e.g., `{FEATURE}`, `{SUB}`)
+- `template`: Template file path (relative to preset template root or project root)
+- `variables`: Optional variables to inject into templates
+
+#### `frontmatter` (optional)
+Frontmatter configuration:
+- `rootParentIds`: Array of document IDs that don't have parents
+- `schemas`: Array of schema definitions for each document kind
+
+**Field Types:**
+- `string`: Text field
+- `number`: Numeric field
+- `boolean`: Boolean field
+- `array`: Array field
+- `enum`: Enum field (requires `enum` property with allowed values)
+- `date`: Date field
+
+**Field Options:**
+- `required`: Whether the field is required (default: `false`)
+- `enum`: Allowed values for enum fields
+- `relation`: Relationship type (`'parent'` or `'related'`)
+
+#### `guard` (optional)
+Guard configuration:
+- `prompts`: Object mapping prompt IDs to prompt configurations
+  - `id`: Unique identifier for the prompt
+  - `templatePath`: Path to the prompt template file
+  - `model`: LLM model name (e.g., `'gpt-4o-mini'`, `'gpt-4o'`)
+  - `temperature`: Temperature setting for the LLM (default: varies by model)
+
+### Example: JSON Configuration
+
+```json
+{
+  "presets": ["@eutelo/preset-default"],
+  "docsRoot": "docs",
+  "scaffold": {
+    "feature.prd": {
+      "id": "feature.prd",
+      "kind": "prd",
+      "path": "product/features/{FEATURE}/PRD-{FEATURE}.md",
+      "template": "_template-prd.md"
+    }
+  },
+  "frontmatter": {
+    "rootParentIds": ["PRINCIPLE-GLOBAL"],
+    "schemas": [
+      {
+        "kind": "prd",
+        "fields": {
+          "id": { "type": "string", "required": true },
+          "type": { "type": "string" }
+        }
+      }
+    ]
+  },
+  "guard": {
+    "prompts": {
+      "guard.default": {
+        "id": "guard.default",
+        "templatePath": "prompts/guard-system.md",
+        "model": "gpt-4o-mini"
+      }
+    }
+  }
+}
+```
+
+### Example: YAML Configuration
+
+```yaml
+presets:
+  - '@eutelo/preset-default'
+
+docsRoot: docs
+
+scaffold:
+  feature.prd:
+    id: feature.prd
+    kind: prd
+    path: product/features/{FEATURE}/PRD-{FEATURE}.md
+    template: _template-prd.md
+
+frontmatter:
+  rootParentIds:
+    - PRINCIPLE-GLOBAL
+  schemas:
+    - kind: prd
+      fields:
+        id:
+          type: string
+          required: true
+        type:
+          type: string
+
+guard:
+  prompts:
+    guard.default:
+      id: guard.default
+      templatePath: prompts/guard-system.md
+      model: gpt-4o-mini
+```
+
+### Preset Merging
+
+Eutelo merges configurations from presets and your local configuration file:
+1. Default preset (`@eutelo/preset-default`) is always loaded first
+2. Additional presets specified in `presets` are merged in order
+3. Local configuration file overrides preset values
+
+You can inspect the merged configuration using:
+```bash
+pnpm exec eutelo config inspect
+```
+
 ## CLI Commands
 
 > **Note**: CLI commands should be executed using one of the following methods.  
