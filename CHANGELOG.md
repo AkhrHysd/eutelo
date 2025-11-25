@@ -47,7 +47,14 @@
 - DocumentTypeRegistry: Configから解決されたDocumentTypeの一覧とメタデータを管理するレジストリを追加
 - カスタムDocumentTypeのサポート: `eutelo.config.*`でscaffoldエントリを定義すると、自動的に`eutelo add <custom-type>`コマンドが生成される
 - 未登録DocumentTypeの警告機能: ValidationServiceとGraphServiceで未登録のDocumentTypeに対して警告を出力する機能を追加
+- Frontmatter固定値自動注入機能: scaffold設定の`frontmatterDefaults`で`type`と`parent`を自動注入する機能を追加
+- `frontmatterDefaults`設定: scaffoldエントリに`frontmatterDefaults.type`と`frontmatterDefaults.parent`を設定可能に
+- ルートドキュメントのサポート: `parent: /`を設定することでルートドキュメントとして扱う機能を追加
+- TemplateServiceのfrontmatter上書き機能: テンプレートレンダリング時に`frontmatterDefaults`の値でfrontmatterを自動上書きする機能を追加
 ### Changed
+- preset-defaultの更新: すべてのscaffoldエントリに`frontmatterDefaults`を追加し、`prd`、`task`、`ops`は`parent: /`に設定
+- ValidationServiceの改善: `parent`フィールドが必須であることを検証し、`parent: /`の場合はルートドキュメントとして扱うように変更
+- GraphBuilderの改善: `parent: /`の場合はエッジを作成せず、orphan nodeとして扱わないように変更
 - AddDocumentService: Configからscaffoldエントリを検索するように変更し、未登録DocumentTypeに対して`DocumentTypeNotFoundError`をスロー
 - CLI: Config解決後にscaffoldエントリから動的にサブコマンドを生成するように変更（既存の固定コマンドとの後方互換性を維持）
 - ValidationService: Configから解決されたDocumentTypeのみを許可し、未登録DocumentTypeに対して警告を出力

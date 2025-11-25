@@ -70,7 +70,11 @@ export default defineConfig({
       template: '_template-prd.md',
       variables: {
         ID: 'PRD-{FEATURE}',
-        PARENT: 'PRINCIPLE-GLOBAL'
+        PARENT: '/'
+      },
+      frontmatterDefaults: {
+        type: 'prd',
+        parent: '/'
       }
     }
   },
@@ -125,6 +129,9 @@ Object mapping scaffold IDs to template configurations:
 - `path`: File path pattern with placeholders (e.g., `{FEATURE}`, `{SUB}`)
 - `template`: Template file path (relative to preset template root or project root)
 - `variables`: Optional variables to inject into templates
+- `frontmatterDefaults`: Optional fixed values for frontmatter fields that are automatically injected:
+  - `type`: Required. Document type value (e.g., `'prd'`, `'behavior'`, `'design'`). Template variables like `{FEATURE}` can be used.
+  - `parent`: Required. Parent document ID. Use `'/'` for root documents. Template variables like `{PARENT}` or `{FEATURE}` can be used.
 
 #### `frontmatter` (optional)
 Frontmatter configuration:
@@ -371,7 +378,12 @@ export default defineConfig({
       path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
       template: '_template-custom.md',
       variables: {
-        ID: 'CUSTOM-{FEATURE}'
+        ID: 'CUSTOM-{FEATURE}',
+        PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'custom',
+        parent: '{PARENT}'
       }
     }
   },

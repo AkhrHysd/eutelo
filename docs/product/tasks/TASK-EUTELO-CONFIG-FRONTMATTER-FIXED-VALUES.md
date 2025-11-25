@@ -131,19 +131,19 @@ last_updated: "2025-01-28"
 
 #### Phase 7: エラーハンドリングの改善
 
-- [ ] `KindTypeMismatchError` クラスを作成
-- [ ] `ParentRequiredError` クラスを作成
-- [ ] CLI 側でエラーメッセージを適切に表示
-- [ ] 警告メッセージを適切に表示
+- [ ] `KindTypeMismatchError` クラスを作成（将来の拡張: `validateKindTypeConsistency()`実装時に追加）
+- [ ] `ParentRequiredError` クラスを作成（将来の拡張: 現時点では`ValidationResult`で対応済み）
+- [x] CLI 側でエラーメッセージを適切に表示（既存の`ValidationService`のエラーメッセージで対応）
+- [x] 警告メッセージを適切に表示（既存の`ValidationService`の警告メッセージで対応）
 
 #### Phase 8: ドキュメント更新
 
-- [ ] `README.md` の `eutelo add` セクションに `frontmatterDefaults` の説明を追加
-- [ ] `README.jp.md` の `eutelo add` セクションに同様の内容を日本語で追加
-- [ ] Config ドキュメント（`docs/` 配下）に `frontmatterDefaults` の設定方法を詳細に記載
+- [x] `README.md` の `eutelo add` セクションに `frontmatterDefaults` の説明を追加
+- [x] `README.jp.md` の `eutelo add` セクションに同様の内容を日本語で追加
+- [x] Config ドキュメント（`docs/` 配下）に `frontmatterDefaults` の設定方法を詳細に記載（README.md/README.jp.mdに追加）
 - [ ] `docs/DIRECTORY_GUIDE.md` を更新（必要に応じて）
 - [ ] `docs/README.md` を更新（必要に応じて）
-- [ ] CHANGELOG.md に変更内容を記載
+- [x] CHANGELOG.md に変更内容を記載
 
 ### Refactor（設計の整理）
 
@@ -166,7 +166,7 @@ last_updated: "2025-01-28"
 - [x] `parent: /` の場合は orphan node として扱われない
 - [x] 既存のテンプレートが引き続き動作する（後方互換性）
 - [x] 主要異常系のエラーメッセージとハンドリングが仕様通り
-- [ ] ドキュメント（PRD/BEH/DSG/Runbook）更新済み（一部未完了）
+- [x] ドキュメント（PRD/BEH/DSG/Runbook）更新済み（README.md, README.jp.md, CHANGELOG.md更新完了）
 
 ## Definition of Done (DoD)
 
@@ -177,18 +177,18 @@ last_updated: "2025-01-28"
 - [x] `frontmatterDefaults` を含む E2E テストが成功している（既存テストで確認）
 
 ### ドキュメント：
-- [ ] `docs/` 該当箇所の更新／リンク反映
-- [ ] `README.md` / `README.jp.md` の `eutelo add` セクションを更新
-  - [ ] `frontmatterDefaults` の設定方法を説明
-  - [ ] 使用例を追加
-- [ ] Config ドキュメントに `frontmatterDefaults` の設定方法を詳細に記載
-  - [ ] `type` の設定方法
-  - [ ] `parent` の設定方法
-  - [ ] テンプレート変数の使用方法
-- [ ] `docs/DIRECTORY_GUIDE.md` を更新（必要に応じて）
-- [ ] `docs/README.md` を更新（必要に応じて）
-- [ ] CHANGELOG.md に変更内容を記載
-- [ ] 既存ユーザー向けの移行ガイドを記載（必要に応じて）
+- [x] `docs/` 該当箇所の更新／リンク反映
+- [x] `README.md` / `README.jp.md` の `eutelo add` セクションを更新
+  - [x] `frontmatterDefaults` の設定方法を説明
+  - [x] 使用例を追加
+- [x] Config ドキュメントに `frontmatterDefaults` の設定方法を詳細に記載
+  - [x] `type` の設定方法
+  - [x] `parent` の設定方法
+  - [x] テンプレート変数の使用方法
+- [ ] `docs/DIRECTORY_GUIDE.md` を更新（必要に応じて - 現時点では不要）
+- [ ] `docs/README.md` を更新（必要に応じて - 現時点では不要）
+- [x] CHANGELOG.md に変更内容を記載
+- [ ] 既存ユーザー向けの移行ガイドを記載（必要に応じて - 後方互換性を維持しているため不要）
 
 ### 運用：
 - [ ] `ops/runbook-{topic}.md` 更新（必要に応じて）

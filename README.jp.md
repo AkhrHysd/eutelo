@@ -70,7 +70,11 @@ export default defineConfig({
       template: '_template-prd.md',
       variables: {
         ID: 'PRD-{FEATURE}',
-        PARENT: 'PRINCIPLE-GLOBAL'
+        PARENT: '/'
+      },
+      frontmatterDefaults: {
+        type: 'prd',
+        parent: '/'
       }
     }
   },
@@ -125,6 +129,9 @@ Presetパッケージ名の配列。Presetは順番にマージされ、後のpr
 - `path`: プレースホルダーを含むファイルパスパターン（例：`{FEATURE}`, `{SUB}`）
 - `template`: テンプレートファイルのパス（presetのテンプレートルートまたはプロジェクトルートからの相対パス）
 - `variables`: テンプレートに注入するオプションの変数
+- `frontmatterDefaults`: フロントマターに自動注入される固定値（オプション）：
+  - `type`: 必須。ドキュメントタイプの値（例：`'prd'`, `'behavior'`, `'design'`）。`{FEATURE}`などのテンプレート変数を使用可能。
+  - `parent`: 必須。親ドキュメントのID。ルートドキュメントの場合は`'/'`を使用。`{PARENT}`や`{FEATURE}`などのテンプレート変数を使用可能。
 
 #### `frontmatter`（オプション）
 Frontmatter設定：
@@ -371,7 +378,12 @@ export default defineConfig({
       path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
       template: '_template-custom.md',
       variables: {
-        ID: 'CUSTOM-{FEATURE}'
+        ID: 'CUSTOM-{FEATURE}',
+        PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'custom',
+        parent: '{PARENT}'
       }
     }
   },
