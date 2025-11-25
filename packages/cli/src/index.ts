@@ -771,7 +771,10 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       try {
         await withConfig(configPath, async (config) => {
           const docsRoot = resolveDocsRootFromConfig(config);
-          const ruleEngine = new RuleEngine({ docsRoot });
+          const ruleEngine = new RuleEngine({
+            docsRoot,
+            frontmatterSchemas: config.frontmatter?.schemas
+          });
           await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths }, argv, docsRoot);
         });
       } catch (error) {

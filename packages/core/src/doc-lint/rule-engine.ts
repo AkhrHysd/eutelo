@@ -3,6 +3,7 @@ import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
 import { FrontmatterParser, type FrontmatterIssue } from './frontmatter-parser.js';
 import { analyzeStructure, resolveParentPath, type StructureExpectation } from './structure-analyzer.js';
+import type { FrontmatterSchemaConfig } from '../config/types.js';
 
 export type DocLintIssue = FrontmatterIssue | {
   ruleId:
@@ -18,6 +19,7 @@ export type DocLintIssue = FrontmatterIssue | {
 export type RuleEngineOptions = {
   docsRoot?: string;
   fileExists?: (targetPath: string) => Promise<boolean>;
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
 };
 
 export type LintTarget = {
@@ -31,7 +33,46 @@ export type LintResult = {
   structure: StructureExpectation | null;
 };
 
-const DEFAULT_PARSER = new FrontmatterParser();
+const DEFAULT_ALLOWED_FIELDS = [
+  'id',
+  'type',
+  'feature',
+  'purpose',
+  'parent',
+  'title',
+  'status',
+  'version',
+  'owners',
+  'tags',
+  'last_updated',
+  'date',
+  'links',
+  'subfeature'
+];
+
+function buildAllowedFields(schemas?: FrontmatterSchemaConfig[]): string[] {
+  const fields = new Set<string>(DEFAULT_ALLOWED_FIELDS);
+  for (const schema of schemas ?? []) {
+    for (const field of Object.keys(schema.fields ?? {})) {
+      if (field) {
+        fields.add(field);
+      }
+    }
+  }
+  return Array.from(fields);
+}
+
+function buildRequiredFields(schemas?: FrontmatterSchemaConfig[]): string[] {
+  const required = new Set<string>(['id', 'type', 'feature', 'purpose', 'parent']);
+  for (const schema of schemas ?? []) {
+    for (const [field, definition] of Object.entries(schema.fields ?? {})) {
+      if (definition?.required) {
+        required.add(field);
+      }
+    }
+  }
+  return Array.from(required);
+}
 
 export class RuleEngine {
   private readonly parser: FrontmatterParser;
@@ -39,7 +80,9 @@ export class RuleEngine {
   private readonly fileExists: (targetPath: string) => Promise<boolean>;
 
   constructor(options: RuleEngineOptions = {}) {
-    this.parser = DEFAULT_PARSER;
+    const allowedFields = buildAllowedFields(options.frontmatterSchemas);
+    const requiredFields = buildRequiredFields(options.frontmatterSchemas);
+    this.parser = new FrontmatterParser({ allowedFields, requiredFields });
     this.docsRoot = options.docsRoot ?? resolveDocsRoot();
     this.fileExists =
       options.fileExists ?? (async (targetPath: string) => fs.access(targetPath).then(() => true).catch(() => false));

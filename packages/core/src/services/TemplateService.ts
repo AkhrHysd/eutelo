@@ -55,11 +55,6 @@ export class TemplateService {
     content: string,
     variables: TemplateVariables
   ): string {
-    // TYPE と PARENT が variables に含まれている場合のみ処理
-    if (!variables.TYPE && !variables.PARENT) {
-      return content;
-    }
-
     // frontmatter セクションを抽出
     const frontmatterMatch = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
     if (!frontmatterMatch) {
@@ -75,7 +70,18 @@ export class TemplateService {
       frontmatter = this.parseFrontmatterBlock(frontmatterContent.split(/\r?\n/));
     }
 
-    // frontmatterDefaults の値で上書き
+    // 空の値を持つフィールドを削除
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (value === '' || value === null || value === undefined) {
+        delete frontmatter[key];
+      }
+      // 配列の場合、空配列も削除
+      if (Array.isArray(value) && value.length === 0) {
+        delete frontmatter[key];
+      }
+    }
+
+    // frontmatterDefaults の値で上書き（TYPE と PARENT が variables に含まれている場合のみ）
     if (variables.TYPE) {
       frontmatter.type = variables.TYPE;
     }

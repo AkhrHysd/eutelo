@@ -1,0 +1,4 @@
+{
+    "presets": ["@eutelo/preset-default"],
+    "docsRoot": "test-docs"
+  }
