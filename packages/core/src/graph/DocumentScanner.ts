@@ -24,6 +24,7 @@ export type DocumentScannerDependencies = {
   allowedFields?: string[];
   scaffold?: Record<string, ScaffoldTemplateConfig>;
   frontmatterSchemas?: FrontmatterSchemaConfig[];
+  documentTypeRegistry?: DocumentTypeRegistry | null;
 };
 
 const DEFAULT_ALLOWED_FIELDS = [
@@ -77,7 +78,8 @@ export class DocumentScanner {
     docsRoot = resolveDocsRoot(),
     allowedFields,
     scaffold,
-    frontmatterSchemas
+    frontmatterSchemas,
+    documentTypeRegistry
   }: DocumentScannerDependencies = {}) {
     this.fs = fileSystemAdapter ?? new DefaultFileSystemAdapter();
     this.docsRoot = docsRoot;
@@ -88,8 +90,10 @@ export class DocumentScanner {
     this.mentionPattern = buildMentionPattern(scaffold) ?? DEFAULT_MENTION_PATTERN;
     this.relationFieldsByKind = buildRelationFields(frontmatterSchemas);
     
-    // Create DocumentTypeRegistry if scaffold is available
-    if (scaffold && frontmatterSchemas) {
+    // Use provided DocumentTypeRegistry or create one if scaffold is available
+    if (documentTypeRegistry !== undefined) {
+      this.documentTypeRegistry = documentTypeRegistry;
+    } else if (scaffold && frontmatterSchemas) {
       // Build a minimal EuteloConfigResolved for DocumentTypeRegistry
       const config: EuteloConfigResolved = {
         presets: [],
@@ -165,10 +169,9 @@ export class DocumentScanner {
         continue;
       }
 
-      const relative = normalizePath(path.relative(root, absolute));
-      if (this.pathMatchers.length === 0 || this.pathMatchers.some((matcher) => matcher.regex.test(relative))) {
-        bucket.push(absolute);
-      }
+      // Always include all .md files, regardless of pathMatchers
+      // pathMatchers are used for type inference in normalizeDocumentType, not for filtering files
+      bucket.push(absolute);
     }
   }
 
@@ -194,7 +197,8 @@ export class DocumentScanner {
     // Check if document type is registered in config
     const warnings = [...issues.map((issue) => issue.message)];
     if (this.documentTypeRegistry && type && type !== 'unknown') {
-      const normalizedType = type.toLowerCase();
+      // Use normalized value for checking (sub-behavior -> sub-beh)
+      const normalizedType = normalizeDocumentKindForRegistry(type.toLowerCase());
       if (!this.documentTypeRegistry.hasDocumentType(normalizedType)) {
         warnings.push(`Unknown document type: ${type}. This type is not defined in the configuration.`);
       }
@@ -221,6 +225,20 @@ export class DocumentScanner {
 
 function normalizePath(target: string): string {
   return target.split(path.sep).join('/');
+}
+
+/**
+ * DocumentKind を正規化する（sub-beh -> sub-behavior など）
+ * DocumentTypeRegistry と一貫性を保つため
+ */
+function normalizeDocumentKindForRegistry(value: string): string {
+  if (!value) return '';
+  const normalized = value.toLowerCase();
+  if (normalized === 'beh') return 'behavior';
+  if (normalized === 'sub-beh') return 'sub-behavior';
+  if (normalized === 'dsg') return 'design';
+  if (normalized === 'sub-dsg') return 'sub-design';
+  return normalized;
 }
 
 function normalizeDocumentType(
@@ -344,13 +362,14 @@ function templateToRegex(template: string): RegExp {
   let pattern = '';
   let lastIndex = 0;
   const placeholder = /\{[A-Z0-9_-]+\}/gi;
-  let match: RegExpExecArray | null;
-  while ((match = placeholder.exec(template)) !== null) {
+  let match: RegExpExecArray | null = placeholder.exec(template);
+  while (match !== null) {
     if (match.index > lastIndex) {
       pattern += escapeRegExp(template.slice(lastIndex, match.index));
     }
     pattern += '[^/]+';
     lastIndex = match.index + match[0].length;
+    match = placeholder.exec(template);
   }
   if (lastIndex < template.length) {
     pattern += escapeRegExp(template.slice(lastIndex));
@@ -378,13 +397,14 @@ function convertTemplateToIdPattern(template: string): string {
   let pattern = '';
   let lastIndex = 0;
   const placeholder = /\{[A-Z0-9_-]+\}/gi;
-  let match: RegExpExecArray | null;
-  while ((match = placeholder.exec(template)) !== null) {
+  let match: RegExpExecArray | null = placeholder.exec(template);
+  while (match !== null) {
     if (match.index > lastIndex) {
       pattern += escapeRegExp(template.slice(lastIndex, match.index));
     }
     pattern += '[A-Z0-9-]+';
     lastIndex = match.index + match[0].length;
+    match = placeholder.exec(template);
   }
   if (lastIndex < template.length) {
     pattern += escapeRegExp(template.slice(lastIndex));

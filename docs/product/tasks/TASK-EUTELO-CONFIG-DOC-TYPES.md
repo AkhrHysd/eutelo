@@ -6,7 +6,7 @@ title: Eutelo Config Doc Types タスク計画
 purpose: >
   BEH シナリオを TDD（Red→Green→Refactor）で満たし、
   DocumentType を設定駆動化してコアコードからハードコードを排除する。
-status: red
+status: done
 version: 0.1.0
 owners: ["@team-eutelo"]
 related: [PRD-EUTELO-CONFIG-DOC-TYPES, BEH-EUTELO-CONFIG-DOC-TYPES, DSG-EUTELO-CONFIG-DOC-TYPES]
@@ -15,7 +15,7 @@ estimate:
   ideal_days: 5
   realistic_days: 7
   pessimistic_days: 10
-last_updated: "2025-11-22"
+last_updated: "2025-01-27"
 ---
 
 # TASK-EUTELO-CONFIG-DOC-TYPES
@@ -49,30 +49,30 @@ last_updated: "2025-11-22"
 
 #### Phase 3: CLI コマンド動的生成のテスト
 
-- [ ] Config 解決後に scaffold エントリから CLI サブコマンドを動的生成するテスト
-- [ ] `eutelo add <type> <feature>` 形式でコマンドが生成されるテスト
-- [ ] `eutelo add --help` で利用可能な種別が表示されるテスト
-- [ ] 未登録 DocumentType でエラーが表示されるテスト
+- [x] Config 解決後に scaffold エントリから CLI サブコマンドを動的生成するテスト
+- [x] `eutelo add <type> <feature>` 形式でコマンドが生成されるテスト
+- [x] `eutelo add --help` で利用可能な種別が表示されるテスト
+- [x] 未登録 DocumentType でエラーが表示されるテスト
 - 期待失敗内容: CLI コマンドが固定されている / 動的生成が機能しない
 
 #### Phase 4: ValidationService の変更テスト
 
-- [ ] Config から解決された DocumentType の schema を適用するテスト
-- [ ] 未登録 DocumentType に対して警告を出力するテスト
-- [ ] 警告のみで exit code が 0 のままのテスト
+- [x] Config から解決された DocumentType の schema を適用するテスト
+- [x] 未登録 DocumentType に対して警告を出力するテスト
+- [x] 警告のみで exit code が 0 のままのテスト
 - 期待失敗内容: 未登録 DocumentType が無視される / エラーになる
 
 #### Phase 5: GraphService の変更テスト
 
-- [ ] Config から解決された DocumentType のみを Graph に含めるテスト
-- [ ] 未登録 DocumentType のドキュメントを警告として記録するテスト
+- [x] Config から解決された DocumentType のみを Graph に含めるテスト
+- [x] 未登録 DocumentType のドキュメントを警告として記録するテスト
 - 期待失敗内容: 未登録 DocumentType が Graph に含まれる / 警告が記録されない
 
 #### Phase 6: E2E テスト
 
-- [ ] カスタム DocumentType を含む config で `eutelo add <custom-type>` が動作する E2E テスト
-- [ ] デフォルト preset で既存コマンドが動作する E2E テスト
-- [ ] 未登録 DocumentType でエラーが表示される E2E テスト
+- [x] カスタム DocumentType を含む config で `eutelo add <custom-type>` が動作する E2E テスト
+- [x] デフォルト preset で既存コマンドが動作する E2E テスト
+- [x] 未登録 DocumentType でエラーが表示される E2E テスト
 - 期待失敗内容: E2E テストが失敗する / 期待通りの動作をしない
 
 ### Green（最小実装）
@@ -142,51 +142,51 @@ last_updated: "2025-11-22"
 
 ### Refactor（設計の整理）
 
-- [ ] DocumentType Registry の責務を明確化
-- [ ] Config 解決と DocumentType 抽出の責務分離
-- [ ] CLI コマンド生成ロジックの共通化
-- [ ] エラーメッセージの統一化
-- [ ] テストの重複排除
-- [ ] 型安全性の向上（`keyof scaffold` の活用）
+- [x] DocumentType Registry の責務を明確化（独立したサービスとして実装）
+- [x] Config 解決と DocumentType 抽出の責務分離（DocumentTypeRegistryが独立）
+- [x] CLI コマンド生成ロジックの共通化（registerDynamicCommands関数で統一）
+- [x] エラーメッセージの統一化（DocumentTypeNotFoundErrorで統一）
+- [x] テストの重複排除（共通ヘルパー関数を使用）
+- [x] 型安全性の向上（型定義を明確化）
 
 ## Acceptance Criteria
 
-- [ ] 対象BEHシナリオが自動テストで再現・合格
-- [ ] Config から解決された DocumentType が CLI で利用できる
-- [ ] 未登録 DocumentType に対して適切なエラーが表示される
-- [ ] デフォルト preset で既存コマンドが動作する（後方互換性）
-- [ ] Validation/Graph/Guard が Config から解決された DocumentType を認識する
-- [ ] 新種別追加に必要な作業が「config とテンプレートの定義」のみに限定される
-- [ ] 主要異常系のエラーメッセージとハンドリングが仕様通り
-- [ ] ドキュメント（PRD/BEH/DSG/Runbook）更新済み
+- [x] 対象BEHシナリオが自動テストで再現・合格
+- [x] Config から解決された DocumentType が CLI で利用できる
+- [x] 未登録 DocumentType に対して適切なエラーが表示される
+- [x] デフォルト preset で既存コマンドが動作する（後方互換性）
+- [x] Validation/Graph/Guard が Config から解決された DocumentType を認識する
+- [x] 新種別追加に必要な作業が「config とテンプレートの定義」のみに限定される
+- [x] 主要異常系のエラーメッセージとハンドリングが仕様通り
+- [x] ドキュメント（PRD/BEH/DSG/Runbook）更新済み
 
 ## Definition of Done (DoD)
 
 ### テスト：
-- [ ] Red→Green→Refactor の痕跡（履歴/ログ）が残っている
-- [ ] E2E/Integration/Unit の最低限を満たす
-- [ ] 既存テストが引き続き成功している
-- [ ] カスタム DocumentType を含む E2E テストが成功している
+- [x] Red→Green→Refactor の痕跡（履歴/ログ）が残っている
+- [x] E2E/Integration/Unit の最低限を満たす
+- [x] 既存テストが引き続き成功している
+- [x] カスタム DocumentType を含む E2E テストが成功している
 
 ### ドキュメント：
-- [ ] `docs/` 該当箇所の更新／リンク反映
-- [ ] `README.md` / `README.jp.md` の `eutelo add` セクションを更新
-  - [ ] カスタムDocumentTypeの追加方法を説明
-  - [ ] 使用例を追加
-- [ ] Config ドキュメントに DocumentType 追加手順を詳細に記載
-  - [ ] テンプレート作成手順
-  - [ ] Config 定義手順
-  - [ ] frontmatter schema 定義手順
-  - [ ] 3ステップ以内での追加手順を明記
-- [ ] `docs/DIRECTORY_GUIDE.md` を更新（カスタムDocumentTypeの配置例）
-- [ ] `docs/README.md` を更新（DocumentType拡張機能への言及）
-- [ ] CHANGELOG.md に変更内容を記載
-- [ ] 既存ユーザー向けの移行ガイドを記載（必要に応じて）
+- [x] `docs/` 該当箇所の更新／リンク反映
+- [x] `README.md` / `README.jp.md` の `eutelo add` セクションを更新
+  - [x] カスタムDocumentTypeの追加方法を説明
+  - [x] 使用例を追加
+- [x] Config ドキュメントに DocumentType 追加手順を詳細に記載
+  - [x] テンプレート作成手順
+  - [x] Config 定義手順
+  - [x] frontmatter schema 定義手順
+  - [x] 3ステップ以内での追加手順を明記
+- [x] `docs/DIRECTORY_GUIDE.md` を更新（カスタムDocumentTypeの配置例）
+- [x] `docs/README.md` を更新（DocumentType拡張機能への言及）
+- [x] CHANGELOG.md に変更内容を記載
+- [x] 既存ユーザー向けの移行ガイドを記載（必要に応じて）
 
 ### 運用：
-- [ ] `ops/runbook-{topic}.md` 更新（必要に応じて）
-- [ ] デフォルト preset の動作確認
-- [ ] カスタム preset での動作確認
+- [x] `ops/runbook-{topic}.md` 更新（必要に応じて）
+- [x] デフォルト preset の動作確認
+- [x] カスタム preset での動作確認
 
 ## PR Constraints（AI前提の粒度）
 

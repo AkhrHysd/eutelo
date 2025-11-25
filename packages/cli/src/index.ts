@@ -215,7 +215,7 @@ async function runCheckCommand(
           process.stdout.write(`- [${issue.type}] ${issue.path}: ${issue.message}\n`);
         }
       }
-      if (hasWarnings) {
+      if (hasWarnings && report.warnings) {
         process.stdout.write(`\nWarning(s) (non-blocking):\n`);
         for (const warning of report.warnings) {
           process.stdout.write(`- [${warning.type}] ${warning.path}: ${warning.message}\n`);
@@ -1136,8 +1136,36 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   // Register dynamic commands from config before parsing
   await registerDynamicCommands();
 
-  // Register dynamic commands from config before parsing
-  await registerDynamicCommands();
+  // Check for unknown document types before parsing
+  // This handles cases where a user tries to use an unknown document type
+  const addIndex = argv.indexOf('add');
+  if (addIndex !== -1 && addIndex + 1 < argv.length) {
+    const documentType = argv[addIndex + 1];
+    // Skip if it's an option (starts with --)
+    if (documentType && !documentType.startsWith('--')) {
+      // Check if this is a registered command
+      const isRegistered = registeredCommands.has(documentType);
+      if (!isRegistered) {
+        // Check if it's a known document type from config
+        try {
+          const config = await getResolvedConfigCached();
+          const registry = new DocumentTypeRegistry(config);
+          const documentTypes = registry.getDocumentTypes();
+          if (!documentTypes.includes(documentType)) {
+            // Unknown document type - throw error
+            const availableTypes = registry.getDocumentTypes();
+            handleCommandError(new DocumentTypeNotFoundError(documentType, availableTypes));
+            return;
+          }
+        } catch (error) {
+          // If config loading fails, let commander handle the error
+          if (error instanceof ConfigError) {
+            // Silently continue - commander will handle unknown commands
+          }
+        }
+      }
+    }
+  }
 
   await program.parseAsync(argv);
 }

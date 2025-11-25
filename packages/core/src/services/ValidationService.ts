@@ -9,6 +9,8 @@ type FileSystemAdapter = {
   readFile(targetPath: string): Promise<string>;
 };
 
+type FileSystemStat = Awaited<ReturnType<FileSystemAdapter['stat']>>;
+
 type DocumentKind = string;
 
 type ParsedFrontmatter = Record<string, string>;
@@ -278,7 +280,9 @@ export class ValidationService {
         DEFAULT_RELATION_FIELDS;
       const parents = collectRelationIds(frontmatter, relations.parent);
       const parent = parents[0];
-      if (!kind) {
+      // Include document if it has either kind (from ID/fileName) or type (from frontmatter)
+      // This allows custom document types and unknown types to be scanned
+      if (!kind && !type) {
         continue;
       }
       docs.push({
@@ -305,7 +309,7 @@ export class ValidationService {
     const files: string[] = [];
     for (const entry of entries) {
       const entryPath = path.join(targetPath, entry);
-      let stat;
+      let stat: FileSystemStat;
       try {
         stat = await this.fileSystemAdapter.stat(entryPath);
       } catch {
@@ -323,13 +327,13 @@ export class ValidationService {
   private validateFrontmatter(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      const docType = doc.kind ?? doc.type ?? '';
+      const docType = doc.type ?? '';
       const schemaKey = normalizeDocumentKind(docType);
       
       // Check if document type is registered in config
       if (this.documentTypeRegistry && docType) {
-        const normalizedType = docType.toLowerCase();
-        if (!this.documentTypeRegistry.hasDocumentType(normalizedType)) {
+        // hasDocumentType handles normalization internally
+        if (!this.documentTypeRegistry.hasDocumentType(docType)) {
           // Add warning for unknown document type
           issues.push({
             type: 'unknownDocumentType',
@@ -341,8 +345,16 @@ export class ValidationService {
         }
       }
       
-      const schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
-      const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.kind);
+      // Try to get schema from DocumentTypeRegistry first, then fall back to schemaByKind
+      let schema: FrontmatterSchemaConfig | undefined;
+      if (this.documentTypeRegistry && docType) {
+        // getFrontmatterSchema handles normalization internally
+        schema = this.documentTypeRegistry.getFrontmatterSchema(docType);
+      }
+      if (!schema) {
+        schema = this.schemaByKind.get(schemaKey) ?? this.schemaByKind.get('*');
+      }
+      const requiredFields = schema ? collectRequiredFields(schema) : getDefaultRequiredFields(doc.type);
       for (const field of requiredFields) {
         const rawValue = (doc as Record<string, unknown>)[field];
         const isMissing =
@@ -367,11 +379,15 @@ export class ValidationService {
   private validatePathAndName(docs: ScannedDocument[]): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     for (const doc of docs) {
-      if (!doc.kind) continue;
-      const schemaKey = normalizeDocumentKind(doc.kind ?? doc.type ?? '');
+      // Use doc.kind (from ID/fileName classification) for naming rule lookup
+      // This is more reliable than doc.type which may be normalized differently
+      // (e.g., sub-beh template sets type: behavior, but kind is sub-behavior)
+      const kindForRule = doc.kind ?? doc.type;
+      if (!kindForRule) continue;
+      const schemaKey = normalizeDocumentKind(kindForRule);
       const rule = this.namingRules.find((candidate) => candidate.kind === schemaKey);
       // TEMP DEBUG
-      // console.log('DEBUG naming', { path: doc.relativePath, kind: doc.kind, schemaKey, found: rule?.kind });
+      // console.log('DEBUG naming', { path: doc.relativePath, kind: doc.kind, type: doc.type, schemaKey, found: rule?.kind });
       if (!rule) continue;
       const expectedPath = rule.buildPath(doc, this.docsRoot);
       if (!expectedPath) continue;

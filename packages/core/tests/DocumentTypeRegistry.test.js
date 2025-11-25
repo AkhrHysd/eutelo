@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DocumentTypeRegistry } from '../dist/config/DocumentTypeRegistry.js';
-import type { EuteloConfigResolved } from '../dist/config/types.js';
 
-const createMockConfig = (): EuteloConfigResolved => ({
+const createMockConfig = () => ({
   presets: ['@eutelo/preset-default'],
   docsRoot: 'eutelo-docs',
   scaffold: {
@@ -135,7 +134,7 @@ test('DocumentTypeRegistry.getFrontmatterSchema() returns undefined for unregist
 });
 
 test('DocumentTypeRegistry handles empty scaffold config', () => {
-  const config: EuteloConfigResolved = {
+  const config = {
     presets: [],
     docsRoot: 'eutelo-docs',
     scaffold: {},

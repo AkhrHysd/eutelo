@@ -4,7 +4,8 @@ import { resolveDocsRoot } from '../constants/docsRoot.js';
 import { DocumentScanner } from '../graph/DocumentScanner.js';
 import { GraphBuilder, type GraphBuildArtifacts } from '../graph/GraphBuilder.js';
 import { ImpactAnalyzer, type ImpactAnalysisOptions } from '../graph/ImpactAnalyzer.js';
-import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig } from '../config/types.js';
+import { DocumentTypeRegistry } from '../config/DocumentTypeRegistry.js';
+import type { FrontmatterSchemaConfig, ScaffoldTemplateConfig, EuteloConfigResolved } from '../config/types.js';
 import type {
   DocumentGraph,
   GraphNode,
@@ -57,11 +58,35 @@ export class GraphService {
     scaffold
   }: GraphServiceDependencies = {}) {
     const fs = fileSystemAdapter ?? new DefaultFileSystemAdapter();
+    
+    // Create DocumentTypeRegistry if scaffold is available
+    let documentTypeRegistry: DocumentTypeRegistry | null = null;
+    if (scaffold && frontmatterSchemas) {
+      const config: EuteloConfigResolved = {
+        presets: [],
+        docsRoot,
+        scaffold,
+        frontmatter: {
+          schemas: frontmatterSchemas,
+          rootParentIds: []
+        },
+        guard: {
+          prompts: {}
+        },
+        sources: {
+          cwd: '',
+          layers: []
+        }
+      };
+      documentTypeRegistry = new DocumentTypeRegistry(config);
+    }
+    
     this.scanner = new DocumentScanner({
       fileSystemAdapter: fs,
       docsRoot,
       frontmatterSchemas,
-      scaffold
+      scaffold,
+      documentTypeRegistry
     });
     this.builder = new GraphBuilder();
     this.impactAnalyzer = new ImpactAnalyzer();
