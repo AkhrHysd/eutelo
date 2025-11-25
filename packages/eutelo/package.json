@@ -22,13 +22,13 @@
     "guard"
   ],
   "dependencies": {
-    "@eutelo/core": "file:../core",
-    "@eutelo/infrastructure": "file:../infrastructure",
-    "@eutelo/distribution": "file:../distribution",
-    "@eutelo/cli": "file:../cli",
-    "@eutelo/biome-doc-lint": "file:../biome-doc-lint",
-    "@eutelo/commander": "file:../commander",
-    "@eutelo/eslint-plugin-docs": "file:../eslint-plugin-docs"
+    "@eutelo/core": "^0.3.0",
+    "@eutelo/infrastructure": "^0.3.0",
+    "@eutelo/distribution": "^0.3.0",
+    "@eutelo/cli": "^0.3.0",
+    "@eutelo/biome-doc-lint": "^0.3.0",
+    "@eutelo/commander": "^0.3.0",
+    "@eutelo/eslint-plugin-docs": "^0.3.0"
   },
   "peerDependencies": {
     "@biomejs/biome": ">=1.9.0",
