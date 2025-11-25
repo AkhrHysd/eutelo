@@ -37,7 +37,11 @@ export default defineConfig({
       template: templatePath('_template-prd.md'),
       variables: {
         ID: 'PRD-{FEATURE}',
-        PARENT: 'PRINCIPLE-GLOBAL'
+        PARENT: '/'
+      },
+      frontmatterDefaults: {
+        type: 'prd',
+        parent: '/'
       }
     },
     'document.beh': {
@@ -48,6 +52,10 @@ export default defineConfig({
       variables: {
         ID: 'BEH-{FEATURE}',
         PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'behavior',
+        parent: '{PARENT}'
       }
     },
     'document.sub-prd': {
@@ -58,6 +66,10 @@ export default defineConfig({
       variables: {
         ID: 'SUB-PRD-{SUB}',
         PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'prd',
+        parent: '{PARENT}'
       }
     },
     'document.sub-beh': {
@@ -68,6 +80,10 @@ export default defineConfig({
       variables: {
         ID: 'BEH-{FEATURE}-{SUB}',
         PARENT: 'SUB-PRD-{SUB}'
+      },
+      frontmatterDefaults: {
+        type: 'behavior',
+        parent: '{PARENT}'
       }
     },
     'document.dsg': {
@@ -78,6 +94,10 @@ export default defineConfig({
       variables: {
         ID: 'DSG-{FEATURE}',
         PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'design',
+        parent: '{PARENT}'
       }
     },
     'document.adr': {
@@ -88,6 +108,10 @@ export default defineConfig({
       variables: {
         ID: 'ADR-{FEATURE}-{SEQUENCE}',
         PARENT: 'PRD-{FEATURE}'
+      },
+      frontmatterDefaults: {
+        type: 'adr',
+        parent: '{PARENT}'
       }
     },
     'document.task': {
@@ -97,6 +121,10 @@ export default defineConfig({
       template: templatePath('_template-task.md'),
       variables: {
         ID: 'TASK-{NAME}'
+      },
+      frontmatterDefaults: {
+        type: 'task',
+        parent: '/'
       }
     },
     'document.ops': {
@@ -106,6 +134,10 @@ export default defineConfig({
       template: templatePath('_template-ops.md'),
       variables: {
         ID: 'OPS-{NAME}'
+      },
+      frontmatterDefaults: {
+        type: 'ops',
+        parent: '/'
       }
     }
   },

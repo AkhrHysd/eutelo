@@ -363,12 +363,38 @@ export class ValidationService {
           (typeof rawValue === 'string' && rawValue.trim().length === 0) ||
           (Array.isArray(rawValue) && rawValue.length === 0);
         if (isMissing) {
+          // parent フィールドは常に必須（ルートドキュメントは '/' を設定）
+          if (field === 'parent') {
+            issues.push({
+              type: 'missingField',
+              field,
+              path: doc.relativePath,
+              id: doc.id,
+              message: `Missing required frontmatter field "${field}". Use '/' for root documents.`
+            });
+          } else {
+            issues.push({
+              type: 'missingField',
+              field,
+              path: doc.relativePath,
+              id: doc.id,
+              message: `Missing required frontmatter field "${field}".`
+            });
+          }
+        }
+      }
+      
+      // parent フィールドが必須であることを検証（schema が存在し、requiredFields に含まれていない場合のみ）
+      // 未登録のドキュメントタイプの場合は警告のみで、エラーにはしない
+      if (schema && !requiredFields.includes('parent')) {
+        const parentValue = doc.parent;
+        if (!parentValue || (typeof parentValue === 'string' && parentValue.trim().length === 0)) {
           issues.push({
             type: 'missingField',
-            field,
+            field: 'parent',
             path: doc.relativePath,
             id: doc.id,
-            message: `Missing required frontmatter field "${field}".`
+            message: `Missing required frontmatter field "parent". Use '/' for root documents.`
           });
         }
       }
@@ -419,6 +445,11 @@ export class ValidationService {
         continue;
       }
       for (const parentId of parentIds) {
+        // parent が '/' の場合はルートドキュメントとして扱い、検証をスキップ
+        if (parentId === '/') {
+          continue;
+        }
+        // rootParentIds に含まれる場合も検証をスキップ（後方互換性のため）
         if (this.rootParentIds.has(parentId)) {
           continue;
         }

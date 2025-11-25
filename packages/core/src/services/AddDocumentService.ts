@@ -171,7 +171,7 @@ export class AddDocumentService {
       name: options.name,
       sequence: options.sequence
     });
-    const tokens = this.buildTokenMap(context, { includeDate: false });
+    const tokens = this.buildTokenMap(context, blueprint, { includeDate: false });
     const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
     const relative = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
     return path.resolve(cwd, relative);
@@ -188,7 +188,7 @@ export class AddDocumentService {
   }: AddDocumentOptions): Promise<AddDocumentResult> {
     const blueprint = this.getBlueprint({ type, scaffoldId });
     const context = this.buildContext({ definition: blueprint, feature, sub, name });
-    const baseTokens = this.buildTokenMap(context, { includeDate: false });
+    const baseTokens = this.buildTokenMap(context, blueprint, { includeDate: false });
     let sequence: string | undefined;
 
     if (blueprint.usesSequence) {
@@ -200,11 +200,17 @@ export class AddDocumentService {
       context.sequence = sequence;
     }
 
-    const tokens = this.buildTokenMap(context, { includeDate: true });
+    const tokens = this.buildTokenMap(context, blueprint, { includeDate: true });
     const id = this.resolveId(blueprint, tokens);
-    const parent = this.resolveParent(blueprint, tokens);
     tokens.ID = id;
-    tokens.PARENT = parent;
+    
+    // frontmatterDefaults.parent が設定されている場合はそれを優先、そうでなければ variables.PARENT を使用
+    if (blueprint.scaffold.frontmatterDefaults?.parent) {
+      tokens.PARENT = applyPlaceholders(blueprint.scaffold.frontmatterDefaults.parent, tokens);
+    } else {
+      const parent = this.resolveParent(blueprint, tokens);
+      tokens.PARENT = parent;
+    }
 
     const relativeDocPath = applyPlaceholders(blueprint.scaffold.path, tokens);
     const relativePath = path.join(this.docsRoot, normalizeRelativeDocPath(relativeDocPath));
@@ -254,6 +260,7 @@ export class AddDocumentService {
 
   private buildTokenMap(
     context: DocumentContext,
+    blueprint: DocumentBlueprint,
     { includeDate }: { includeDate: boolean }
   ): Record<string, string> {
     const tokens: Record<string, string> = {
@@ -265,6 +272,12 @@ export class AddDocumentService {
     if (includeDate) {
       tokens.DATE = formatDate(this.clock());
     }
+    
+    // frontmatterDefaults から type を取得してトークンに追加
+    if (blueprint.scaffold.frontmatterDefaults?.type) {
+      tokens.TYPE = applyPlaceholders(blueprint.scaffold.frontmatterDefaults.type, tokens);
+    }
+    
     return tokens;
   }
 

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import pathModule from 'node:path';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 type NodeFsError = Error & { code?: string };
 
@@ -46,7 +47,99 @@ export class TemplateService {
       throw error;
     }
 
-    return this.applyVariables(content, variables);
+    const rendered = this.applyVariables(content, variables);
+    return this.applyFrontmatterDefaults(rendered, variables);
+  }
+
+  private applyFrontmatterDefaults(
+    content: string,
+    variables: TemplateVariables
+  ): string {
+    // TYPE と PARENT が variables に含まれている場合のみ処理
+    if (!variables.TYPE && !variables.PARENT) {
+      return content;
+    }
+
+    // frontmatter セクションを抽出
+    const frontmatterMatch = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+    if (!frontmatterMatch) {
+      return content;
+    }
+
+    const frontmatterContent = frontmatterMatch[1];
+    let frontmatter: Record<string, unknown>;
+    try {
+      frontmatter = parseYaml(frontmatterContent) as Record<string, unknown>;
+    } catch (error) {
+      // YAML パースエラーの場合は既存のパーサーを使用
+      frontmatter = this.parseFrontmatterBlock(frontmatterContent.split(/\r?\n/));
+    }
+
+    // frontmatterDefaults の値で上書き
+    if (variables.TYPE) {
+      frontmatter.type = variables.TYPE;
+    }
+    if (variables.PARENT) {
+      frontmatter.parent = variables.PARENT;
+    }
+
+    // frontmatter を再構築
+    try {
+      const updatedFrontmatter = stringifyYaml(frontmatter, {
+        lineWidth: 0,
+        minContentWidth: 0
+      }).trim();
+      return content.replace(frontmatterMatch[0], `---\n${updatedFrontmatter}\n---`);
+    } catch (error) {
+      // stringify エラーの場合は元のコンテンツを返す
+      return content;
+    }
+  }
+
+  private parseFrontmatterBlock(lines: string[]): Record<string, string> {
+    const parsed: Record<string, string> = {};
+    let captureKey: string | null = null;
+    let captureBuffer: string[] = [];
+
+    for (let index = 0; index <= lines.length; index++) {
+      const line = index < lines.length ? lines[index] : undefined;
+      if (captureKey) {
+        if (line === undefined) {
+          parsed[captureKey] = captureBuffer.join('\n').trim();
+          break;
+        }
+        if (line.trim() === '' || /^[\t ]/.test(line)) {
+          captureBuffer.push(line.trim());
+          continue;
+        }
+        parsed[captureKey] = captureBuffer.join('\n').trim();
+        captureKey = null;
+        captureBuffer = [];
+        index--;
+        continue;
+      }
+
+      if (line === undefined) {
+        break;
+      }
+
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) {
+        continue;
+      }
+
+      const key = line.slice(0, colonIndex).trim();
+      const value = line.slice(colonIndex + 1).trim();
+
+      if (value === '' || value.startsWith('>') || value.startsWith('|')) {
+        captureKey = key;
+        captureBuffer = [value];
+      } else {
+        parsed[key] = value;
+      }
+    }
+
+    return parsed;
   }
 
   private applyVariables(template: string, variables: TemplateVariables): string {
