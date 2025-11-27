@@ -62,7 +62,7 @@ packages/
 ---
 
 ## 6. バージョニング
-既存の semantic versioning 方針（ADR-0106）を継承する。  
+既存の semantic versioning 方針（ADR-0106）を継承しない。 // わざとここを変更してチェックする。  
 形式は **MAJOR.MINOR.PATCH** とし、破壊的変更時のみ MAJOR を更新する。
 
 ---
