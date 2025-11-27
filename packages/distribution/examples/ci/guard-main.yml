@@ -33,143 +33,29 @@ jobs:
           files: |
             docs/**/*.md
 
-      - name: Build graph and extract related files
-        id: extract-related
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: |
-          # Build graph and save to file
-          npx eutelo graph build --format json --output graph.json
-          
-          # Get changed files
-          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
-          RELATED_FILES=""
-          
-          # Create a Node.js script to extract related files from graph
-          cat > extract-related.js << 'EOF'
-          const fs = require('fs');
-          const path = require('path');
-          
-          function normalizePath(p) {
-            return p.replace(/^\.\//, '').replace(/\\/g, '/').toLowerCase();
-          }
-          
-          const graph = JSON.parse(fs.readFileSync('graph.json', 'utf8'));
-          const changedFilesStr = process.env.CHANGED_FILES || '';
-          const changedFiles = changedFilesStr.split(/\s+/).filter(f => f && f.trim());
-          
-          // Create a map of document ID to file path
-          const idToPath = {};
-          graph.nodes.forEach(node => {
-            idToPath[node.id] = node.path;
-          });
-          
-          // Create a map of normalized file path to document ID
-          const pathToId = {};
-          graph.nodes.forEach(node => {
-            const normalized = normalizePath(node.path);
-            pathToId[normalized] = node.id;
-            // Also map by basename (document ID)
-            const basename = path.basename(node.path, '.md').toUpperCase();
-            if (basename === node.id) {
-              pathToId[basename.toLowerCase()] = node.id;
-            }
-          });
-          
-          // Find all related files
-          const relatedFileSet = new Set();
-          
-          changedFiles.forEach(file => {
-            // Normalize file path
-            const normalizedFile = normalizePath(file);
-            
-            // Find document ID from file path
-            let docId = pathToId[normalizedFile];
-            if (!docId) {
-              // Try to find by basename
-              const basename = path.basename(normalizedFile, '.md').toUpperCase();
-              docId = idToPath[basename] ? basename : null;
-            }
-            
-            if (docId && idToPath[docId]) {
-              // Add the changed file itself
-              const filePath = idToPath[docId];
-              relatedFileSet.add(filePath);
-              
-              // Find all edges connected to this document
-              graph.edges.forEach(edge => {
-                if (edge.from === docId || edge.to === docId) {
-                  const relatedId = edge.from === docId ? edge.to : edge.from;
-                  const relatedPath = idToPath[relatedId];
-                  if (relatedPath) {
-                    relatedFileSet.add(relatedPath);
-                  }
-                }
-              });
-            } else {
-              // If we can't find the document ID, just add the file itself
-              relatedFileSet.add(file);
-            }
-          });
-          
-          // Output space-separated list
-          console.log(Array.from(relatedFileSet).join(' '));
-          EOF
-          
-          # Run the extraction script
-          CHANGED_FILES_ENV=$(echo "$CHANGED_FILES" | tr '\n' ' ')
-          UNIQUE_FILES=$(CHANGED_FILES="$CHANGED_FILES_ENV" node extract-related.js)
-          
-          echo "related_files=$UNIQUE_FILES" >> $GITHUB_OUTPUT
-          echo "Related files to check:"
-          echo "$UNIQUE_FILES" | tr ' ' '\n'
-
-      - name: Run guard check
+      - name: Run guard check for each changed file
         id: guard-check
-        if: steps.changed-files.outputs.any_changed == 'true' && steps.extract-related.outputs.related_files != ''
+        if: steps.changed-files.outputs.any_changed == 'true'
         env:
           EUTELO_GUARD_API_ENDPOINT: ${{ secrets.EUTELO_GUARD_API_ENDPOINT }}
           EUTELO_GUARD_API_KEY: ${{ secrets.EUTELO_GUARD_API_KEY }}
           EUTELO_GUARD_MODEL: ${{ secrets.EUTELO_GUARD_MODEL }}
         run: |
-          RELATED_FILES="${{ steps.extract-related.outputs.related_files }}"
-          if [ -z "$RELATED_FILES" ]; then
-            echo "No related files to check"
-            exit 0
-          fi
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
           
-          # Run guard and capture output
-          npx eutelo guard --format json $RELATED_FILES > guard-result.json 2>&1 || GUARD_EXIT=$?
-          
-          # Read guard result
-          if [ -f guard-result.json ]; then
-            GUARD_RESULT=$(cat guard-result.json)
-            echo "guard_result<<EOF" >> $GITHUB_OUTPUT
-            echo "$GUARD_RESULT" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Check for errors and warnings
-            ISSUES_COUNT=$(echo "$GUARD_RESULT" | jq -r '.stats.issues // 0')
-            WARNINGS_COUNT=$(echo "$GUARD_RESULT" | jq -r '.stats.warnings // 0')
-            echo "issues_count=$ISSUES_COUNT" >> $GITHUB_OUTPUT
-            echo "warnings_count=$WARNINGS_COUNT" >> $GITHUB_OUTPUT
-            
-            if [ "$ISSUES_COUNT" -gt 0 ] || [ "$WARNINGS_COUNT" -gt 0 ]; then
-              echo "has_issues=true" >> $GITHUB_OUTPUT
-            else
-              echo "has_issues=false" >> $GITHUB_OUTPUT
+          # Process each changed file
+          for file in $CHANGED_FILES; do
+            if [ ! -f "$file" ]; then
+              echo "Skipping deleted file: $file"
+              continue
             fi
-          fi
+            
+            echo "Checking: $file"
+            
+            # Run guard for this file (guard will automatically collect related documents)
+            # Use --depth=1 to limit traversal depth for CI performance
+            npx eutelo guard --depth=1 "$file" || GUARD_EXIT=$?
+          done
           
+          # Exit with error if any guard check failed
           exit ${GUARD_EXIT:-0}
-
-      - name: Output guard results
-        if: steps.changed-files.outputs.any_changed == 'true' && steps.guard-check.outputs.has_issues == 'true'
-        run: |
-          echo "## Guard Check Results"
-          echo ""
-          echo "Issues: ${{ steps.guard-check.outputs.issues_count }}"
-          echo "Warnings: ${{ steps.guard-check.outputs.warnings_count }}"
-          echo ""
-          echo "```json"
-          echo "${{ steps.guard-check.outputs.guard_result }}"
-          echo "```"
