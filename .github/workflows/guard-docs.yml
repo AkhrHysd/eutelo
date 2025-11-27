@@ -63,6 +63,7 @@ jobs:
           TOTAL_ISSUES=0
           TOTAL_WARNINGS=0
           HAS_ISSUES=false
+          HAS_ERRORS=false
           
           # Process each changed file
           for file in $CHANGED_FILES; do
@@ -117,8 +118,13 @@ jobs:
                   TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
                   TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
                   
+                  # HAS_ISSUES: true if there are any issues or warnings (for PR comment)
+                  # HAS_ERRORS: true only if there are issues (for CI failure)
                   if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
                     HAS_ISSUES=true
+                  fi
+                  if [ "$ISSUES" -gt 0 ]; then
+                    HAS_ERRORS=true
                   fi
                 else
                   echo "Warning: Failed to merge result for $file"
@@ -134,6 +140,7 @@ jobs:
                     '{origin: {path: $file}, error: {type: "parse", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
                   ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
                   HAS_ISSUES=true
+                  HAS_ERRORS=true
                 fi
               else
                 echo "Warning: Result file for $file is not valid JSON"
@@ -154,6 +161,9 @@ jobs:
                       TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
                       if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
                         HAS_ISSUES=true
+                      fi
+                      if [ "$ISSUES" -gt 0 ]; then
+                        HAS_ERRORS=true
                       fi
                       continue
                     fi
@@ -228,10 +238,17 @@ jobs:
           echo "issues_count=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
           echo "warnings_count=$TOTAL_WARNINGS" >> $GITHUB_OUTPUT
           echo "has_issues=$HAS_ISSUES" >> $GITHUB_OUTPUT
+          echo "has_errors=$HAS_ERRORS" >> $GITHUB_OUTPUT
           
-          # Exit with error if any issues found
-          if [ "$HAS_ISSUES" = "true" ]; then
+          # Exit with error only if issues (errors) are found
+          # Warnings alone will not cause CI failure, but will be shown in PR comment
+          if [ "$HAS_ERRORS" = "true" ]; then
+            echo "Errors found: CI will fail"
             exit 1
+          elif [ "$HAS_ISSUES" = "true" ]; then
+            echo "Warnings found (no errors): CI will pass, but PR comment will be posted"
+          else
+            echo "No issues or warnings found"
           fi
 
       - name: Post GitHub comment
@@ -297,24 +314,32 @@ jobs:
             
             if (allIssues.length > 0) {
               comment += `### 🔴 Issues (${allIssues.length})\n\n`;
-              allIssues.forEach(issue => {
-                comment += `- **${issue.document || issue.origin || 'Unknown'}**: ${issue.message}\n`;
-                if (issue.context) {
-                  comment += `  \`\`\`\n  ${issue.context}\n  \`\`\`\n`;
+              allIssues.forEach((issue, index) => {
+                const docName = issue.document || issue.origin || 'Unknown';
+                const issueId = issue.id || `ISSUE-${index + 1}`;
+                comment += `#### ${issueId}\n\n`;
+                comment += `**Document**: \`${docName}\`\n\n`;
+                comment += `**Message**: ${issue.message}\n\n`;
+                if (issue.hint) {
+                  comment += `**Hint**: ${issue.hint}\n\n`;
                 }
+                comment += '---\n\n';
               });
-              comment += '\n';
             }
             
             if (allWarnings.length > 0) {
               comment += `### ⚠️ Warnings (${allWarnings.length})\n\n`;
-              allWarnings.forEach(warning => {
-                comment += `- **${warning.document || warning.origin || 'Unknown'}**: ${warning.message}\n`;
-                if (warning.context) {
-                  comment += `  \`\`\`\n  ${warning.context}\n  \`\`\`\n`;
+              allWarnings.forEach((warning, index) => {
+                const docName = warning.document || warning.origin || 'Unknown';
+                const warningId = warning.id || `WARNING-${index + 1}`;
+                comment += `#### ${warningId}\n\n`;
+                comment += `**Document**: \`${docName}\`\n\n`;
+                comment += `**Message**: ${warning.message}\n\n`;
+                if (warning.hint) {
+                  comment += `**Hint**: ${warning.hint}\n\n`;
                 }
+                comment += '---\n\n';
               });
-              comment += '\n';
             }
             
             if (allSuggestions.length > 0) {
