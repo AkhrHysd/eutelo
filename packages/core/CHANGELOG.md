@@ -6,6 +6,17 @@
 
 ## 変更履歴
 
+## [0.4.1] - 2025-11-27
+
+### Added
+- RelatedDocumentResolver: ドキュメントグラフを探索して関連ドキュメント（親、子、関連）を解決するコンポーネントを追加
+- GraphCache スケルトン: 将来の CI 間キャッシュ共有のためのプレースホルダを追加
+- PriorityFilterConfig 型: 将来の LLM 入力最適化のためのプレースホルダを追加
+- GuardService: 関連ドキュメント自動収集機能を追加（related オプション）
+
+### Changed
+- ImpactAnalyzer: direction オプションを追加し、探索方向（upstream/downstream/both）を指定可能に
+
 ## [0.4.0] - 2025-11-25
 
 ### Added

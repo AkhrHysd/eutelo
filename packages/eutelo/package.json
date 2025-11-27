@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/eutelo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Eutelo エコシステムの全パッケージをまとめてインストールするメタパッケージ",
   "license": "MIT",
   "type": "module",
