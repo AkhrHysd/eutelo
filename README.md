@@ -491,6 +491,30 @@ pnpm exec eutelo guard --check <id>              # Execute a specific guard prom
 # Guard prompts are loaded from config.guard.prompts, so execution is not possible without a preset
 ```
 
+**Related Document Auto-Collection (New)**
+
+When running `eutelo guard`, related documents (parent, children, related documents) are automatically collected based on the document graph. This enables cross-document consistency checks with just a single document specified.
+
+```bash
+# Automatically collect related documents (default behavior)
+pnpm exec eutelo guard docs/product/features/AUTH/PRD-AUTH.md
+
+# Disable related document collection (check only the specified document)
+pnpm exec eutelo guard --no-related docs/product/features/AUTH/PRD-AUTH.md
+
+# Specify traversal depth (default: 1)
+pnpm exec eutelo guard --depth=2 docs/product/features/AUTH/PRD-AUTH.md
+
+# Collect all related documents regardless of depth
+pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
+```
+
+**Options:**
+- `--with-related`: Enable related document collection (default)
+- `--no-related`: Disable related document collection
+- `--depth <n>`: Set traversal depth for related document collection (default: 1)
+- `--all`: Collect all related documents regardless of depth (max: 100 documents)
+
 ### `eutelo graph`
 
 Operates and analyzes the dependency graph between documents.
@@ -521,6 +545,35 @@ Analyzes the impact scope (1-hop / 2-hop dependencies) of a specified document.
 pnpm exec eutelo graph impact <documentId>      # Analyze impact scope
 pnpm exec eutelo graph impact <documentId> --depth 5  # Specify search depth (default: 3)
 ```
+
+#### `eutelo graph related <documentId>`
+
+Lists related documents (parents, children, related documents) for a specified document. Useful for understanding document relationships and debugging guard checks.
+
+```bash
+# Show related documents for a document
+pnpm exec eutelo graph related PRD-AUTH
+
+# Output in JSON format
+pnpm exec eutelo graph related PRD-AUTH --format=json
+
+# Specify traversal depth (default: 1)
+pnpm exec eutelo graph related PRD-AUTH --depth=2
+
+# Collect all related documents regardless of depth
+pnpm exec eutelo graph related PRD-AUTH --all
+
+# Specify traversal direction
+pnpm exec eutelo graph related BEH-AUTH --direction=upstream   # Show only parents
+pnpm exec eutelo graph related PRD-AUTH --direction=downstream # Show only children
+pnpm exec eutelo graph related PRD-AUTH --direction=both       # Show both (default)
+```
+
+**Options:**
+- `--format <format>`: Output format (`text` or `json`)
+- `--depth <n>`: Set traversal depth (default: 1)
+- `--all`: Collect all related documents regardless of depth
+- `--direction <dir>`: Traversal direction (`upstream`, `downstream`, or `both`)
 
 #### `eutelo graph summary`
 

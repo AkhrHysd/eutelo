@@ -60,21 +60,27 @@ test('composite action mirrors guard workflow expectations for setup, install, a
   assert.match(content, /--format=\$\{\{ inputs.format \}\}/, 'format input not forwarded');
 });
 
-test('guard workflow templates target common triggers and call the reusable workflow', () => {
+test('guard workflow templates target common triggers and run guard inline', () => {
   const pr = read(path.join(TEMPLATE_DIR, 'guard-pull-request.yml'));
   const main = read(path.join(TEMPLATE_DIR, 'guard-main.yml'));
   const dispatch = read(path.join(TEMPLATE_DIR, 'guard-dispatch.yml'));
 
+  // PR template checks
   assert.match(pr, /pull_request:/, 'PR template missing pull_request trigger');
   assert.match(pr, /paths:\n      - 'docs\/\*\*'/, 'PR template missing docs path filter');
-  assert.match(pr, /uses: eutelo\/eutelo\/\.github\/workflows\/guard\.yml@v1/);
+  assert.match(pr, /npx eutelo guard/, 'PR template missing guard command');
+  assert.match(pr, /npx eutelo graph build/, 'PR template missing graph build command');
 
+  // Main template checks
   assert.match(main, /branches:\n      - main/, 'main template missing branch trigger');
-  assert.match(main, /uses: eutelo\/eutelo\/\.github\/workflows\/guard\.yml@v1/);
+  assert.match(main, /npx eutelo guard/, 'main template missing guard command');
+  assert.match(main, /npx eutelo graph build/, 'main template missing graph build command');
 
+  // Dispatch template checks
   assert.match(dispatch, /workflow_dispatch:/, 'dispatch template missing manual trigger');
-  assert.match(dispatch, /working-directory: \$\{\{ inputs.working-directory \}\}/);
-  assert.match(dispatch, /format: \$\{\{ inputs.format \}\}/, 'dispatch template does not forward format');
+  assert.match(dispatch, /working-directory: \$\{\{ inputs\.working-directory \}\}/, 'dispatch template missing working-directory');
+  assert.match(dispatch, /inputs\.format/, 'dispatch template does not reference format input');
+  assert.match(dispatch, /npx eutelo guard/, 'dispatch template missing guard command');
 });
 
 test('guard command can be invoked from a monorepo subdirectory with stubbed warnings', () => {

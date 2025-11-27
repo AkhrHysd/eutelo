@@ -6,6 +6,9 @@ import type { LLMClient } from '../guard/LLMClient.js';
 import { OpenAICompatibleLLMClient } from '../guard/LLMClient.js';
 import { PromptBuilder } from '../guard/PromptBuilder.js';
 import type { FrontmatterSchemaConfig, GuardPromptConfig, ScaffoldTemplateConfig } from '../config/types.js';
+import { DocumentScanner } from '../graph/DocumentScanner.js';
+import { GraphBuilder } from '../graph/GraphBuilder.js';
+import { RelatedDocumentResolver } from '../graph/RelatedDocumentResolver.js';
 
 export type GuardServiceDependencies = {
   fileSystemAdapter?: FileSystemAdapter;
@@ -14,9 +17,28 @@ export type GuardServiceDependencies = {
   allowedFields?: string[];
   frontmatterSchemas?: FrontmatterSchemaConfig[];
   scaffold?: Record<string, ScaffoldTemplateConfig>;
+  /** Current working directory for resolving document paths */
+  cwd?: string;
+  /** Root directory for documentation files */
+  docsRoot?: string;
 };
 
 export type GuardOutputFormat = 'text' | 'json';
+
+export type RelatedDocumentOptions = {
+  /**
+   * Whether to automatically collect related documents (default: true)
+   */
+  enabled?: boolean;
+  /**
+   * Maximum depth for traversing related documents (default: 1)
+   */
+  depth?: number;
+  /**
+   * If true, traverse all related documents regardless of depth
+   */
+  all?: boolean;
+};
 
 export type RunGuardOptions = {
   /**
@@ -40,6 +62,10 @@ export type RunGuardOptions = {
    * Whether the caller intends to treat issues as warnings only.
    */
   warnOnly?: boolean;
+  /**
+   * Options for automatically collecting related documents
+   */
+  relatedOptions?: RelatedDocumentOptions;
 };
 
 export type GuardFinding = {
@@ -54,6 +80,14 @@ export type GuardRunErrorType = 'connection' | 'configuration' | 'unknown';
 export type GuardRunError = {
   type: GuardRunErrorType;
   message: string;
+};
+
+export type RelatedDocumentInfo = {
+  id: string;
+  path: string;
+  hop: number;
+  via: string;
+  direction: 'upstream' | 'downstream';
 };
 
 export type GuardRunResult = {
@@ -81,6 +115,10 @@ export type GuardRunResult = {
    * Raw LLM response (only included if debug mode is enabled or format is json with debug flag).
    */
   llmResponse?: string;
+  /**
+   * Information about related documents that were automatically collected
+   */
+  relatedDocuments?: RelatedDocumentInfo[];
 };
 
 export class GuardService {
@@ -90,9 +128,12 @@ export class GuardService {
   private readonly llmClient: LLMClient | null;
   private readonly prompts: Record<string, GuardPromptConfig>;
   private readonly hasCustomLLMClient: boolean;
+  private readonly relatedDocumentResolver: RelatedDocumentResolver | null;
+  private readonly cwd: string;
 
   constructor(deps: GuardServiceDependencies = {}) {
     const fileSystemAdapter = deps.fileSystemAdapter ?? new DefaultFileSystemAdapter();
+    this.cwd = deps.cwd ?? process.cwd();
     this.documentLoader = new DocumentLoader({
       fileSystemAdapter,
       allowedFields: deps.allowedFields,
@@ -103,6 +144,26 @@ export class GuardService {
     this.analyzer = new Analyzer();
     this.prompts = deps.prompts ?? {};
     this.hasCustomLLMClient = Boolean(deps.llmClient);
+
+    // Initialize RelatedDocumentResolver for automatic related document collection
+    try {
+      const scanner = new DocumentScanner({
+        fileSystemAdapter,
+        docsRoot: deps.docsRoot ?? 'eutelo-docs',
+        allowedFields: deps.allowedFields,
+        frontmatterSchemas: deps.frontmatterSchemas,
+        scaffold: deps.scaffold
+      });
+      const builder = new GraphBuilder();
+      this.relatedDocumentResolver = new RelatedDocumentResolver({
+        scanner,
+        builder,
+        cwd: this.cwd
+      });
+    } catch {
+      // If initialization fails, continue without related document resolution
+      this.relatedDocumentResolver = null;
+    }
 
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
     const validStubModes = ['success', 'issues', 'warnings', 'connection-error'];
@@ -124,9 +185,12 @@ export class GuardService {
   }
 
   async run(options: RunGuardOptions): Promise<GuardRunResult> {
-    const documents = normalizeDocuments(options.documents);
+    let documents = normalizeDocuments(options.documents);
     const checkId = typeof options.checkId === 'string' && options.checkId.trim().length > 0 ? options.checkId.trim() : 'guard.default';
     const promptConfig = this.prompts[checkId];
+    const relatedOptions = options.relatedOptions ?? { enabled: true, depth: 1 };
+    let collectedRelatedDocuments: RelatedDocumentInfo[] = [];
+    const relatedWarnings: string[] = [];
 
     if (documents.length === 0) {
       return {
@@ -135,6 +199,51 @@ export class GuardService {
         warnings: [],
         suggestions: []
       };
+    }
+
+    // Automatically collect related documents if enabled
+    if (relatedOptions.enabled !== false && this.relatedDocumentResolver) {
+      try {
+        const additionalPaths = new Set<string>();
+        for (const docPath of documents) {
+          try {
+            const result = await this.relatedDocumentResolver.resolve(docPath, {
+              depth: relatedOptions.depth ?? 1,
+              all: relatedOptions.all ?? false,
+              cwd: this.cwd
+            });
+            
+            for (const related of result.related) {
+              if (!documents.includes(related.path) && !additionalPaths.has(related.path)) {
+                additionalPaths.add(related.path);
+                collectedRelatedDocuments.push({
+                  id: related.id,
+                  path: related.path,
+                  hop: related.hop,
+                  via: related.via,
+                  direction: related.direction
+                });
+              }
+            }
+            
+            // Collect warnings from related document resolution
+            for (const warning of result.warnings) {
+              if (!relatedWarnings.includes(warning)) {
+                relatedWarnings.push(warning);
+              }
+            }
+          } catch (resolveError) {
+            // If resolving fails for a specific document, add warning and continue
+            relatedWarnings.push(`Failed to resolve related documents for ${docPath}: ${resolveError instanceof Error ? resolveError.message : 'Unknown error'}`);
+          }
+        }
+        
+        // Add collected related document paths to the documents list
+        documents = [...documents, ...Array.from(additionalPaths)];
+      } catch (error) {
+        // If related document resolution fails entirely, add warning and continue with original documents
+        relatedWarnings.push(`Related document resolution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
 
     const stubMode = process.env.EUTELO_GUARD_STUB_RESULT;
@@ -255,6 +364,16 @@ export class GuardService {
           }))
         );
       }
+      
+      // Add warnings from related document resolution
+      if (relatedWarnings.length > 0) {
+        loadWarnings.push(
+          ...relatedWarnings.map((w, i) => ({
+            id: `RELATED-WARN-${i + 1}`,
+            message: w
+          }))
+        );
+      }
 
       const { systemPrompt, userPrompt } = await this.promptBuilder.buildPrompt({
         documents: loadResult.documents,
@@ -279,6 +398,9 @@ export class GuardService {
       const suggestionCount = analysisResult.suggestions.length;
 
       let summary = `Analyzed ${loadResult.documents.length} document(s).`;
+      if (collectedRelatedDocuments.length > 0) {
+        summary += ` (${collectedRelatedDocuments.length} auto-collected)`;
+      }
       if (loadResult.errors.length > 0) {
         summary += ` Skipped ${loadResult.errors.length} file(s).`;
       }
@@ -300,7 +422,8 @@ export class GuardService {
         issues: analysisResult.issues,
         warnings: allWarnings,
         suggestions: analysisResult.suggestions,
-        llmResponse: debugMode ? llmResponse.content : undefined
+        llmResponse: debugMode ? llmResponse.content : undefined,
+        relatedDocuments: collectedRelatedDocuments.length > 0 ? collectedRelatedDocuments : undefined
       };
     } catch (error) {
       const debugMode = process.env.EUTELO_GUARD_DEBUG === 'true' || process.env.EUTELO_GUARD_DEBUG === '1';

@@ -13,6 +13,9 @@ import {
   createGuardService,
   createGraphService,
   GraphSerializer,
+  RelatedDocumentResolver,
+  DocumentScanner,
+  GraphBuilder,
   type DocumentType,
   type SyncOptions,
   CHECK_EXIT_CODES,
@@ -26,7 +29,7 @@ import {
   DocumentTypeNotFoundError,
   DocumentTypeRegistry
 } from '@eutelo/core';
-import type { EuteloConfigResolved, ScaffoldTemplateConfig } from '@eutelo/core';
+import type { EuteloConfigResolved, ScaffoldTemplateConfig, FrontmatterSchemaConfig } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
 // Load .env file from project root (where CLI is executed)
@@ -63,6 +66,9 @@ type GuardCliOptions = {
   failOnError?: boolean;
   warnOnly?: boolean;
   check?: string;
+  related?: boolean;
+  depth?: string;
+  all?: boolean;
 };
 
 type GraphBuildCliOptions = {
@@ -305,13 +311,45 @@ async function runGuardCommand(
   const checkOverride = resolveOptionValue(argv, '--check') ?? options.check;
   const warnOnly = Boolean(options.warnOnly);
   const failOnError = warnOnly ? false : options.failOnError ?? true;
+  
+  // Parse related document options
+  const noRelated = argv.includes('--no-related');
+  const allRelated = options.all || argv.includes('--all');
+  const depthStr = resolveOptionValue(argv, '--depth') ?? options.depth;
+  const depth = depthStr ? parseInt(depthStr, 10) : 1;
+  
+  const relatedOptions = {
+    enabled: !noRelated,
+    depth: allRelated ? undefined : depth,
+    all: allRelated
+  };
+  
+  // Log related document collection info if not in JSON format
+  if (format !== 'json' && relatedOptions.enabled) {
+    const depthInfo = allRelated ? 'unlimited' : `${depth}`;
+    process.stderr.write(`Resolving related documents (depth: ${depthInfo})...\n`);
+  }
+  
   const result = await guardService.run({
     documents: normalizedDocuments,
     checkId: typeof checkOverride === 'string' ? checkOverride : undefined,
     format,
     warnOnly,
-    failOnError
+    failOnError,
+    relatedOptions
   });
+
+  // Log collected related documents if any
+  if (format !== 'json' && result.relatedDocuments && result.relatedDocuments.length > 0) {
+    process.stderr.write(`  Found ${result.relatedDocuments.length} related document(s):\n`);
+    for (const doc of result.relatedDocuments) {
+      const dir = doc.direction === 'upstream' ? '↑' : '↓';
+      process.stderr.write(`    ${dir} ${doc.id} (${doc.via}, hop=${doc.hop})\n`);
+    }
+    process.stderr.write('\n');
+  } else if (format !== 'json' && relatedOptions.enabled) {
+    process.stderr.write(`  No related documents found.\n\n`);
+  }
 
   renderGuardResult(result, format);
   process.exitCode = determineGuardExitCode(result, { warnOnly, failOnError });
@@ -516,6 +554,90 @@ async function runGraphSummaryCommand(graphService: ReturnType<typeof createGrap
   }
 
   renderGraphWarnings(graph.errors);
+}
+
+type GraphRelatedCommandOptions = {
+  fileSystemAdapter: FileSystemAdapter;
+  docsRoot: string;
+  frontmatterSchemas?: FrontmatterSchemaConfig[];
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
+  depth?: string;
+  all?: boolean;
+  direction?: string;
+  format?: string;
+};
+
+async function runGraphRelatedCommand(
+  documentPath: string,
+  options: GraphRelatedCommandOptions,
+  argv: string[]
+): Promise<void> {
+  const formatValue = resolveFormatArgument(argv) ?? options.format;
+  const format = formatValue === 'json' ? 'json' : 'text';
+  const depthValue = resolveOptionValue(argv, '--depth') ?? options.depth;
+  const depth = depthValue ? Number.parseInt(depthValue, 10) : 1;
+  const all = options.all || argv.includes('--all');
+  const directionValue = resolveOptionValue(argv, '--direction') ?? options.direction ?? 'both';
+  const direction = directionValue as 'upstream' | 'downstream' | 'both';
+
+  // Create scanner, builder, and resolver
+  const scanner = new DocumentScanner({
+    fileSystemAdapter: options.fileSystemAdapter,
+    docsRoot: options.docsRoot,
+    frontmatterSchemas: options.frontmatterSchemas,
+    scaffold: options.scaffold
+  });
+  const builder = new GraphBuilder();
+  const resolver = new RelatedDocumentResolver({
+    scanner,
+    builder,
+    cwd: process.cwd()
+  });
+
+  try {
+    const result = await resolver.resolve(documentPath, {
+      depth: all ? undefined : depth,
+      all,
+      direction,
+      cwd: process.cwd()
+    });
+
+    if (format === 'json') {
+      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+      return;
+    }
+
+    // Text format output
+    process.stdout.write(`Related documents for ${result.origin.id}:\n\n`);
+    
+    if (result.related.length === 0) {
+      process.stdout.write('  No related documents found.\n');
+    } else {
+      process.stdout.write('  Direction  Hop  Via       ID\n');
+      process.stdout.write('  ─────────  ───  ────────  ────────────────────\n');
+      for (const doc of result.related) {
+        const dir = doc.direction === 'upstream' ? '↑ upstream' : '↓ downstream';
+        const via = doc.via.padEnd(8);
+        process.stdout.write(`  ${dir.padEnd(11)} ${String(doc.hop).padEnd(3)}  ${via}  ${doc.id}\n`);
+      }
+    }
+    
+    process.stdout.write(`\nTotal: ${result.stats.totalFound} related document(s)\n`);
+    
+    if (result.warnings.length > 0) {
+      process.stdout.write('\nWarnings:\n');
+      for (const warning of result.warnings) {
+        process.stdout.write(`  - ${warning}\n`);
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      process.stderr.write(`Error: ${error.message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
 }
 
 function normalizeGraphFormat(value?: string | boolean): GraphOutputFormat {
@@ -1015,15 +1137,22 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--warn-only', 'Never exit with code 2, even when issues are detected')
     .option('--check <id>', 'Guard prompt id to execute (config.guard.prompts key)')
     .option('--config <path>', 'Path to eutelo.config.*')
+    .option('--with-related', 'Automatically collect related documents (default: enabled)')
+    .option('--no-related', 'Disable automatic related document collection')
+    .option('--depth <number>', 'Depth for related document traversal (default: 1)')
+    .option('--all', 'Collect all related documents regardless of depth')
     .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
           const configuredGuardService = createGuardService({
             fileSystemAdapter,
             prompts: config.guard.prompts,
             frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold
+            scaffold: config.scaffold,
+            docsRoot,
+            cwd: process.cwd()
           });
           await runGuardCommand(configuredGuardService, documents, options, argv);
         });
@@ -1117,6 +1246,39 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
             scaffold: config.scaffold
           });
           await runGraphSummaryCommand(graphService);
+        });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  graph
+    .command('related <documentPath>')
+    .description('List related documents for a given document')
+    .option('--depth <n>', 'Search depth (default: 1)')
+    .option('--all', 'Search all related documents regardless of depth')
+    .option('--direction <dir>', 'Search direction: upstream, downstream, or both (default: both)')
+    .option('--format <format>', 'Output format (text or json)')
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (documentPath: string) => {
+      const configPath = resolveOptionValue(argv, '--config');
+      const depth = resolveOptionValue(argv, '--depth');
+      const all = argv.includes('--all');
+      const direction = resolveOptionValue(argv, '--direction');
+      const format = resolveOptionValue(argv, '--format');
+      try {
+        await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
+          await runGraphRelatedCommand(documentPath, {
+            fileSystemAdapter,
+            docsRoot,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold,
+            depth,
+            all,
+            direction,
+            format
+          }, argv);
         });
       } catch (error) {
         handleCommandError(error);

@@ -67,3 +67,79 @@ test('graph impact surfaces hop distances', () => {
     cleanup(cwd);
   }
 });
+
+// ============================================================================
+// E2E Tests for graph related command (DOC-GUARD-GRAPH-INTEGRATION)
+// ============================================================================
+
+test('graph related shows related documents for a given document', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['graph', 'related', 'PRD-AUTH'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    // Should show related documents (BEH-AUTH, DSG-AUTH are children of PRD-AUTH)
+    assert.match(result.stdout, /BEH-AUTH|DSG-AUTH/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('graph related --format=json outputs parseable JSON', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['graph', 'related', 'PRD-AUTH', '--format=json'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout);
+    assert.ok(Array.isArray(parsed.related), 'JSON output should have related array');
+    assert.ok('stats' in parsed, 'JSON output should have stats field');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('graph related with --depth=2 collects documents up to 2 hops', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['graph', 'related', 'PRD-AUTH', '--depth=2'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    // Should show related documents
+    assert.ok(result.stdout.includes('BEH-AUTH') || result.stdout.includes('DSG-AUTH'));
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('graph related with --all collects all reachable documents', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['graph', 'related', 'PRD-AUTH', '--all'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    // Should show all related documents
+    assert.ok(result.stdout.includes('BEH-AUTH') || result.stdout.includes('DSG-AUTH'));
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('graph related with --direction=upstream shows only parent documents', () => {
+  const cwd = setupProject();
+  try {
+    // BEH-AUTH has PRD-AUTH as parent
+    const result = runCli(['graph', 'related', 'BEH-AUTH', '--direction=upstream'], cwd);
+    assert.equal(result.status, 0, result.stderr);
+    // Should show parent document PRD-AUTH
+    assert.match(result.stdout, /PRD-AUTH/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('graph related returns error for non-existent document', () => {
+  const cwd = setupProject();
+  try {
+    const result = runCli(['graph', 'related', 'NON-EXISTENT'], cwd);
+    assert.notEqual(result.status, 0, 'should fail for non-existent document');
+  } finally {
+    cleanup(cwd);
+  }
+});
