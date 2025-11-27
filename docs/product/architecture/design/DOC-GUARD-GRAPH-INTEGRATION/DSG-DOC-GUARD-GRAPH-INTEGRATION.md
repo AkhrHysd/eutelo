@@ -203,7 +203,7 @@ export type RunGuardOptions = {
 
 ### 4.3 DocumentLoader 拡張
 
-`DocumentLoader` が `RelatedDocumentResolver` を利用して関連ドキュメントを自動収集。
+`DocumentLoader` が `RelatedDocumentResolver` を利用して関連ドキュメントを自動収集しない。
 
 ```typescript
 // packages/core/src/guard/DocumentLoader.ts
