@@ -1,12 +1,18 @@
-import type { GraphAdjacency, ImpactFinding, ImpactPriority } from './types.js';
+import type { GraphAdjacency, GraphRelationType, ImpactFinding, ImpactPriority } from './types.js';
 
 export type ImpactAnalysisOptions = {
   maxDepth?: number;
+  /** 探索方向の制限 */
+  direction?: 'upstream' | 'downstream' | 'both';
+  /** 含めるリレーション種別 */
+  includeRelations?: GraphRelationType[];
 };
 
 export class ImpactAnalyzer {
   analyze(startId: string, adjacency: GraphAdjacency, options: ImpactAnalysisOptions = {}): ImpactFinding[] {
     const maxDepth = options.maxDepth ?? 3;
+    const direction = options.direction ?? 'both';
+    const includeRelations = options.includeRelations;
     const queue: Array<{ id: string; hop: number }> = [{ id: startId, hop: 0 }];
     const visited = new Set<string>([startId]);
     const findings: ImpactFinding[] = [];
@@ -18,13 +24,31 @@ export class ImpactAnalyzer {
         continue;
       }
 
-      const neighbors = [
-        ...(adjacency.outgoing[current.id] ?? []),
-        ...(adjacency.incoming[current.id] ?? [])
-      ];
+      // Collect edges based on direction
+      const edges: Array<{ edge: typeof adjacency.incoming[string][number]; isIncoming: boolean }> = [];
 
-      for (const edge of neighbors) {
-        const nextId = edge.from === current.id ? edge.to : edge.from;
+      if (direction === 'both' || direction === 'upstream') {
+        // Incoming edges = upstream (parent direction)
+        const incoming = adjacency.incoming[current.id] ?? [];
+        for (const edge of incoming) {
+          if (!includeRelations || includeRelations.includes(edge.relation)) {
+            edges.push({ edge, isIncoming: true });
+          }
+        }
+      }
+
+      if (direction === 'both' || direction === 'downstream') {
+        // Outgoing edges = downstream (child direction)
+        const outgoing = adjacency.outgoing[current.id] ?? [];
+        for (const edge of outgoing) {
+          if (!includeRelations || includeRelations.includes(edge.relation)) {
+            edges.push({ edge, isIncoming: false });
+          }
+        }
+      }
+
+      for (const { edge, isIncoming } of edges) {
+        const nextId = isIncoming ? edge.from : edge.to;
         if (!nextId || visited.has(nextId)) {
           continue;
         }
@@ -34,7 +58,7 @@ export class ImpactAnalyzer {
           id: nextId,
           hop,
           via: edge.relation,
-          direction: edge.to === current.id ? 'upstream' : 'downstream',
+          direction: isIncoming ? 'upstream' : 'downstream',
           priority: determinePriority(hop)
         });
         queue.push({ id: nextId, hop });

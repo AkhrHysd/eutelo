@@ -46,7 +46,7 @@ export {
   GuardService,
   createGuardService
 } from './services/GuardService.js';
-export type { GuardServiceDependencies, GuardRunResult, RunGuardOptions } from './services/GuardService.js';
+export type { GuardServiceDependencies, GuardRunResult, RunGuardOptions, RelatedDocumentOptions, RelatedDocumentInfo } from './services/GuardService.js';
 export type { GuardFinding, GuardRunError, GuardRunErrorType, GuardOutputFormat } from './services/GuardService.js';
 export {
   FrontmatterParser
@@ -80,8 +80,19 @@ export type {
   GraphEdge,
   GraphNode,
   GraphRelationType,
-  ImpactFinding
+  ImpactFinding,
+  ResolveRelatedOptions,
+  ResolvedRelatedDocument,
+  ResolveRelatedResult
 } from './graph/types.js';
+export { RelatedDocumentResolver } from './graph/RelatedDocumentResolver.js';
+export type { PriorityFilterConfig, RelatedDocumentResolverOptions } from './graph/RelatedDocumentResolver.js';
+export { DocumentScanner } from './graph/DocumentScanner.js';
+export type { DocumentScannerDependencies } from './graph/DocumentScanner.js';
+export { GraphBuilder } from './graph/GraphBuilder.js';
+export type { BuildGraphOptions, GraphBuildArtifacts } from './graph/GraphBuilder.js';
+export { GraphCache } from './graph/GraphCache.js';
+export type { CachedGraphData, GraphCacheOptions } from './graph/GraphCache.js';
 export {
   loadConfig,
   defineConfig,

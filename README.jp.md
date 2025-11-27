@@ -491,6 +491,30 @@ pnpm exec eutelo guard --check <id>              # 特定のガードプロン�
 # guard プロンプトは config.guard.prompts から読み込まれるため、preset なしでは実行できません
 ```
 
+**関連ドキュメント自動収集（新機能）**
+
+`eutelo guard` 実行時、ドキュメントグラフに基づいて関連ドキュメント（親、子、関連ドキュメント）が自動的に収集されます。これにより、1つのドキュメントを指定するだけでドキュメント間の整合性チェックが可能になります。
+
+```bash
+# 関連ドキュメントを自動収集（デフォルト動作）
+pnpm exec eutelo guard docs/product/features/AUTH/PRD-AUTH.md
+
+# 関連ドキュメント収集を無効化（指定したドキュメントのみをチェック）
+pnpm exec eutelo guard --no-related docs/product/features/AUTH/PRD-AUTH.md
+
+# 探索深度を指定（デフォルト: 1）
+pnpm exec eutelo guard --depth=2 docs/product/features/AUTH/PRD-AUTH.md
+
+# 深度に関係なくすべての関連ドキュメントを収集
+pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
+```
+
+**オプション:**
+- `--with-related`: 関連ドキュメント収集を有効化（デフォルト）
+- `--no-related`: 関連ドキュメント収集を無効化
+- `--depth <n>`: 関連ドキュメント収集の探索深度を設定（デフォルト: 1）
+- `--all`: 深度に関係なくすべての関連ドキュメントを収集（最大: 100ドキュメント）
+
 ### `eutelo graph`
 
 ドキュメント間の依存関係グラフを操作・分析します。
@@ -521,6 +545,35 @@ pnpm exec eutelo graph show <documentId>        # ドキュメントの関係を
 pnpm exec eutelo graph impact <documentId>      # 影響範囲を分析
 pnpm exec eutelo graph impact <documentId> --depth 5  # 検索深度を指定（デフォルト: 3）
 ```
+
+#### `eutelo graph related <documentId>`
+
+指定したドキュメントの関連ドキュメント（親、子、関連ドキュメント）を一覧表示します。ドキュメント間の関係を理解したり、ガードチェックのデバッグに便利です。
+
+```bash
+# ドキュメントの関連ドキュメントを表示
+pnpm exec eutelo graph related PRD-AUTH
+
+# JSON形式で出力
+pnpm exec eutelo graph related PRD-AUTH --format=json
+
+# 探索深度を指定（デフォルト: 1）
+pnpm exec eutelo graph related PRD-AUTH --depth=2
+
+# 深度に関係なくすべての関連ドキュメントを収集
+pnpm exec eutelo graph related PRD-AUTH --all
+
+# 探索方向を指定
+pnpm exec eutelo graph related BEH-AUTH --direction=upstream   # 親方向のみ
+pnpm exec eutelo graph related PRD-AUTH --direction=downstream # 子方向のみ
+pnpm exec eutelo graph related PRD-AUTH --direction=both       # 両方向（デフォルト）
+```
+
+**オプション:**
+- `--format <format>`: 出力形式（`text` または `json`）
+- `--depth <n>`: 探索深度を設定（デフォルト: 1）
+- `--all`: 深度に関係なくすべての関連ドキュメントを収集
+- `--direction <dir>`: 探索方向（`upstream`、`downstream`、または `both`）
 
 #### `eutelo graph summary`
 

@@ -43,11 +43,25 @@
 
 ## [Unreleased]
 ### Added
+- **Guard × Graph 連携 - 関連ドキュメント自動収集**: `eutelo guard` コマンドで関連ドキュメント（親、子、関連ドキュメント）を自動収集する機能を追加
+  - `--with-related` / `--no-related`: 関連ドキュメント収集の有効/無効切り替え
+  - `--depth <n>`: 探索深度の指定（デフォルト: 1）
+  - `--all`: 深度に関係なくすべての関連ドキュメントを収集
+- **`eutelo graph related <documentId>` コマンド**: 指定したドキュメントの関連ドキュメント一覧を表示する新しいサブコマンドを追加
+  - `--format <format>`: 出力形式（text または json）
+  - `--direction <dir>`: 探索方向（upstream、downstream、both）
+- **RelatedDocumentResolver クラス**: ドキュメントグラフを探索して関連ドキュメントを解決するコンポーネントを追加
+- **GraphCache スケルトン**: 将来の CI 間キャッシュ共有のためのプレースホルダを追加
+- **PriorityFilterConfig**: 将来の LLM 入力最適化のためのプレースホルダを追加
 - DocumentType拡張機能: Configで定義されたカスタムDocumentTypeが自動的にCLIコマンドとして利用可能になる機能を追加
 - DocumentTypeRegistry: Configから解決されたDocumentTypeの一覧とメタデータを管理するレジストリを追加
 - カスタムDocumentTypeのサポート: `eutelo.config.*`でscaffoldエントリを定義すると、自動的に`eutelo add <custom-type>`コマンドが生成される
 - 未登録DocumentTypeの警告機能: ValidationServiceとGraphServiceで未登録のDocumentTypeに対して警告を出力する機能を追加
 - Frontmatter固定値自動注入機能: scaffold設定の`frontmatterDefaults`で`type`と`parent`を自動注入する機能を追加
+
+### Changed
+- **ImpactAnalyzer**: `direction` オプションを追加し、探索方向（upstream/downstream/both）を指定可能に
+- **GuardService**: `RelatedDocumentResolver` との統合により、関連ドキュメント自動収集をサポート
 - `frontmatterDefaults`設定: scaffoldエントリに`frontmatterDefaults.type`と`frontmatterDefaults.parent`を設定可能に
 - ルートドキュメントのサポート: `parent: /`を設定することでルートドキュメントとして扱う機能を追加
 - TemplateServiceのfrontmatter上書き機能: テンプレートレンダリング時に`frontmatterDefaults`の値でfrontmatterを自動上書きする機能を追加

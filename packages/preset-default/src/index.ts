@@ -150,7 +150,7 @@ export default defineConfig({
       'guard.default': {
         id: 'guard.default',
         templatePath: promptPath('guard-system.md'),
-        model: process.env.EUTELO_GUARD_DEFAULT_MODEL ?? 'gpt-4o-mini',
+        model: process.env.EUTELO_GUARD_MODEL ?? 'gpt-4o-mini',
         temperature: 0.2
       }
     }

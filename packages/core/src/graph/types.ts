@@ -79,3 +79,43 @@ export type ImpactFinding = {
   direction: 'upstream' | 'downstream';
   priority: ImpactPriority;
 };
+
+// RelatedDocumentResolver types
+export type ResolveRelatedOptions = {
+  /** 探索深さ（デフォルト: 1） */
+  depth?: number;
+  /** 深さ無制限で全関連を取得 */
+  all?: boolean;
+  /** 探索方向 */
+  direction?: 'upstream' | 'downstream' | 'both';
+  /** 含めるリレーション種別 */
+  relations?: GraphRelationType[];
+};
+
+export type ResolvedRelatedDocument = {
+  /** ドキュメント ID */
+  id: string;
+  /** ファイルパス */
+  path: string;
+  /** 探索元からの距離（hop 数） */
+  hop: number;
+  /** このドキュメントに到達したリレーション種別 */
+  via: GraphRelationType;
+  /** 探索方向（上位/下位） */
+  direction: 'upstream' | 'downstream';
+};
+
+export type ResolveRelatedResult = {
+  /** 起点ドキュメント */
+  origin: { id: string; path: string };
+  /** 収集された関連ドキュメント */
+  related: ResolvedRelatedDocument[];
+  /** 探索統計 */
+  stats: {
+    totalFound: number;
+    maxHop: number;
+    byRelation: Record<string, number>;
+  };
+  /** 探索中の警告 */
+  warnings: string[];
+};
