@@ -32,6 +32,19 @@ jobs:
           files: |
             docs/**/*.md
 
+      - name: Validate environment variables
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          if [ -z "${{ secrets.EUTELO_GUARD_API_ENDPOINT }}" ]; then
+            echo "Error: EUTELO_GUARD_API_ENDPOINT secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.EUTELO_GUARD_API_KEY }}" ]; then
+            echo "Error: EUTELO_GUARD_API_KEY secret is not set"
+            exit 1
+          fi
+          echo "Environment variables validated"
+
       - name: Run guard check for each changed file
         id: guard-check
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -59,25 +72,114 @@ jobs:
             
             # Run guard for this file (guard will automatically collect related documents)
             # Use --depth=1 to limit traversal depth for CI performance
-            npx eutelo guard --format json --depth=1 "$file" > "guard-result-$(basename "$file").json" 2>&1 || GUARD_EXIT=$?
-            
-            # Read result
+            # Separate stdout (JSON) and stderr (errors/logs)
             RESULT_FILE="guard-result-$(basename "$file").json"
-            if [ -f "$RESULT_FILE" ]; then
-              RESULT=$(cat "$RESULT_FILE")
-              
-              # Parse JSON and merge results
-              ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]')
-              
-              # Count issues and warnings
-              ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0')
-              WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0')
-              TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
-              TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
-              
-              if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+            ERROR_FILE="guard-error-$(basename "$file").txt"
+            
+            # Run guard and capture stdout (JSON) and stderr (errors) separately
+            npx eutelo guard --format json --depth=1 "$file" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
+            
+            # Check if result file exists and contains valid JSON
+            if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then
+              # Validate JSON before parsing
+              if jq empty "$RESULT_FILE" 2>/dev/null; then
+                RESULT=$(cat "$RESULT_FILE")
+                
+                # Try to parse and merge results
+                MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
+                
+                if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
+                  ALL_RESULTS="$MERGED"
+                  
+                  # Count issues and warnings
+                  ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
+                  WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
+                  TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
+                  TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
+                  
+                  if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+                    HAS_ISSUES=true
+                  fi
+                else
+                  echo "Warning: Failed to merge result for $file"
+                  # Read error file if it exists for better error message
+                  ERROR_MSG="Failed to parse result"
+                  if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+                    ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
+                  fi
+                  # Create error result entry using a safer method
+                  ERROR_RESULT=$(jq -n \
+                    --arg file "$file" \
+                    --arg error "$ERROR_MSG" \
+                    '{origin: {path: $file}, error: {type: "parse", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
+                  ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
+                  HAS_ISSUES=true
+                fi
+              else
+                echo "Warning: Result file for $file is not valid JSON"
+                # Read error file if it exists
+                ERROR_MSG="Invalid JSON output"
+                if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+                  # Try to extract JSON from error file (in case error was written to stderr but is valid JSON)
+                  ERROR_CONTENT=$(cat "$ERROR_FILE")
+                  if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
+                    # Error file contains valid JSON, use it as result
+                    RESULT="$ERROR_CONTENT"
+                    MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
+                    if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
+                      ALL_RESULTS="$MERGED"
+                      ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
+                      WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
+                      TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
+                      TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
+                      if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+                        HAS_ISSUES=true
+                      fi
+                      continue
+                    fi
+                  fi
+                  ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
+                fi
+                # Create error result entry
+                ERROR_RESULT=$(jq -n \
+                  --arg file "$file" \
+                  --arg error "$ERROR_MSG" \
+                  '{origin: {path: $file}, error: {type: "execution", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
+                ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
                 HAS_ISSUES=true
               fi
+            else
+              echo "Warning: No result file generated for $file"
+              # Read error file if it exists
+              ERROR_MSG="Guard execution failed"
+              if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+                # Check if error file contains valid JSON (error might have been written to stderr)
+                ERROR_CONTENT=$(cat "$ERROR_FILE")
+                if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
+                  # Error file contains valid JSON, use it as result
+                  RESULT="$ERROR_CONTENT"
+                  MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
+                  if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
+                    ALL_RESULTS="$MERGED"
+                    ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
+                    WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
+                    TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
+                    TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
+                    if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+                      HAS_ISSUES=true
+                    fi
+                    continue
+                  fi
+                fi
+                ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
+              fi
+              # Create error result entry
+              ERROR_RESULT=$(jq -n \
+                --arg file "$file" \
+                --arg error "$ERROR_MSG" \
+                '{origin: {path: $file}, error: {type: "execution", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
+              ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
+              HAS_ISSUES=true
             fi
           done
           
