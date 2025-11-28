@@ -26,8 +26,7 @@ Document Lint & Static Analysis 設計ガイド（ESLint / Biome プラグイン
 **静的解析ロジックを Core に一本化し、ESLint / Biome / CLI から利用可能にする設計** を定義する。
 
 doc-lint は以下の責務を持つ：
-
-- frontmatter の静的解析  
+ 
 - ディレクトリ構造（product/features/... など）の検証  
 - ファイル命名規則の検証  
 - Markdown の基本構造（frontmatter → 本文、H1 の有無）の検証  
