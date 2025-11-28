@@ -252,7 +252,9 @@ jobs:
           fi
 
       - name: Post GitHub comment
-        if: steps.changed-files.outputs.any_changed == 'true' && steps.guard-check.outputs.has_issues == 'true'
+        # Post comment if there are issues, warnings, or errors
+        # This ensures users can always see the guard check results in PR comments
+        if: steps.changed-files.outputs.any_changed == 'true' && (steps.guard-check.outputs.has_issues == 'true' || steps.guard-check.outputs.has_errors == 'true')
         uses: actions/github-script@v7
         with:
           script: |
@@ -314,7 +316,12 @@ jobs:
             
             if (allIssues.length > 0) {
               comment += `### 🔴 Issues (${allIssues.length})\n\n`;
-              allIssues.forEach((issue, index) => {
+              
+              // Limit display to first 20 issues to avoid comment being too long
+              const displayIssues = allIssues.slice(0, 20);
+              const remainingIssues = allIssues.length - 20;
+              
+              displayIssues.forEach((issue, index) => {
                 const docName = issue.document || issue.origin || 'Unknown';
                 const issueId = issue.id || `ISSUE-${index + 1}`;
                 comment += `#### ${issueId}\n\n`;
@@ -325,11 +332,32 @@ jobs:
                 }
                 comment += '---\n\n';
               });
+              
+              if (remainingIssues > 0) {
+                comment += `\n<details>\n<summary>${remainingIssues} more issue(s) (click to expand)</summary>\n\n`;
+                allIssues.slice(20).forEach((issue, index) => {
+                  const docName = issue.document || issue.origin || 'Unknown';
+                  const issueId = issue.id || `ISSUE-${21 + index}`;
+                  comment += `#### ${issueId}\n\n`;
+                  comment += `**Document**: \`${docName}\`\n\n`;
+                  comment += `**Message**: ${issue.message}\n\n`;
+                  if (issue.hint) {
+                    comment += `**Hint**: ${issue.hint}\n\n`;
+                  }
+                  comment += '---\n\n';
+                });
+                comment += '</details>\n\n';
+              }
             }
             
             if (allWarnings.length > 0) {
               comment += `### ⚠️ Warnings (${allWarnings.length})\n\n`;
-              allWarnings.forEach((warning, index) => {
+              
+              // Limit display to first 20 warnings to avoid comment being too long
+              const displayWarnings = allWarnings.slice(0, 20);
+              const remainingWarnings = allWarnings.length - 20;
+              
+              displayWarnings.forEach((warning, index) => {
                 const docName = warning.document || warning.origin || 'Unknown';
                 const warningId = warning.id || `WARNING-${index + 1}`;
                 comment += `#### ${warningId}\n\n`;
@@ -340,6 +368,22 @@ jobs:
                 }
                 comment += '---\n\n';
               });
+              
+              if (remainingWarnings > 0) {
+                comment += `\n<details>\n<summary>${remainingWarnings} more warning(s) (click to expand)</summary>\n\n`;
+                allWarnings.slice(20).forEach((warning, index) => {
+                  const docName = warning.document || warning.origin || 'Unknown';
+                  const warningId = warning.id || `WARNING-${21 + index}`;
+                  comment += `#### ${warningId}\n\n`;
+                  comment += `**Document**: \`${docName}\`\n\n`;
+                  comment += `**Message**: ${warning.message}\n\n`;
+                  if (warning.hint) {
+                    comment += `**Hint**: ${warning.hint}\n\n`;
+                  }
+                  comment += '---\n\n';
+                });
+                comment += '</details>\n\n';
+              }
             }
             
             if (allSuggestions.length > 0) {
