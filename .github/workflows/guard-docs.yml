@@ -3,7 +3,7 @@ name: Guard Docs on Pull Request
 on:
   pull_request:
     paths:
-      - 'docs/**'
+      - 'test-docs/**'
 
 jobs:
   guard:
