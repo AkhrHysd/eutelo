@@ -33,7 +33,7 @@ jobs:
         uses: tj-actions/changed-files@v44
         with:
           files: |
-            docs/**/*.md
+            test-docs/**/*.md
 
       - name: Validate environment variables
         if: steps.changed-files.outputs.any_changed == 'true'
