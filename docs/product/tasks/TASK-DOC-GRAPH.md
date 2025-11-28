@@ -4,7 +4,7 @@ type: task
 feature: doc-graph
 title: Document Graph Dependency Visibility タスク計画
 purpose: >
-  PRD/BEH/DSG-DOC-GRAPH で定義したグラフ生成・探索・波及分析機能を
+  PRD/BEH/DSG-DOC-GRAPH で定義した探索・波及分析機能を
   TDD（Red→Green→Refactor）で実装する。
 status: todo
 version: 0.1.0
@@ -45,12 +45,7 @@ last_updated: "2025-11-16"
 - [ ] Commander 層の出力フォーマットを presenter 経由に整理
 - [ ] Graph schema と integrity レポートを `types/` に移し使い回す
 
-## Acceptance Criteria
-- [ ] `eutelo graph build --format=json` が nodes/edges/integrity を含む JSON を出力し exit 0
-- [ ] `graph show` が upstream/downstream を表形式/JSON で表示し親子関係を正しく列挙
-- [ ] `graph impact` が hop 別優先度で BEH/DSG/ADR/TASK を提示
-- [ ] `graph summary` が feature 別統計・孤立ノード警告を返す
-- [ ] CI で生成した graph.json を後続ジョブが参照でき、壊れていれば exit 2
+
 
 ## Definition of Done (DoD)
 - テスト：
