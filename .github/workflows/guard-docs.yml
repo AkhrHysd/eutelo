@@ -65,61 +65,77 @@ jobs:
           HAS_ISSUES=false
           HAS_ERRORS=false
           
-          # Process each changed file
+          # Collect all valid changed files
+          VALID_FILES=()
           for file in $CHANGED_FILES; do
-            if [ ! -f "$file" ]; then
+            if [ -f "$file" ]; then
+              VALID_FILES+=("$file")
+              echo "Found changed file: $file"
+            else
               echo "Skipping deleted file: $file"
-              continue
             fi
-            
-            echo "Checking: $file"
-            
-            # Run guard for this file (guard will automatically collect related documents)
-            # Use --depth=1 to limit traversal depth for CI performance
-            # Separate stdout (JSON) and stderr (errors/logs)
-            RESULT_FILE="guard-result-$(basename "$file").json"
-            ERROR_FILE="guard-error-$(basename "$file").txt"
-            
-            # Run guard and capture stdout (JSON) and stderr (errors) separately
-            npx eutelo guard --format json --depth=1 "$file" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
-            
-            # Debug: Show what was captured
-            echo "Guard exit code: ${GUARD_EXIT:-0}"
-            if [ -f "$RESULT_FILE" ]; then
-              echo "Result file size: $(wc -c < "$RESULT_FILE") bytes"
-              if [ -s "$RESULT_FILE" ]; then
-                echo "Result file preview (first 200 chars):"
-                head -c 200 "$RESULT_FILE" || true
-                echo ""
+          done
+          
+          if [ ${#VALID_FILES[@]} -eq 0 ]; then
+            echo "No valid files to check"
+            echo "guard_result=[]" >> $GITHUB_OUTPUT
+            echo "issues_count=0" >> $GITHUB_OUTPUT
+            echo "warnings_count=0" >> $GITHUB_OUTPUT
+            echo "has_issues=false" >> $GITHUB_OUTPUT
+            echo "has_errors=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Checking ${#VALID_FILES[@]} file(s) together to preserve parent-child relationships"
+          
+          # Run guard for all changed files together
+          # This ensures parent-child relationships are properly recognized
+          # Use --depth=1 to limit traversal depth for CI performance
+          # Separate stdout (JSON) and stderr (errors/logs)
+          RESULT_FILE="guard-result.json"
+          ERROR_FILE="guard-error.txt"
+          
+          # Run guard with all files at once
+          npx eutelo guard --format json --depth=1 "${VALID_FILES[@]}" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
+          
+          # Process the single result
+          if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then
+            # Validate JSON before parsing
+            if jq empty "$RESULT_FILE" 2>/dev/null; then
+              RESULT=$(cat "$RESULT_FILE")
+              
+              # Wrap result in array format for consistency with previous multi-file approach
+              ALL_RESULTS=$(echo "$RESULT" | jq '[.]' 2>/dev/null || echo "[$RESULT]")
+              
+              # Count issues and warnings
+              ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
+              WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
+              TOTAL_ISSUES=$ISSUES
+              TOTAL_WARNINGS=$WARNINGS
+              
+              # HAS_ISSUES: true if there are any issues or warnings (for PR comment)
+              # HAS_ERRORS: true only if there are issues (for CI failure)
+              if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+                HAS_ISSUES=true
+              fi
+              if [ "$ISSUES" -gt 0 ]; then
+                HAS_ERRORS=true
               fi
             else
-              echo "Result file does not exist"
-            fi
-            if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
-              echo "Error file content:"
-              cat "$ERROR_FILE"
-            fi
-            
-            # Check if result file exists and contains valid JSON
-            if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then
-              # Validate JSON before parsing
-              if jq empty "$RESULT_FILE" 2>/dev/null; then
-                RESULT=$(cat "$RESULT_FILE")
-                
-                # Try to parse and merge results
-                MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
-                
-                if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
-                  ALL_RESULTS="$MERGED"
-                  
-                  # Count issues and warnings
+              echo "Warning: Result file is not valid JSON"
+              # Read error file if it exists
+              ERROR_MSG="Invalid JSON output"
+              if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+                # Try to extract JSON from error file (in case error was written to stderr but is valid JSON)
+                ERROR_CONTENT=$(cat "$ERROR_FILE")
+                if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
+                  # Error file contains valid JSON, use it as result
+                  RESULT="$ERROR_CONTENT"
+                  ALL_RESULTS=$(echo "$RESULT" | jq '[.]' 2>/dev/null || echo "[$RESULT]")
                   ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
                   WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
-                  TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
-                  TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
-                  
-                  # HAS_ISSUES: true if there are any issues or warnings (for PR comment)
-                  # HAS_ERRORS: true only if there are issues (for CI failure)
+                  TOTAL_ISSUES=$ISSUES
+                  TOTAL_WARNINGS=$WARNINGS
                   if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
                     HAS_ISSUES=true
                   fi
@@ -127,108 +143,94 @@ jobs:
                     HAS_ERRORS=true
                   fi
                 else
-                  echo "Warning: Failed to merge result for $file"
-                  # Read error file if it exists for better error message
-                  ERROR_MSG="Failed to parse result"
-                  if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
-                    ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
-                  fi
-                  # Create error result entry using a safer method
-                  ERROR_RESULT=$(jq -n \
-                    --arg file "$file" \
-                    --arg error "$ERROR_MSG" \
-                    '{origin: {path: $file}, error: {type: "parse", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
-                  ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
-                  HAS_ISSUES=true
-                  HAS_ERRORS=true
-                fi
-              else
-                echo "Warning: Result file for $file is not valid JSON"
-                # Read error file if it exists
-                ERROR_MSG="Invalid JSON output"
-                if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
-                  # Try to extract JSON from error file (in case error was written to stderr but is valid JSON)
-                  ERROR_CONTENT=$(cat "$ERROR_FILE")
-                  if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
-                    # Error file contains valid JSON, use it as result
-                    RESULT="$ERROR_CONTENT"
-                    MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
-                    if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
-                      ALL_RESULTS="$MERGED"
-                      ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
-                      WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
-                      TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
-                      TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
-                      if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
-                        HAS_ISSUES=true
-                      fi
-                      if [ "$ISSUES" -gt 0 ]; then
-                        HAS_ERRORS=true
-                      fi
-                      continue
-                    fi
-                  fi
                   ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
                 fi
-                # Create error result entry
+              fi
+              
+              # Create error result entry for each file
+              ALL_RESULTS="["
+              for file in "${VALID_FILES[@]}"; do
                 ERROR_RESULT=$(jq -n \
                   --arg file "$file" \
                   --arg error "$ERROR_MSG" \
                   '{origin: {path: $file}, error: {type: "execution", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
-                ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
-                HAS_ISSUES=true
-              fi
-            else
-              echo "Warning: No result file generated for $file"
-              # Read error file if it exists
-              ERROR_MSG="Guard execution failed"
-              if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
-                # Check if error file contains valid JSON (error might have been written to stderr)
-                ERROR_CONTENT=$(cat "$ERROR_FILE")
-                echo "Checking if error file contains JSON..."
-                if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
-                  echo "Error file contains valid JSON, using it as result"
-                  # Error file contains valid JSON, use it as result
-                  RESULT="$ERROR_CONTENT"
-                  MERGED=$(echo "$ALL_RESULTS" | jq --argjson result "$RESULT" '. += [$result]' 2>/dev/null)
-                  if [ $? -eq 0 ] && [ -n "$MERGED" ]; then
-                    ALL_RESULTS="$MERGED"
-                    ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
-                    WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
-                    TOTAL_ISSUES=$((TOTAL_ISSUES + ISSUES))
-                    TOTAL_WARNINGS=$((TOTAL_WARNINGS + WARNINGS))
-                    if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
-                      HAS_ISSUES=true
-                    fi
-                    continue
-                  fi
-                else
-                  echo "Error file does not contain valid JSON"
-                  # Try to extract error message from first line
-                  ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
-                  if [ -z "$ERROR_MSG" ]; then
-                    ERROR_MSG="Guard execution failed (no error details available)"
-                  fi
+                if [ "$ALL_RESULTS" != "[" ]; then
+                  ALL_RESULTS="$ALL_RESULTS,"
+                fi
+                ALL_RESULTS="$ALL_RESULTS$ERROR_RESULT"
+              done
+              ALL_RESULTS="$ALL_RESULTS]"
+              HAS_ISSUES=true
+              HAS_ERRORS=true
+            fi
+          else
+            echo "Warning: No result file generated"
+            # Read error file if it exists
+            ERROR_MSG="Guard execution failed"
+            if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+              # Check if error file contains valid JSON (error might have been written to stderr)
+              ERROR_CONTENT=$(cat "$ERROR_FILE")
+              if echo "$ERROR_CONTENT" | jq empty 2>/dev/null; then
+                echo "Error file contains valid JSON, using it as result"
+                RESULT="$ERROR_CONTENT"
+                ALL_RESULTS=$(echo "$RESULT" | jq '[.]' 2>/dev/null || echo "[$RESULT]")
+                ISSUES=$(echo "$RESULT" | jq -r '.stats.issues // 0' 2>/dev/null || echo "0")
+                WARNINGS=$(echo "$RESULT" | jq -r '.stats.warnings // 0' 2>/dev/null || echo "0")
+                TOTAL_ISSUES=$ISSUES
+                TOTAL_WARNINGS=$WARNINGS
+                if [ "$ISSUES" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+                  HAS_ISSUES=true
+                fi
+                if [ "$ISSUES" -gt 0 ]; then
+                  HAS_ERRORS=true
                 fi
               else
-                echo "No error file found or error file is empty"
-                # Check if guard command failed
-                if [ "${GUARD_EXIT:-0}" -ne 0 ]; then
-                  ERROR_MSG="Guard command exited with code ${GUARD_EXIT}"
-                else
-                  ERROR_MSG="Guard execution failed (no output generated)"
+                ERROR_MSG=$(head -1 "$ERROR_FILE" | tr -d '\n' | head -c 200 | sed 's/"/\\"/g')
+                if [ -z "$ERROR_MSG" ]; then
+                  ERROR_MSG="Guard execution failed (no error details available)"
                 fi
               fi
-              echo "Creating error result with message: $ERROR_MSG"
-              # Create error result entry
+            else
+              if [ "${GUARD_EXIT:-0}" -ne 0 ]; then
+                ERROR_MSG="Guard command exited with code ${GUARD_EXIT}"
+              else
+                ERROR_MSG="Guard execution failed (no output generated)"
+              fi
+            fi
+            
+            # Create error result entry for each file
+            ALL_RESULTS="["
+            for file in "${VALID_FILES[@]}"; do
               ERROR_RESULT=$(jq -n \
                 --arg file "$file" \
                 --arg error "$ERROR_MSG" \
                 '{origin: {path: $file}, error: {type: "execution", message: $error}, stats: {issues: 0, warnings: 0, suggestions: 0}}')
-              ALL_RESULTS=$(echo "$ALL_RESULTS" | jq --argjson result "$ERROR_RESULT" '. += [$result]' 2>/dev/null || echo "$ALL_RESULTS")
-              HAS_ISSUES=true
+              if [ "$ALL_RESULTS" != "[" ]; then
+                ALL_RESULTS="$ALL_RESULTS,"
+              fi
+              ALL_RESULTS="$ALL_RESULTS$ERROR_RESULT"
+            done
+            ALL_RESULTS="$ALL_RESULTS]"
+            HAS_ISSUES=true
+            HAS_ERRORS=true
+          fi
+          
+          # Debug: Show what was captured
+          echo "Guard exit code: ${GUARD_EXIT:-0}"
+          if [ -f "$RESULT_FILE" ]; then
+            echo "Result file size: $(wc -c < "$RESULT_FILE") bytes"
+            if [ -s "$RESULT_FILE" ]; then
+              echo "Result file preview (first 200 chars):"
+              head -c 200 "$RESULT_FILE" || true
+              echo ""
             fi
-          done
+          else
+            echo "Result file does not exist"
+          fi
+          if [ -f "$ERROR_FILE" ] && [ -s "$ERROR_FILE" ]; then
+            echo "Error file content:"
+            cat "$ERROR_FILE"
+          fi
           
           # Output combined results
           echo "guard_result<<EOF" >> $GITHUB_OUTPUT

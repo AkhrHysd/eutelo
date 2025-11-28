@@ -53,30 +53,44 @@ export class PromptBuilder {
     const processedDocIds = new Set<string>();
 
     // First pass: categorize documents
+    // Note: A document is considered a root if:
+    // 1. It has no parent field
+    // 2. Its parent is '/' (root indicator)
+    // 3. Its parent ID is not in the provided documents set
+    // Otherwise, it's a child document
     for (const doc of documents) {
-      if (!doc.parent || doc.parent === '/' || !documentsById.has(doc.parent)) {
+      if (!doc.parent || doc.parent === '/') {
         rootDocuments.push(doc);
-      } else {
+      } else if (documentsById.has(doc.parent)) {
+        // Parent is in the set, so this is a child
         const parentId = doc.parent;
         if (!childDocumentsByParent.has(parentId)) {
           childDocumentsByParent.set(parentId, []);
         }
         childDocumentsByParent.get(parentId)!.push(doc);
+      } else {
+        // Parent is not in the set, treat as root for now
+        rootDocuments.push(doc);
       }
     }
 
     // Build document sections with explicit parent-child relationships
     const documentSections: string[] = [];
+    const parentChildPairs: Array<{ parent: Document; children: Document[] }> = [];
 
     // Add root documents and their children
     for (const rootDoc of rootDocuments) {
       if (processedDocIds.has(rootDoc.id)) continue;
       
+      const children = childDocumentsByParent.get(rootDoc.id) || [];
+      if (children.length > 0) {
+        parentChildPairs.push({ parent: rootDoc, children });
+      }
+      
       const section = this.formatDocumentSection(rootDoc, 'ROOT');
       documentSections.push(section);
       processedDocIds.add(rootDoc.id);
 
-      const children = childDocumentsByParent.get(rootDoc.id) || [];
       for (const child of children) {
         if (processedDocIds.has(child.id)) continue;
         
@@ -93,6 +107,9 @@ export class PromptBuilder {
       
       if (doc.parent && doc.parent !== '/' && documentsById.has(doc.parent)) {
         const parentDoc = documentsById.get(doc.parent)!;
+        if (!parentChildPairs.some(pair => pair.parent.id === parentDoc.id)) {
+          parentChildPairs.push({ parent: parentDoc, children: [doc] });
+        }
         const section = this.formatDocumentSection(doc, `CHILD of ${doc.parent} (${parentDoc.path})`);
         documentSections.push(section);
         processedDocIds.add(doc.id);
@@ -109,11 +126,24 @@ export class PromptBuilder {
       processedDocIds.add(doc.id);
     }
 
+    // Build relationship summary
+    let relationshipSummary = '';
+    if (parentChildPairs.length > 0) {
+      const pairs = parentChildPairs.map(pair => {
+        const childrenIds = pair.children.map(c => c.id).join(', ');
+        return `- ${pair.parent.id} (${pair.parent.path}) → [${childrenIds}]`;
+      }).join('\n');
+      
+      relationshipSummary = japanese
+        ? `\n\n**親子関係の要約:**\n以下の親子関係が検出されました。親ドキュメントと子ドキュメントの内容を比較して整合性を確認してください。\n${pairs}\n`
+        : `\n\n**Parent-Child Relationship Summary:**\nThe following parent-child relationships were detected. Please compare the content of parent and child documents to verify consistency.\n${pairs}\n`;
+    }
+
     const instruction = japanese
       ? '以下のドキュメントの整合性を分析してください。親子関係に特に注意し、子ドキュメントの内容が親ドキュメントの目的、スコープ、要件と一致していることを確認してください。'
       : 'Please analyze the following documents for consistency issues. Pay special attention to parent-child relationships and verify that child document content aligns with their parent documents\' purpose, scope, and requirements.';
     
-    return `${instruction}\n\n${documentSections.join('\n\n---\n\n')}`;
+    return `${instruction}${relationshipSummary}\n${documentSections.join('\n\n---\n\n')}`;
   }
 
   private formatDocumentSection(doc: Document, relationship: string): string {
