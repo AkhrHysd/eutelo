@@ -47,7 +47,7 @@ Respond in JSON format with the following structure:
       "id": "ISSUE-001",
       "document": "path/to/document.md",
       "message": "Description of the issue",
-      "type": "purpose-conflict" | "scope-gap" | "adr-conflict" | "parent-inconsistency" | "role-violation"
+      "type": "content-conflict" | "purpose-conflict" | "scope-gap" | "adr-conflict" | "parent-inconsistency" | "role-violation"
     }
   ],
   "warnings": [
