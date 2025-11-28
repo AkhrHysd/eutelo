@@ -69,6 +69,7 @@ type GuardCliOptions = {
   related?: boolean;
   depth?: string;
   all?: boolean;
+  japanese?: boolean;
 };
 
 type GraphBuildCliOptions = {
@@ -330,13 +331,16 @@ async function runGuardCommand(
     process.stderr.write(`Resolving related documents (depth: ${depthInfo})...\n`);
   }
   
+  const japanese = options.japanese || argv.includes('--japanese') || argv.includes('--ja');
+  
   const result = await guardService.run({
     documents: normalizedDocuments,
     checkId: typeof checkOverride === 'string' ? checkOverride : undefined,
     format,
     warnOnly,
     failOnError,
-    relatedOptions
+    relatedOptions,
+    japanese
   });
 
   // Log collected related documents if any
@@ -1141,6 +1145,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--no-related', 'Disable automatic related document collection')
     .option('--depth <number>', 'Depth for related document traversal (default: 1)')
     .option('--all', 'Collect all related documents regardless of depth')
+    .option('--japanese, --ja', 'Output results in Japanese')
     .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
       const configPath = resolveOptionValue(argv, '--config');
       try {

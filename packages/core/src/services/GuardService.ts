@@ -66,6 +66,10 @@ export type RunGuardOptions = {
    * Options for automatically collecting related documents
    */
   relatedOptions?: RelatedDocumentOptions;
+  /**
+   * Whether to output results in Japanese
+   */
+  japanese?: boolean;
 };
 
 export type GuardFinding = {
@@ -377,7 +381,8 @@ export class GuardService {
 
       const { systemPrompt, userPrompt } = await this.promptBuilder.buildPrompt({
         documents: loadResult.documents,
-        promptConfig
+        promptConfig,
+        japanese: options.japanese
       });
 
       const llmResponse = await this.llmClient.generate({

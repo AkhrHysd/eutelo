@@ -5,24 +5,32 @@ import type { Document } from './DocumentLoader.js';
 export type PromptOptions = {
   documents: Document[];
   promptConfig?: GuardPromptConfig;
+  japanese?: boolean;
 };
 
 export class PromptBuilder {
   async buildPrompt(options: PromptOptions): Promise<{ systemPrompt: string; userPrompt: string }> {
-    const { documents, promptConfig } = options;
+    const { documents, promptConfig, japanese } = options;
 
-    const systemPrompt = await this.buildSystemPrompt(promptConfig?.templatePath);
-    const userPrompt = this.buildUserPrompt(documents);
+    const systemPrompt = await this.buildSystemPrompt(promptConfig?.templatePath, japanese);
+    const userPrompt = this.buildUserPrompt(documents, japanese);
 
     return { systemPrompt, userPrompt };
   }
 
-  private async buildSystemPrompt(templatePath?: string): Promise<string> {
+  private async buildSystemPrompt(templatePath?: string, japanese?: boolean): Promise<string> {
     if (!templatePath) {
       throw new Error('Guard prompt templatePath is required');
     }
     try {
-      return await fs.readFile(templatePath, 'utf8');
+      let systemPrompt = await fs.readFile(templatePath, 'utf8');
+      
+      // Add Japanese output instruction if requested
+      if (japanese) {
+        systemPrompt += '\n\n**IMPORTANT: Output Language**\nYou MUST respond in Japanese. All issue messages, warnings, and suggestions must be written in Japanese.';
+      }
+      
+      return systemPrompt;
     } catch (error) {
       const err = error as { code?: string };
       if (err?.code === 'ENOENT') {
@@ -32,22 +40,95 @@ export class PromptBuilder {
     }
   }
 
-  private buildUserPrompt(documents: Document[]): string {
-    const documentSections = documents.map((doc) => {
-      const metadata = [
-        `Path: ${doc.path}`,
-        `Type: ${doc.type}`,
-        `ID: ${doc.id}`,
-        doc.parent ? `Parent: ${doc.parent}` : null,
-        doc.feature ? `Feature: ${doc.feature}` : null,
-        doc.purpose ? `Purpose: ${doc.purpose}` : null
-      ]
-        .filter((line) => line !== null)
-        .join('\n');
+  private buildUserPrompt(documents: Document[], japanese?: boolean): string {
+    // Build a map of documents by ID for quick lookup
+    const documentsById = new Map<string, Document>();
+    for (const doc of documents) {
+      documentsById.set(doc.id, doc);
+    }
 
-      return `---\n${metadata}\n---\n\n${doc.content}`;
-    });
+    // Group documents by parent-child relationships
+    const rootDocuments: Document[] = [];
+    const childDocumentsByParent = new Map<string, Document[]>();
+    const processedDocIds = new Set<string>();
 
-    return `Please analyze the following documents for consistency issues:\n\n${documentSections.join('\n\n---\n\n')}`;
+    // First pass: categorize documents
+    for (const doc of documents) {
+      if (!doc.parent || doc.parent === '/' || !documentsById.has(doc.parent)) {
+        rootDocuments.push(doc);
+      } else {
+        const parentId = doc.parent;
+        if (!childDocumentsByParent.has(parentId)) {
+          childDocumentsByParent.set(parentId, []);
+        }
+        childDocumentsByParent.get(parentId)!.push(doc);
+      }
+    }
+
+    // Build document sections with explicit parent-child relationships
+    const documentSections: string[] = [];
+
+    // Add root documents and their children
+    for (const rootDoc of rootDocuments) {
+      if (processedDocIds.has(rootDoc.id)) continue;
+      
+      const section = this.formatDocumentSection(rootDoc, 'ROOT');
+      documentSections.push(section);
+      processedDocIds.add(rootDoc.id);
+
+      const children = childDocumentsByParent.get(rootDoc.id) || [];
+      for (const child of children) {
+        if (processedDocIds.has(child.id)) continue;
+        
+        const parentPath = rootDoc.path;
+        const childSection = this.formatDocumentSection(child, `CHILD of ${rootDoc.id} (${parentPath})`);
+        documentSections.push(childSection);
+        processedDocIds.add(child.id);
+      }
+    }
+
+    // Add any remaining documents that have parents in the set
+    for (const doc of documents) {
+      if (processedDocIds.has(doc.id)) continue;
+      
+      if (doc.parent && doc.parent !== '/' && documentsById.has(doc.parent)) {
+        const parentDoc = documentsById.get(doc.parent)!;
+        const section = this.formatDocumentSection(doc, `CHILD of ${doc.parent} (${parentDoc.path})`);
+        documentSections.push(section);
+        processedDocIds.add(doc.id);
+      }
+    }
+
+    // Add any remaining standalone documents
+    for (const doc of documents) {
+      if (processedDocIds.has(doc.id)) continue;
+      
+      const relationship = doc.parent ? `CHILD of ${doc.parent} (parent not in set)` : 'STANDALONE';
+      const section = this.formatDocumentSection(doc, relationship);
+      documentSections.push(section);
+      processedDocIds.add(doc.id);
+    }
+
+    const instruction = japanese
+      ? '以下のドキュメントの整合性を分析してください。親子関係に特に注意し、子ドキュメントの内容が親ドキュメントの目的、スコープ、要件と一致していることを確認してください。'
+      : 'Please analyze the following documents for consistency issues. Pay special attention to parent-child relationships and verify that child document content aligns with their parent documents\' purpose, scope, and requirements.';
+    
+    return `${instruction}\n\n${documentSections.join('\n\n---\n\n')}`;
+  }
+
+  private formatDocumentSection(doc: Document, relationship: string): string {
+    const metadata = [
+      `Path: ${doc.path}`,
+      `Type: ${doc.type}`,
+      `ID: ${doc.id}`,
+      `Relationship: ${relationship}`,
+      doc.parent ? `Parent ID: ${doc.parent}` : null,
+      doc.feature ? `Feature: ${doc.feature}` : null,
+      doc.purpose ? `Purpose: ${doc.purpose}` : null
+    ]
+      .filter((line) => line !== null)
+      .join('\n');
+
+    return `---\n${metadata}\n---\n\n${doc.content}`;
   }
 }
