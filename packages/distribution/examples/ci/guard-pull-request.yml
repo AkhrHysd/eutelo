@@ -240,11 +240,10 @@ jobs:
           echo "has_issues=$HAS_ISSUES" >> $GITHUB_OUTPUT
           echo "has_errors=$HAS_ERRORS" >> $GITHUB_OUTPUT
           
-          # Exit with error only if issues (errors) are found
-          # Warnings alone will not cause CI failure, but will be shown in PR comment
+          # Don't exit here - we need to post comment first
+          # Exit code will be set after comment is posted
           if [ "$HAS_ERRORS" = "true" ]; then
-            echo "Errors found: CI will fail"
-            exit 1
+            echo "Errors found: CI will fail after comment is posted"
           elif [ "$HAS_ISSUES" = "true" ]; then
             echo "Warnings found (no errors): CI will pass, but PR comment will be posted"
           else
@@ -422,3 +421,11 @@ jobs:
                 body: comment
               });
             }
+
+      - name: Set exit code if errors found
+        # Set exit code after comment is posted
+        # This ensures PR comment is always posted before CI fails
+        if: steps.guard-check.outputs.has_errors == 'true'
+        run: |
+          echo "Errors were found. Exiting with code 1."
+          exit 1
