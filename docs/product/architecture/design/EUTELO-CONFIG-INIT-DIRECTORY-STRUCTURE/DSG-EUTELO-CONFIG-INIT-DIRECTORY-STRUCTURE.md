@@ -34,6 +34,7 @@ Eutelo Init ディレクトリ構造カスタマイズ機能 設計仕様書
 - 設定ファイルでディレクトリ構造を定義できるようにする
 - ディレクトリごとのファイル定義形式と配列形式の両方をサポートする
 - ディレクトリとファイルの関連性、テンプレート、ルール、変数などの情報をまとめて定義できるようにする
+- 変数を含む動的パス（`{FEATURE}` など）を適切に処理する
 - `scaffold` 設定との統合を容易にする
 - 設定ファイルの検証を適切に実施する
 - 既存機能との統合をスムーズに行う
@@ -57,9 +58,16 @@ flowchart TD
     H --> I[構造体形式に正規化]
     G --> J[設定検証]
     I --> J
-    E --> K[ScaffoldService に渡す]
+    E --> K[動的パス処理]
     J --> K
-    K --> L[ディレクトリ作成]
+    K --> L{動的パス含む?}
+    L -->|はい| M{プレースホルダー作成?}
+    L -->|いいえ| N[通常のディレクトリ作成]
+    M -->|はい| O[プレースホルダーパス作成<br/>例: __FEATURE__]
+    M -->|いいえ| P[動的パスをスキップ]
+    O --> N
+    P --> N
+    N --> Q[完了]
 ```
 
 ### 主要コンポーネント
@@ -67,7 +75,8 @@ flowchart TD
 1. **設定スキーマ定義**: `EuteloConfig` に `directoryStructure` を追加
 2. **形式判定・正規化**: 配列形式を構造体形式に正規化
 3. **設定検証**: パスの妥当性、テンプレート参照の整合性をチェック
-4. **ScaffoldService 統合**: 設定からディレクトリ構造を取得して使用
+4. **動的パス処理**: 変数を含むパス（`{FEATURE}` など）をプレースホルダーパスに変換
+5. **ScaffoldService 統合**: 設定からディレクトリ構造を取得して使用
 
 ---
 
@@ -199,8 +208,9 @@ function validateDirectoryStructure(
 
   // 3. 各ディレクトリの定義を検証
   for (const [dirPath, files] of Object.entries(structure)) {
-    // 3.1 ディレクトリパスが相対パスであることを確認
-    if (dirPath.startsWith('/') || dirPath.includes('..')) {
+    // 3.1 ディレクトリパスが相対パスであることを確認（変数は許可）
+    const pathWithoutVars = dirPath.replace(/\{[A-Z0-9_-]+\}/g, 'PLACEHOLDER');
+    if (pathWithoutVars.startsWith('/') || pathWithoutVars.includes('..')) {
       errors.push(`Directory path must be relative: ${dirPath}`);
       continue;
     }
@@ -234,10 +244,33 @@ function validateDirectoryStructure(
           errors.push(`Invalid variables in ${dirPath}/${fileDef.file}: must be an array`);
         }
       }
+
+      // 3.3.5 ディレクトリパスとファイル定義の変数の整合性をチェック
+      const dirPathVars = extractVariables(dirPath);
+      const fileVars = fileDef.variables || [];
+      const filePathVars = extractVariables(fileDef.file);
+      
+      // ディレクトリパスに含まれる変数がファイル定義の変数に含まれているか確認
+      for (const varName of dirPathVars) {
+        if (!fileVars.includes(varName) && !filePathVars.includes(varName)) {
+          warnings.push(
+            `Variable ${varName} used in directory path ${dirPath} but not declared in file definition for ${fileDef.file}`
+          );
+        }
+      }
     }
   }
 
   return { errors, warnings };
+}
+
+/**
+ * パスから変数名を抽出する
+ * 例: "docs/product/features/{FEATURE}" → ["FEATURE"]
+ */
+function extractVariables(path: string): string[] {
+  const matches = path.matchAll(/\{([A-Z0-9_-]+)\}/g);
+  return Array.from(matches, m => m[1]);
 }
 ```
 
@@ -252,6 +285,17 @@ function validateDirectoryStructure(
 ```typescript
 // packages/core/src/services/ScaffoldService.ts
 
+export interface ScaffoldServiceDependencies {
+  fileSystemAdapter: FileSystemAdapter;
+  logger?: Logger;
+  templateService?: TemplateService;
+  docsRoot?: string;
+  scaffold?: Record<string, ScaffoldTemplateConfig>;
+  directoryStructure?: DirectoryStructure;  // 追加
+  dynamicPathOptions?: DynamicPathOptions;  // 追加
+  clock?: () => Date;
+}
+
 export class ScaffoldService {
   private readonly requiredDirectories: readonly string[];
 
@@ -262,14 +306,19 @@ export class ScaffoldService {
     docsRoot = resolveDocsRoot(),
     scaffold,
     directoryStructure,  // 追加
+    dynamicPathOptions,  // 追加
     clock = () => new Date()
   }: ScaffoldServiceDependencies) {
     // ...
     
     // ディレクトリ構造の取得
     if (directoryStructure) {
-      const normalized = normalizeDirectoryStructure(directoryStructure);
-      this.requiredDirectories = buildRequiredDirectoriesFromConfig(docsRoot, normalized);
+      const normalized = normalizeDirectoryStructure(directoryStructure, docsRoot);
+      this.requiredDirectories = buildRequiredDirectoriesFromConfig(
+        docsRoot, 
+        normalized,
+        dynamicPathOptions || { createPlaceholders: true }  // デフォルトでプレースホルダーを作成
+      );
     } else {
       // デフォルト構造を使用
       this.requiredDirectories = buildRequiredDirectories(docsRoot);
@@ -278,7 +327,52 @@ export class ScaffoldService {
 }
 ```
 
-#### 3.2 ディレクトリ構造の構築
+#### 3.2 動的パスの処理
+
+変数を含むパス（`{FEATURE}` など）を処理する。
+
+```typescript
+// packages/core/src/constants/requiredDirectories.ts
+
+export interface DynamicPathOptions {
+  createPlaceholders?: boolean;  // プレースホルダーパスを作成するか（デフォルト: true）
+  placeholderPrefix?: string;    // プレースホルダーのプレフィックス（デフォルト: '__'）
+  placeholderSuffix?: string;    // プレースホルダーのサフィックス（デフォルト: '__'）
+}
+
+/**
+ * パス内の変数をプレースホルダーに変換する
+ * 例: "docs/product/features/{FEATURE}" → "docs/product/features/__FEATURE__"
+ */
+function convertDynamicPathToPlaceholder(
+  dirPath: string,
+  options: DynamicPathOptions = {}
+): string {
+  const {
+    createPlaceholders = true,
+    placeholderPrefix = '__',
+    placeholderSuffix = '__'
+  } = options;
+
+  if (!createPlaceholders) {
+    return dirPath;  // プレースホルダーを作成しない場合はそのまま返す
+  }
+
+  // {VARIABLE} を __VARIABLE__ に変換
+  return dirPath.replace(/\{([A-Z0-9_-]+)\}/g, (_, variable) => {
+    return `${placeholderPrefix}${variable}${placeholderSuffix}`;
+  });
+}
+
+/**
+ * パスに変数が含まれているかチェック
+ */
+function hasDynamicSegments(dirPath: string): boolean {
+  return /\{[A-Z0-9_-]+\}/.test(dirPath);
+}
+```
+
+#### 3.3 ディレクトリ構造の構築
 
 設定からディレクトリ構造を構築する関数。
 
@@ -287,7 +381,8 @@ export class ScaffoldService {
 
 export function buildRequiredDirectoriesFromConfig(
   docsRoot: string,
-  structure: NormalizedDirectoryStructure
+  structure: NormalizedDirectoryStructure,
+  options: DynamicPathOptions = {}
 ): readonly string[] {
   const directories = new Set<string>();
   
@@ -299,9 +394,16 @@ export function buildRequiredDirectoriesFromConfig(
     if (dirPath === '' || dirPath === docsRoot) {
       continue;  // ルートディレクトリは既に追加済み
     }
-    const absolutePath = path.isAbsolute(dirPath) 
-      ? dirPath 
-      : path.join(docsRoot, dirPath);
+
+    // 動的パスの処理
+    let processedPath = dirPath;
+    if (hasDynamicSegments(dirPath)) {
+      processedPath = convertDynamicPathToPlaceholder(dirPath, options);
+    }
+
+    const absolutePath = path.isAbsolute(processedPath) 
+      ? processedPath 
+      : path.join(docsRoot, processedPath);
     directories.add(absolutePath);
   }
   
@@ -356,14 +458,22 @@ function normalizeDirectoryStructure(
   value: unknown,
   context: string
 ): DirectoryStructure {
-  if (!Array.isArray(value)) {
+  // 配列形式またはオブジェクト形式のどちらかを許可
+  if (!Array.isArray(value) && (typeof value !== 'object' || value === null)) {
     throw new ConfigValidationError(
-      'directoryStructure must be an array',
+      'directoryStructure must be an array or an object',
       context
     );
   }
 
-  if (value.length === 0) {
+  if (Array.isArray(value) && value.length === 0) {
+    throw new ConfigValidationError(
+      'directoryStructure must not be empty',
+      context
+    );
+  }
+
+  if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
     throw new ConfigValidationError(
       'directoryStructure must not be empty',
       context
@@ -375,9 +485,83 @@ function normalizeDirectoryStructure(
 }
 ```
 
+### 5. CLI オプションの追加
+
+`eutelo init` コマンドに動的パス処理のオプションを追加する。
+
+```typescript
+// packages/cli/src/index.ts
+
+program
+  .command('init')
+  .description('Initialize the eutelo-docs structure in the current directory')
+  .option('--dry-run', 'Show directories without writing to disk')
+  .option('--config <path>', 'Path to eutelo.config.*')
+  .option('--create-placeholders', 'Create placeholder directories for dynamic paths (default: true)')
+  .option('--skip-dynamic-paths', 'Skip creating directories for dynamic paths')
+  .option('--placeholder-format <format>', 'Placeholder format (default: __VARIABLE__)')
+  .action(async (options: InitCliOptions = {}) => {
+    // ...
+    const dynamicPathOptions: DynamicPathOptions = {
+      createPlaceholders: options.skipDynamicPaths 
+        ? false 
+        : (options.createPlaceholders ?? true),
+      placeholderPrefix: options.placeholderFormat 
+        ? extractPrefix(options.placeholderFormat) 
+        : '__',
+      placeholderSuffix: options.placeholderFormat 
+        ? extractSuffix(options.placeholderFormat) 
+        : '__'
+    };
+    
+    const scaffoldService = createScaffoldService({
+      fileSystemAdapter,
+      templateService,
+      docsRoot,
+      scaffold: config.scaffold,
+      directoryStructure: config.directoryStructure,
+      dynamicPathOptions
+    });
+    // ...
+  });
+```
+
 ---
 
 ## Contracts
+
+### 動的パスの処理
+
+#### 動的パスの定義
+
+ディレクトリパスに `{FEATURE}`, `{SUB}`, `{NAME}` などの変数が含まれる場合、そのパスは「動的パス」として扱われる。
+
+例:
+- `docs/product/features/{FEATURE}` → 動的パス
+- `docs/architecture/adr` → 静的パス
+
+#### プレースホルダーパスの作成
+
+`eutelo init` 実行時、動的パスはプレースホルダーパスに変換されてディレクトリが作成される。
+
+- 変換ルール: `{VARIABLE}` → `__VARIABLE__`
+- 例: `docs/product/features/{FEATURE}` → `docs/product/features/__FEATURE__`
+
+#### オプション
+
+- `--create-placeholders` (デフォルト: true): プレースホルダーパスを作成する
+- `--skip-dynamic-paths`: 動的パスをスキップする（プレースホルダーを作成しない）
+- `--placeholder-format <format>`: プレースホルダーの形式を指定（デフォルト: `__VARIABLE__`）
+
+#### 実際の値での置き換え
+
+`eutelo add` コマンド実行時、プレースホルダーパスは実際の値で置き換えられる。
+
+例:
+- `eutelo add prd AUTH` 実行時
+- `docs/product/features/__FEATURE__` → `docs/product/features/AUTH`
+
+---
 
 ### 設定ファイルのスキーマ
 
@@ -554,6 +738,7 @@ export default defineConfig({
 - 設定ファイルの読み込み・検証は `loadConfig` のキャッシュ機構を利用
 - 形式判定と正規化は軽量な処理のため、パフォーマンスへの影響は最小限
 - 設定検証は設定ファイル読み込み時に一度だけ実施
+- 動的パスの処理（プレースホルダー変換）は軽量な文字列操作のため、パフォーマンスへの影響は最小限
 
 ### エラーハンドリング
 
@@ -570,6 +755,14 @@ export default defineConfig({
 
 - 設定ファイルが存在しない、または `directoryStructure` が未指定の場合は、既存のデフォルト構造を使用
 - 配列形式をサポートすることで、既存プロジェクトからの移行が容易
+- 動的パスの処理はデフォルトでプレースホルダーを作成するが、オプション（`--skip-dynamic-paths`）で無効化可能
+
+### 動的パスの処理
+
+- **デフォルト動作**: 動的パスはプレースホルダーパス（`__FEATURE__` など）として作成される
+- **オプション**: `--skip-dynamic-paths` で動的パスをスキップ可能
+- **可視化**: プレースホルダーパスにより、どのディレクトリが動的に生成されるかが明確
+- **置き換え**: `eutelo add` コマンド実行時に、実際の値で置き換えられる
 
 ---
 
@@ -579,6 +772,8 @@ export default defineConfig({
 - **preset との統合**: preset パッケージでディレクトリ構造を定義し、プロジェクト設定で上書きできるようにする
 - **マイグレーションツール**: 配列形式から構造体形式への自動マイグレーション機能
 - **設定ファイルの自動生成**: `eutelo config init` コマンドでデフォルト設定を生成する機能
+- **動的パスの処理オプション**: CLI オプション（`--create-placeholders` / `--skip-dynamic-paths`）で動的パスの処理方法を選択できるようにする
+- **プレースホルダーパスのカスタマイズ**: プレースホルダーの形式（`__FEATURE__` vs `{FEATURE}` など）を設定でカスタマイズできるようにする
 
 ---
 
