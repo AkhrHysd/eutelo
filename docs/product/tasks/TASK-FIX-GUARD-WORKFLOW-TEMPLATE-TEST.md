@@ -6,7 +6,7 @@ title: Guard Workflow Template テスト修正
 purpose: >
   `guard workflow templates target common triggers and run guard inline` テストが
   失敗している問題を修正する。
-status: pending
+status: done
 version: 0.1
 owners: ["@team-eutelo"]
 related: []
@@ -42,9 +42,9 @@ AssertionError [ERR_ASSERTION]: PR template missing graph build command
 
 ## 調査タスク
 
-- [ ] `packages/distribution/tests/guardCiAssets.test.js` のテスト内容を確認
-- [ ] PRテンプレートファイルの場所と内容を確認
-- [ ] テストの期待値とテンプレートの実態の乖離を分析
+- [x] `packages/distribution/tests/guardCiAssets.test.js` のテスト内容を確認
+- [x] PRテンプレートファイルの場所と内容を確認
+- [x] テストの期待値とテンプレートの実態の乖離を分析
 
 ---
 
@@ -52,25 +52,26 @@ AssertionError [ERR_ASSERTION]: PR template missing graph build command
 
 以下のいずれかの方針で修正が必要：
 
-### Option A: テンプレートを修正
+### Option A: テンプレートを修正 ✅ 採用
 
-- [ ] PRテンプレートに `npx eutelo graph build` コマンドを追加
+- [x] PRテンプレート (`guard-pull-request.yml`) に `npx eutelo graph build` コマンドを追加
+- [x] Mainテンプレート (`guard-main.yml`) に `npx eutelo graph build` コマンドを追加
 
 ### Option B: テストを修正
 
-- [ ] テストの期待値を現在のテンプレートに合わせて修正
+- [ ] ~~テストの期待値を現在のテンプレートに合わせて修正~~（不採用）
 
 ### Option C: 両方を見直し
 
-- [ ] テンプレートとテストの両方を見直し、適切な状態に修正
+- [ ] ~~テンプレートとテストの両方を見直し、適切な状態に修正~~（不採用）
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] テスト `guard workflow templates target common triggers and run guard inline` が成功する
-- [ ] 既存の機能に影響がないことを確認
-- [ ] 変更内容がドキュメント化されている
+- [x] テスト `guard workflow templates target common triggers and run guard inline` が成功する
+- [x] 既存の機能に影響がないことを確認
+- [x] 変更内容がドキュメント化されている（このタスクファイルに記録）
 
 ---
 

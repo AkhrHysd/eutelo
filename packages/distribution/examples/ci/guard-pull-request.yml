@@ -422,6 +422,10 @@ jobs:
               });
             }
 
+      - name: Build document graph
+        # Verify the document graph can be built successfully
+        run: npx eutelo graph build
+
       - name: Set exit code if errors found
         # Set exit code after comment is posted
         # This ensures PR comment is always posted before CI fails
