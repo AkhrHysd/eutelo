@@ -41,6 +41,9 @@ config({ path: envPath });
 
 type InitCliOptions = {
   dryRun?: boolean;
+  createPlaceholders?: boolean;
+  skipDynamicPaths?: boolean;
+  placeholderFormat?: string;
 };
 
 type AddParams = {
@@ -738,16 +741,40 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Initialize the eutelo-docs structure in the current directory')
     .option('--dry-run', 'Show directories without writing to disk')
     .option('--config <path>', 'Path to eutelo.config.*')
+    .option('--create-placeholders', 'Create placeholder directories for dynamic paths (default: true)')
+    .option('--skip-dynamic-paths', 'Skip creating directories for dynamic paths')
+    .option('--placeholder-format <format>', 'Placeholder format (default: __VARIABLE__)')
     .action(async (options: InitCliOptions = {}) => {
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
           const docsRoot = resolveDocsRootFromConfig(config);
+          
+          // DynamicPathOptions を構築
+          const dynamicPathOptions: import('@eutelo/core').DynamicPathOptions = {};
+          if (options.skipDynamicPaths) {
+            dynamicPathOptions.createPlaceholders = false;
+          } else if (options.createPlaceholders !== undefined) {
+            dynamicPathOptions.createPlaceholders = options.createPlaceholders;
+          } else {
+            // デフォルトでプレースホルダーを作成
+            dynamicPathOptions.createPlaceholders = true;
+          }
+          
+          // プレースホルダー形式のカスタマイズ（将来の拡張用）
+          if (options.placeholderFormat) {
+            // 形式: "__VARIABLE__" または "[VARIABLE]" など
+            // 現在は固定形式を使用
+            // TODO: 将来的にカスタム形式をサポート
+          }
+          
           const scaffoldService = createScaffoldService({
             fileSystemAdapter,
             templateService,
             docsRoot,
-            scaffold: config.scaffold
+            scaffold: config.scaffold,
+            directoryStructure: config.directoryStructure,
+            dynamicPathOptions
           });
           await runInitCommand(scaffoldService, options);
         });

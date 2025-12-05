@@ -122,6 +122,42 @@ Presetパッケージ名の配列。Presetは順番にマージされ、後のpr
 #### `docsRoot`（オプション）
 ドキュメントファイルのルートディレクトリ。デフォルトは`eutelo-docs`。`EUTELO_DOCS_ROOT`環境変数で上書きできます。
 
+#### `directoryStructure`（オプション）
+`eutelo init`で作成されるディレクトリ構造を定義します。2つの形式をサポートしています：
+
+**配列形式（シンプル）:**
+```typescript
+directoryStructure: [
+  [],                       // ルート（docsRoot）
+  ['product'],              // docsRoot/product
+  ['product', 'features'],  // docsRoot/product/features
+  ['architecture'],         // docsRoot/architecture
+]
+```
+
+**ディレクトリ-ファイル定義形式（推奨）:**
+```typescript
+directoryStructure: {
+  'product': [],
+  'product/features/{FEATURE}': [
+    {
+      file: 'PRD-{FEATURE}.md',
+      template: 'templates/prd.md',
+      description: 'PRDドキュメント'
+    }
+  ],
+  'architecture/design/{FEATURE}': [
+    {
+      file: 'DSG-{FEATURE}.md',
+      template: 'templates/dsg.md'
+    }
+  ]
+}
+```
+
+**動的パス:**
+`{FEATURE}`のようなプレースホルダーを含むパスは動的パスとして扱われます。`eutelo init`実行時、これらはプレースホルダーディレクトリ（例：`__FEATURE__`）に変換されます。`--skip-dynamic-paths`を使用すると、これらのディレクトリの作成をスキップできます。
+
 #### `scaffold`（オプション）
 スキャフォールドIDからテンプレート設定へのマッピング：
 - `id`: スキャフォールドエントリの一意の識別子
@@ -318,6 +354,35 @@ eutelo init
 pnpm exec eutelo init
 pnpm exec eutelo init --dry-run  # ディレクトリを作成せずに確認
 ```
+
+**オプション:**
+- `--dry-run`: ディレクトリを作成せずにプレビュー
+- `--config <path>`: カスタム設定ファイルパスを指定
+- `--skip-dynamic-paths`: 動的パス（例：`{FEATURE}`）を含むディレクトリの作成をスキップ
+- `--create-placeholders`: 動的パスに対してプレースホルダーディレクトリを作成（デフォルト：有効）
+
+**カスタムディレクトリ構造:**
+
+設定ファイルで`directoryStructure`を定義することでディレクトリ構造をカスタマイズできます：
+
+```typescript
+// eutelo.config.ts
+export default {
+  docsRoot: 'docs',
+  directoryStructure: {
+    'product': [],
+    'product/features/{FEATURE}': [
+      { file: 'PRD-{FEATURE}.md', template: 'templates/prd.md' }
+    ],
+    'architecture': [],
+    'architecture/design/{FEATURE}': [
+      { file: 'DSG-{FEATURE}.md', template: 'templates/dsg.md' }
+    ]
+  }
+};
+```
+
+`directoryStructure`が指定されていない場合は、デフォルトの構造が使用されます。
 
 ### `eutelo add`
 

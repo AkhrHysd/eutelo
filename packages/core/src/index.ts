@@ -106,7 +106,12 @@ export type {
   FrontmatterSchemaConfig,
   FrontmatterFieldSchema,
   GuardPromptConfig,
-  ScaffoldTemplateConfig
+  ScaffoldTemplateConfig,
+  DirectoryFileDefinition,
+  DirectoryStructure,
+  DirectoryStructureMap,
+  NormalizedDirectoryStructure,
+  DynamicPathOptions
 } from './config/types.js';
 export {
   ConfigError,

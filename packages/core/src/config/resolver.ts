@@ -12,6 +12,10 @@ import {
 } from './errors.js';
 import type {
   ConfigResolutionLayerMeta,
+  DirectoryStructure,
+  DirectoryStructureMap,
+  DirectoryFileDefinition,
+  NormalizedDirectoryStructure,
   EuteloConfig,
   EuteloConfigResolved,
   FrontmatterFieldSchema,
@@ -90,9 +94,15 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Eutel
   const mergedLayers = [...presetLayers, ...layers];
   const merged = mergeConfigLayers(mergedLayers);
 
+  // directoryStructure の正規化（配列形式をディレクトリごとのファイル定義形式に変換）
+  const normalizedDirectoryStructure = merged.directoryStructure
+    ? normalizeDirectoryStructureToMap(merged.directoryStructure, merged.docsRoot ?? resolveDocsRoot())
+    : undefined;
+
   return {
     presets: appliedPresets,
     docsRoot: merged.docsRoot ?? resolveDocsRoot(),
+    directoryStructure: normalizedDirectoryStructure,
     scaffold: merged.scaffold,
     frontmatter: merged.frontmatter,
     guard: merged.guard,
@@ -343,6 +353,10 @@ function normalizeConfigFragment(raw: unknown, context: string): Partial<EuteloC
     normalized.guard = { prompts };
   }
 
+  if (raw.directoryStructure !== undefined) {
+    normalized.directoryStructure = normalizeDirectoryStructure(raw.directoryStructure, context);
+  }
+
   return normalized;
 }
 
@@ -360,6 +374,154 @@ function normalizePresetList(value: unknown, context: string): string[] {
 
 function normalizeDocsRoot(value: unknown, context: string): string {
   return normalizeString(value, 'docsRoot', context);
+}
+
+function normalizeDirectoryStructure(value: unknown, context: string): DirectoryStructure {
+  // 配列形式またはオブジェクト形式のどちらかを許可
+  if (!Array.isArray(value) && (typeof value !== 'object' || value === null)) {
+    throw new ConfigValidationError(
+      'directoryStructure must be an array or an object',
+      context
+    );
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      throw new ConfigValidationError(
+        'directoryStructure must not be empty',
+        context
+      );
+    }
+    // 配列形式の検証
+    for (let i = 0; i < value.length; i++) {
+      const entry = value[i];
+      if (!Array.isArray(entry)) {
+        throw new ConfigValidationError(
+          `directoryStructure[${i}] must be an array of strings`,
+          context
+        );
+      }
+      for (let j = 0; j < entry.length; j++) {
+        if (typeof entry[j] !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure[${i}][${j}] must be a string`,
+            context
+          );
+        }
+      }
+    }
+    return value as string[][];
+  }
+
+  // オブジェクト形式（ディレクトリごとのファイル定義形式）の検証
+  if (Object.keys(value).length === 0) {
+    throw new ConfigValidationError(
+      'directoryStructure must not be empty',
+      context
+    );
+  }
+
+  const result: DirectoryStructureMap = {};
+  for (const [dirPath, files] of Object.entries(value)) {
+    if (!Array.isArray(files)) {
+      throw new ConfigValidationError(
+        `directoryStructure["${dirPath}"] must be an array`,
+        context
+      );
+    }
+    const fileDefinitions: DirectoryFileDefinition[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const fileDef = files[i];
+      if (!isPlainObject(fileDef)) {
+        throw new ConfigValidationError(
+          `directoryStructure["${dirPath}"][${i}] must be an object`,
+          context
+        );
+      }
+      if (typeof fileDef.file !== 'string' || fileDef.file.trim().length === 0) {
+        throw new ConfigValidationError(
+          `directoryStructure["${dirPath}"][${i}].file must be a non-empty string`,
+          context
+        );
+      }
+      const normalized: DirectoryFileDefinition = {
+        file: fileDef.file.trim()
+      };
+      if (fileDef.template !== undefined) {
+        if (typeof fileDef.template !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].template must be a string`,
+            context
+          );
+        }
+        normalized.template = fileDef.template.trim();
+      }
+      if (fileDef.rules !== undefined) {
+        if (typeof fileDef.rules !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].rules must be a string`,
+            context
+          );
+        }
+        normalized.rules = fileDef.rules.trim();
+      }
+      if (fileDef.description !== undefined) {
+        if (typeof fileDef.description !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].description must be a string`,
+            context
+          );
+        }
+        normalized.description = fileDef.description.trim();
+      }
+      if (fileDef.prefix !== undefined) {
+        if (typeof fileDef.prefix !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].prefix must be a string`,
+            context
+          );
+        }
+        normalized.prefix = fileDef.prefix.trim();
+      }
+      if (fileDef.variables !== undefined) {
+        if (!Array.isArray(fileDef.variables)) {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].variables must be an array`,
+            context
+          );
+        }
+        normalized.variables = fileDef.variables.map((v, idx) => {
+          if (typeof v !== 'string') {
+            throw new ConfigValidationError(
+              `directoryStructure["${dirPath}"][${i}].variables[${idx}] must be a string`,
+              context
+            );
+          }
+          return v.trim();
+        }).filter(v => v.length > 0);
+      }
+      if (fileDef.tags !== undefined) {
+        if (!Array.isArray(fileDef.tags)) {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].tags must be an array`,
+            context
+          );
+        }
+        normalized.tags = fileDef.tags.map((t, idx) => {
+          if (typeof t !== 'string') {
+            throw new ConfigValidationError(
+              `directoryStructure["${dirPath}"][${i}].tags[${idx}] must be a string`,
+              context
+            );
+          }
+          return t.trim();
+        }).filter(t => t.length > 0);
+      }
+      fileDefinitions.push(normalized);
+    }
+    result[dirPath] = fileDefinitions;
+  }
+  return result;
 }
 
 function normalizeScaffold(value: unknown, context: string): Record<string, ScaffoldTemplateConfig> {
@@ -566,12 +728,13 @@ function isPlainObject(value: unknown): value is Record<string, any> {
 
 function mergeConfigLayers(
   layers: Partial<EuteloConfig>[]
-): Pick<EuteloConfigResolved, 'scaffold' | 'guard' | 'frontmatter'> & { docsRoot?: string } {
+): Pick<EuteloConfigResolved, 'scaffold' | 'guard' | 'frontmatter'> & { docsRoot?: string; directoryStructure?: DirectoryStructure } {
   const scaffold: Record<string, ScaffoldTemplateConfig> = {};
   const guardPrompts: Record<string, GuardPromptConfig> = {};
   const schemaMap = new Map<DocumentKind, FrontmatterSchemaConfig>();
   let rootParentIdsOverride: string[] | undefined;
   let docsRootOverride: string | undefined;
+  let directoryStructureOverride: DirectoryStructure | undefined;
 
   for (const layer of layers) {
     if (!layer || typeof layer !== 'object') {
@@ -601,6 +764,9 @@ function mergeConfigLayers(
     if (typeof layer.docsRoot === 'string' && layer.docsRoot.trim().length > 0) {
       docsRootOverride = layer.docsRoot;
     }
+    if (layer.directoryStructure !== undefined) {
+      directoryStructureOverride = layer.directoryStructure;
+    }
   }
 
   return {
@@ -610,6 +776,54 @@ function mergeConfigLayers(
       schemas: Array.from(schemaMap.values()),
       rootParentIds: rootParentIdsOverride ?? []
     },
-    docsRoot: docsRootOverride
+    docsRoot: docsRootOverride,
+    directoryStructure: directoryStructureOverride
   };
+}
+
+/**
+ * 配列形式をディレクトリごとのファイル定義形式に正規化する
+ */
+function normalizeDirectoryStructureToMap(
+  structure: DirectoryStructure,
+  docsRoot: string
+): NormalizedDirectoryStructure {
+  if (isArrayFormat(structure)) {
+    // 配列形式をディレクトリごとのファイル定義形式に正規化
+    const normalized: DirectoryStructureMap = {};
+    for (const path of structure) {
+      const dirPath = path.length === 0 
+        ? docsRoot 
+        : path.join('/');
+      normalized[dirPath] = []; // 空のファイル定義配列
+    }
+    return normalized;
+  }
+  return structure;
+}
+
+/**
+ * 配列形式かどうかを判定する
+ */
+function isArrayFormat(structure: DirectoryStructure): structure is string[][] {
+  if (!Array.isArray(structure) || structure.length === 0) {
+    return false;
+  }
+  // 配列の最初の要素が配列であれば配列形式と判定
+  // 空の配列 [] も許可（ルートディレクトリを表す）
+  if (!Array.isArray(structure[0])) {
+    return false;
+  }
+  // 空でない配列要素があれば、その要素が文字列であることを確認
+  for (const entry of structure) {
+    if (!Array.isArray(entry)) {
+      return false;
+    }
+    for (const segment of entry) {
+      if (typeof segment !== 'string') {
+        return false;
+      }
+    }
+  }
+  return true;
 }

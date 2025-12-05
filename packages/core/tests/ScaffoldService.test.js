@@ -197,3 +197,102 @@ test('sync in check-only mode reports plan without writing files', async () => {
   assert.equal(result.created.length, 0);
   assert.equal(adapter.files.size, 0);
 });
+
+// directoryStructure tests
+test('ScaffoldService uses custom directoryStructure when provided', async () => {
+  const adapter = new MemoryFileSystemAdapter();
+  const customStructure = {
+    'custom': [],
+    'custom/subdir': []
+  };
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    scaffold: DEFAULT_SCAFFOLD,
+    docsRoot: 'my-docs',
+    directoryStructure: customStructure
+  });
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-custom-structure-'));
+
+  const plan = await service.computeInitPlan({ cwd });
+
+  // Should include custom directories
+  assert.ok(plan.some(p => p.includes('my-docs')));
+  assert.ok(plan.some(p => p.includes('custom')));
+  assert.ok(plan.some(p => p.includes('custom/subdir')));
+  // Should NOT include default structure
+  assert.ok(!plan.some(p => p.includes('product')));
+  assert.ok(!plan.some(p => p.includes('architecture')));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('ScaffoldService converts dynamic paths to placeholders by default', async () => {
+  const adapter = new MemoryFileSystemAdapter();
+  const customStructure = {
+    'product': [],
+    'product/features/{FEATURE}': []
+  };
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    scaffold: DEFAULT_SCAFFOLD,
+    docsRoot: 'docs',
+    directoryStructure: customStructure
+  });
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-dynamic-path-'));
+
+  const plan = await service.computeInitPlan({ cwd });
+
+  // Should convert {FEATURE} to __FEATURE__
+  assert.ok(plan.some(p => p.includes('__FEATURE__')));
+  assert.ok(!plan.some(p => p.includes('{FEATURE}')));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('ScaffoldService skips dynamic paths when createPlaceholders is false', async () => {
+  const adapter = new MemoryFileSystemAdapter();
+  const customStructure = {
+    'product': [],
+    'product/features/{FEATURE}': []
+  };
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    scaffold: DEFAULT_SCAFFOLD,
+    docsRoot: 'docs',
+    directoryStructure: customStructure,
+    dynamicPathOptions: { createPlaceholders: false }
+  });
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-skip-dynamic-'));
+
+  const plan = await service.computeInitPlan({ cwd });
+
+  // Should NOT include dynamic paths or placeholders
+  assert.ok(!plan.some(p => p.includes('FEATURE')));
+  // Should include static paths
+  assert.ok(plan.some(p => p.includes('product')));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('ScaffoldService init creates directories from custom structure', async () => {
+  const adapter = new MemoryFileSystemAdapter();
+  const customStructure = {
+    'custom': [],
+    'custom/subdir': []
+  };
+  const service = new ScaffoldService({
+    fileSystemAdapter: adapter,
+    scaffold: DEFAULT_SCAFFOLD,
+    docsRoot: 'my-docs',
+    directoryStructure: customStructure
+  });
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-init-custom-'));
+
+  const result = await service.init({ cwd, dryRun: false });
+
+  assert.ok(result.created.length > 0);
+  assert.ok(adapter.created.some(p => p.includes('custom')));
+  assert.ok(adapter.created.some(p => p.includes('custom/subdir')));
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});

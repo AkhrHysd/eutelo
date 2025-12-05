@@ -35,9 +35,39 @@ export interface GuardPromptConfig {
   templatePath: string;
 }
 
+// Directory Structure Configuration Types
+export interface DirectoryFileDefinition {
+  file: string; // ファイル名（プレースホルダー可: "PRD-{FEATURE}.md"）
+  template?: string; // テンプレートパス（オプション）
+  rules?: string; // ルールファイルパス（オプション）
+  description?: string; // ファイルの説明（オプション）
+  prefix?: string; // ファイル名のプレフィックス（オプション）
+  variables?: string[]; // 使用される変数（オプション: ["FEATURE", "SUB"]）
+  tags?: string[]; // タグ（オプション: ["prd", "feature"]）
+}
+
+// ディレクトリごとのファイル定義形式
+export type DirectoryStructureMap = Record<string, DirectoryFileDefinition[]>;
+
+// ディレクトリ構造の定義（配列形式またはディレクトリごとのファイル定義形式）
+export type DirectoryStructure =
+  | string[][] // 配列形式: [['product'], ['product', 'features'], ...]
+  | DirectoryStructureMap; // ディレクトリごとのファイル定義形式
+
+// 正規化後の型（内部使用）
+export type NormalizedDirectoryStructure = DirectoryStructureMap;
+
+// 動的パス処理のオプション
+export interface DynamicPathOptions {
+  createPlaceholders?: boolean; // プレースホルダーパスを作成するか（デフォルト: true）
+  placeholderPrefix?: string; // プレースホルダーのプレフィックス（デフォルト: '__'）
+  placeholderSuffix?: string; // プレースホルダーのサフィックス（デフォルト: '__'）
+}
+
 export interface EuteloConfig {
   presets?: string[];
   docsRoot?: string;
+  directoryStructure?: DirectoryStructure; // 追加
   scaffold?: Record<string, ScaffoldTemplateConfig>;
   frontmatter?: {
     schemas?: FrontmatterSchemaConfig[];
@@ -63,6 +93,7 @@ export interface ConfigResolutionMeta {
 export interface EuteloConfigResolved {
   presets: string[];
   docsRoot: string;
+  directoryStructure?: NormalizedDirectoryStructure; // 追加（正規化済み）
   scaffold: Record<string, ScaffoldTemplateConfig>;
   frontmatter: {
     schemas: FrontmatterSchemaConfig[];
