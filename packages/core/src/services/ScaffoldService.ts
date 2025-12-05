@@ -1,7 +1,15 @@
 import path from 'node:path';
 import { resolveDocsRoot } from '../constants/docsRoot.js';
-import { buildRequiredDirectories, REQUIRED_DIRECTORIES } from '../constants/requiredDirectories.js';
-import type { ScaffoldTemplateConfig } from '../config/types.js';
+import { 
+  buildRequiredDirectories, 
+  REQUIRED_DIRECTORIES,
+  buildRequiredDirectoriesFromConfig
+} from '../constants/requiredDirectories.js';
+import type { 
+  ScaffoldTemplateConfig, 
+  NormalizedDirectoryStructure,
+  DynamicPathOptions
+} from '../config/types.js';
 import type { TemplateService } from './TemplateService.js';
 import type { DocumentType } from './AddDocumentService.js';
 
@@ -64,6 +72,8 @@ export type ScaffoldServiceDependencies = {
   templateService?: TemplateService;
   docsRoot?: string;
   scaffold?: Record<string, ScaffoldTemplateConfig>;
+  directoryStructure?: NormalizedDirectoryStructure;
+  dynamicPathOptions?: DynamicPathOptions;
   clock?: () => Date;
 };
 
@@ -82,6 +92,8 @@ export class ScaffoldService {
     templateService,
     docsRoot = resolveDocsRoot(),
     scaffold,
+    directoryStructure,
+    dynamicPathOptions,
     clock = () => new Date()
   }: ScaffoldServiceDependencies) {
     if (!fileSystemAdapter) {
@@ -98,7 +110,18 @@ export class ScaffoldService {
     this.logger = logger;
     this.templateService = templateService;
     this.docsRoot = docsRoot;
-    this.requiredDirectories = buildRequiredDirectories(docsRoot);
+    
+    // 設定ファイルからディレクトリ構造を取得、なければデフォルトを使用
+    if (directoryStructure) {
+      this.requiredDirectories = buildRequiredDirectoriesFromConfig(
+        docsRoot,
+        directoryStructure,
+        dynamicPathOptions ?? { createPlaceholders: true }
+      );
+    } else {
+      this.requiredDirectories = buildRequiredDirectories(docsRoot);
+    }
+    
     this.clock = clock;
     this.prdScaffold = prdScaffold;
   }

@@ -229,3 +229,102 @@ test('loadConfig honors docsRoot defined in config file', async () => {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// directoryStructure tests
+test('loadConfig normalizes directoryStructure array format to map format', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: [
+        [],
+        ['product'],
+        ['product', 'features']
+      ]
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    assert.ok('eutelo-docs' in resolved.directoryStructure);
+    assert.ok('product' in resolved.directoryStructure);
+    assert.ok('product/features' in resolved.directoryStructure);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig accepts directoryStructure map format', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-map-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            template: 'templates/prd.md',
+            description: 'PRD document'
+          }
+        ],
+        'architecture/design/{FEATURE}': [
+          {
+            file: 'DSG-{FEATURE}.md',
+            template: 'templates/dsg.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    assert.ok('product/features/{FEATURE}' in resolved.directoryStructure);
+    assert.ok('architecture/design/{FEATURE}' in resolved.directoryStructure);
+    assert.equal(resolved.directoryStructure['product/features/{FEATURE}'].length, 1);
+    assert.equal(resolved.directoryStructure['product/features/{FEATURE}'][0].file, 'PRD-{FEATURE}.md');
+    assert.equal(resolved.directoryStructure['product/features/{FEATURE}'][0].template, 'templates/prd.md');
+    assert.equal(resolved.directoryStructure['product/features/{FEATURE}'][0].description, 'PRD document');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig rejects empty directoryStructure', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-empty-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: []
+    });
+    await assert.rejects(() => loadConfig({ cwd }), ConfigValidationError);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig rejects invalid directoryStructure array entry', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-invalid-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: [
+        'product'  // should be ['product']
+      ]
+    });
+    await assert.rejects(() => loadConfig({ cwd }), ConfigValidationError);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig rejects directoryStructure map with missing file property', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-no-file-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            template: 'templates/prd.md'
+            // missing 'file' property
+          }
+        ]
+      }
+    });
+    await assert.rejects(() => loadConfig({ cwd }), ConfigValidationError);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

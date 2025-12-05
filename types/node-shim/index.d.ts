@@ -21,6 +21,7 @@ declare module 'node:path' {
     basename(p: string): string;
     sep: string;
     extname(p: string): string;
+    isAbsolute(p: string): boolean;
     posix: PathModule;
   }
   const path: PathModule;

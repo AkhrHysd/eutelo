@@ -16,5 +16,10 @@ export type {
   GuardPromptConfig,
   ScaffoldTemplateConfig,
   ConfigResolutionMeta,
-  ConfigResolutionLayerMeta
+  ConfigResolutionLayerMeta,
+  DirectoryFileDefinition,
+  DirectoryStructure,
+  DirectoryStructureMap,
+  NormalizedDirectoryStructure,
+  DynamicPathOptions
 } from './types.js';
