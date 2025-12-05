@@ -84,7 +84,7 @@ export class ScaffoldService {
   private readonly docsRoot: string;
   private readonly requiredDirectories: readonly string[];
   private readonly clock: () => Date;
-  private readonly prdScaffold: ScaffoldTemplateConfig;
+  private readonly prdScaffold: ScaffoldTemplateConfig | undefined;
 
   constructor({
     fileSystemAdapter,
@@ -102,10 +102,8 @@ export class ScaffoldService {
     if (!scaffold) {
       throw new Error('scaffold configuration is required');
     }
+    // prdScaffold はオプショナル（sync 機能を使用する場合のみ必要）
     const prdScaffold = scaffold['document.prd'];
-    if (!prdScaffold) {
-      throw new Error('scaffold configuration for "document.prd" is required');
-    }
     this.fileSystemAdapter = fileSystemAdapter;
     this.logger = logger;
     this.templateService = templateService;
@@ -179,6 +177,9 @@ export class ScaffoldService {
     if (!cwd) {
       throw new Error('cwd is required');
     }
+    if (!this.prdScaffold) {
+      throw new Error('scaffold configuration for "document.prd" is required for sync');
+    }
 
     const features = await this.discoverFeatureDirectories(cwd);
     const plan: SyncPlanEntry[] = [];
@@ -209,18 +210,22 @@ export class ScaffoldService {
     if (!cwd) {
       throw new Error('cwd is required');
     }
+    if (!this.prdScaffold) {
+      throw new Error('scaffold configuration for "document.prd" is required for sync');
+    }
 
     const plan = await this.computeSyncPlan({ cwd });
     const created: string[] = [];
 
     if (!checkOnly) {
+      const prdScaffold = this.prdScaffold; // TypeScript narrowing
       const timestamp = this.clock().toISOString().slice(0, 10);
       for (const entry of plan) {
         const tokens = buildFeatureTokens(entry.featureId);
         tokens.DATE = timestamp;
-        tokens.ID = applyPlaceholders(this.prdScaffold.variables?.ID ?? '', tokens);
-        tokens.PARENT = applyPlaceholders(this.prdScaffold.variables?.PARENT ?? '', tokens);
-        const rendered = await this.templateService.render(this.prdScaffold.template, tokens);
+        tokens.ID = applyPlaceholders(prdScaffold.variables?.ID ?? '', tokens);
+        tokens.PARENT = applyPlaceholders(prdScaffold.variables?.PARENT ?? '', tokens);
+        const rendered = await this.templateService.render(prdScaffold.template, tokens);
         const result = await this.fileSystemAdapter.writeIfNotExists(entry.absolutePath, rendered);
         if (!result.written) {
           this.logger.warn?.(`Skipped writing existing file: ${entry.relativePath}`);
@@ -239,6 +244,10 @@ export class ScaffoldService {
     const contexts = new Map<string, FeatureDirectory>();
 
     const addFeature = (dirName: string) => {
+      // プレースホルダーディレクトリをスキップ（例: __FEATURE__, __NAME__ など）
+      if (isPlaceholderDirectory(dirName)) {
+        return;
+      }
       const featureId = normalizeFeatureIdentifier(dirName);
       if (!contexts.has(featureId)) {
         contexts.set(featureId, { featureId, directoryName: dirName });
@@ -259,6 +268,14 @@ export class ScaffoldService {
 
     return Array.from(contexts.values());
   }
+}
+
+/**
+ * プレースホルダーディレクトリかどうかを判定する
+ * 例: __FEATURE__, __NAME__, __SUB__ など
+ */
+function isPlaceholderDirectory(dirName: string): boolean {
+  return /^__[A-Z0-9_-]+__$/.test(dirName);
 }
 
 type FeatureDirectory = {

@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { promises as fs, existsSync } from 'node:fs';
 import pathModule from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
@@ -160,19 +160,33 @@ export class TemplateService {
 
   private resolveTemplatePath(templateName: string): string {
     const path = this.path;
+    
+    // 絶対パスの場合はそのまま返す
+    if (path.isAbsolute(templateName)) {
+      return templateName;
+    }
+    
+    // `.` で始まる場合は cwd からの相対パス
     if (templateName.startsWith('.')) {
       return path.resolve(process.cwd(), templateName);
     }
 
+    // まず cwd からの相対パスを試す（プロジェクトローカルのテンプレート）
+    const cwdPath = path.resolve(process.cwd(), templateName);
+    if (existsSync(cwdPath)) {
+      return cwdPath;
+    }
+
+    // 次に overrideRoot を試す（ファイル名のみ）
     if (this.overrideRoot) {
       const fileName = path.basename(templateName);
-      return path.resolve(this.overrideRoot, fileName);
+      const overridePath = path.resolve(this.overrideRoot, fileName);
+      if (existsSync(overridePath)) {
+        return overridePath;
+      }
     }
 
-    if (path.isAbsolute(templateName)) {
-      return templateName;
-    }
-
+    // 最後に templateRoot（preset のテンプレートディレクトリ）
     return path.resolve(this.templateRoot, templateName);
   }
 }

@@ -142,23 +142,59 @@ directoryStructure: {
   'product/features/{FEATURE}': [
     {
       file: 'PRD-{FEATURE}.md',
+      kind: 'prd',                      // eutelo add で使用するドキュメント種別
       template: 'templates/prd.md',
-      description: 'PRDドキュメント'
+      prefix: 'PRD-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {            // フロントマターのデフォルト値
+        type: 'prd',
+        parent: '/'
+      }
+    },
+    {
+      file: 'BEH-{FEATURE}.md',
+      kind: 'beh',
+      template: 'templates/beh.md',
+      prefix: 'BEH-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {
+        type: 'behavior',
+        parent: 'PRD-{FEATURE}'
+      }
     }
   ],
   'architecture/design/{FEATURE}': [
     {
       file: 'DSG-{FEATURE}.md',
-      template: 'templates/dsg.md'
+      kind: 'dsg',
+      template: 'templates/dsg.md',
+      prefix: 'DSG-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {
+        type: 'design',
+        parent: 'PRD-{FEATURE}'
+      }
     }
   ]
 }
 ```
 
+**ファイル定義のフィールド:**
+- `file`: プレースホルダーを含むファイル名パターン（例：`PRD-{FEATURE}.md`）
+- `kind`: `eutelo add` コマンドで使用するドキュメント種別（例：`'prd'`, `'beh'`, `'dsg'`）
+- `template`: テンプレートファイルのパス
+- `prefix`: ファイル名のプレフィックス（例：`PRD-`）
+- `variables`: パス/ファイルで使用される変数名の配列
+- `frontmatterDefaults`: フロントマターのデフォルト値：
+  - `type`: ドキュメントタイプの値
+  - `parent`: 親ドキュメントのID（ルートドキュメントの場合は`'/'`）
+
 **動的パス:**
 `{FEATURE}`のようなプレースホルダーを含むパスは動的パスとして扱われます。`eutelo init`実行時、これらはプレースホルダーディレクトリ（例：`__FEATURE__`）に変換されます。`--skip-dynamic-paths`を使用すると、これらのディレクトリの作成をスキップできます。
 
-#### `scaffold`（オプション）
+#### `scaffold`（非推奨）
+> **注意:** `scaffold` 設定は非推奨です。代わりにファイル定義を含む `directoryStructure` を使用してください。`directoryStructure` のエントリは内部的に scaffold エントリに自動変換されます。
+
 スキャフォールドIDからテンプレート設定へのマッピング：
 - `id`: スキャフォールドエントリの一意の識別子
 - `kind`: ドキュメント種別（例：`'prd'`, `'beh'`, `'adr'`）

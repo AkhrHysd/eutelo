@@ -66,6 +66,7 @@ declare module 'node:fs' {
     readdir(path: string): Promise<string[]>;
     stat(path: string): Promise<Stats>;
   };
+  export function existsSync(path: string): boolean;
 }
 
 declare module 'node:module' {

@@ -47,6 +47,10 @@
 - **`directoryStructure` 設定**: `eutelo init` で作成されるディレクトリ構造を設定ファイルでカスタマイズ可能に
   - 配列形式とディレクトリ-ファイル定義形式の2つの形式をサポート
   - 動的パス（`{FEATURE}` など）をプレースホルダーディレクトリ（`__FEATURE__`）に変換
+- **`directoryStructure` と `eutelo add` の統合**: `directoryStructure` のファイル定義で `eutelo add` コマンドを使用可能に
+  - `kind`: ドキュメント種別（`prd`, `beh`, `dsg` など）
+  - `frontmatterDefaults`: フロントマターのデフォルト値
+  - `directoryStructure` のファイル定義は内部的に `scaffold` エントリに自動変換
 - **`eutelo init` 新オプション**:
   - `--skip-dynamic-paths`: 動的パスを含むディレクトリの作成をスキップ
   - `--create-placeholders`: プレースホルダーディレクトリの作成を制御（デフォルト有効）
@@ -55,8 +59,15 @@
 - **型定義**: `DirectoryFileDefinition`, `DirectoryStructure`, `DirectoryStructureMap`, `NormalizedDirectoryStructure`, `DynamicPathOptions` を追加
 
 ### Changed
+- **preset-default**: `directoryStructure` 形式に移行（`scaffold` から変更）
 - **ScaffoldService**: `directoryStructure` と `dynamicPathOptions` を受け付けるよう拡張
+- **ScaffoldService**: プレースホルダーディレクトリ（`__FEATURE__` など）を sync 対象から除外
+- **ScaffoldService**: `document.prd` の必須チェックを sync/computeSyncPlan 実行時のみに変更（init では不要）
 - **ConfigResolver**: `directoryStructure` の正規化・検証ロジックを追加
+- **ConfigResolver**: `directoryStructure` から `scaffold` への自動変換ロジックを追加
+
+### Deprecated
+- **`scaffold` 設定**: `directoryStructure` のファイル定義を使用してください。将来的に削除される予定です。
 
 ## [0.4.1] - 2025-11-27
 ### Added

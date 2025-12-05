@@ -39,11 +39,14 @@ export interface GuardPromptConfig {
 export interface DirectoryFileDefinition {
   file: string; // ファイル名（プレースホルダー可: "PRD-{FEATURE}.md"）
   template?: string; // テンプレートパス（オプション）
+  kind?: string; // ドキュメント種別（オプション: "prd", "beh", "dsg" など）
+  type?: string; // コマンド名として使用するタイプ（オプション: "prd", "dsg" など。指定されていない場合は kind を使用）
   rules?: string; // ルールファイルパス（オプション）
   description?: string; // ファイルの説明（オプション）
   prefix?: string; // ファイル名のプレフィックス（オプション）
   variables?: string[]; // 使用される変数（オプション: ["FEATURE", "SUB"]）
   tags?: string[]; // タグ（オプション: ["prd", "feature"]）
+  frontmatterDefaults?: FrontmatterDefaults; // フロントマターデフォルト値（オプション）
 }
 
 // ディレクトリごとのファイル定義形式
