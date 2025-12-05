@@ -122,6 +122,42 @@ Array of preset package names. Presets are merged in order, with later presets a
 #### `docsRoot` (optional)
 Root directory for documentation files. Defaults to `eutelo-docs`. Can be overridden with the `EUTELO_DOCS_ROOT` environment variable.
 
+#### `directoryStructure` (optional)
+Defines the directory structure to be created by `eutelo init`. Supports two formats:
+
+**Array Format (simple):**
+```typescript
+directoryStructure: [
+  [],                       // Root (docsRoot)
+  ['product'],              // docsRoot/product
+  ['product', 'features'],  // docsRoot/product/features
+  ['architecture'],         // docsRoot/architecture
+]
+```
+
+**Directory-File Definition Format (recommended):**
+```typescript
+directoryStructure: {
+  'product': [],
+  'product/features/{FEATURE}': [
+    {
+      file: 'PRD-{FEATURE}.md',
+      template: 'templates/prd.md',
+      description: 'PRD document'
+    }
+  ],
+  'architecture/design/{FEATURE}': [
+    {
+      file: 'DSG-{FEATURE}.md',
+      template: 'templates/dsg.md'
+    }
+  ]
+}
+```
+
+**Dynamic Paths:**
+Paths containing placeholders like `{FEATURE}` are treated as dynamic paths. During `eutelo init`, these are converted to placeholder directories (e.g., `__FEATURE__`). Use `--skip-dynamic-paths` to skip creating these directories.
+
 #### `scaffold` (optional)
 Object mapping scaffold IDs to template configurations:
 - `id`: Unique identifier for the scaffold entry
@@ -318,6 +354,35 @@ Initializes the Eutelo documentation structure in your project.
 pnpm exec eutelo init
 pnpm exec eutelo init --dry-run  # Preview without creating directories
 ```
+
+**Options:**
+- `--dry-run`: Preview directories without creating them
+- `--config <path>`: Specify a custom config file path
+- `--skip-dynamic-paths`: Skip creating directories with dynamic paths (e.g., `{FEATURE}`)
+- `--create-placeholders`: Create placeholder directories for dynamic paths (default: enabled)
+
+**Custom Directory Structure:**
+
+You can customize the directory structure by defining `directoryStructure` in your config file:
+
+```typescript
+// eutelo.config.ts
+export default {
+  docsRoot: 'docs',
+  directoryStructure: {
+    'product': [],
+    'product/features/{FEATURE}': [
+      { file: 'PRD-{FEATURE}.md', template: 'templates/prd.md' }
+    ],
+    'architecture': [],
+    'architecture/design/{FEATURE}': [
+      { file: 'DSG-{FEATURE}.md', template: 'templates/dsg.md' }
+    ]
+  }
+};
+```
+
+When `directoryStructure` is not specified, the default structure is used.
 
 ### `eutelo add`
 

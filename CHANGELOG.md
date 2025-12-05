@@ -43,6 +43,21 @@
 
 ## [Unreleased]
 
+### Added
+- **`directoryStructure` 設定**: `eutelo init` で作成されるディレクトリ構造を設定ファイルでカスタマイズ可能に
+  - 配列形式とディレクトリ-ファイル定義形式の2つの形式をサポート
+  - 動的パス（`{FEATURE}` など）をプレースホルダーディレクトリ（`__FEATURE__`）に変換
+- **`eutelo init` 新オプション**:
+  - `--skip-dynamic-paths`: 動的パスを含むディレクトリの作成をスキップ
+  - `--create-placeholders`: プレースホルダーディレクトリの作成を制御（デフォルト有効）
+  - `--placeholder-format <format>`: プレースホルダー形式のカスタマイズ（将来の拡張用）
+- **動的パス処理関数**: `hasDynamicSegments()`, `extractVariables()`, `convertDynamicPathToPlaceholder()`, `buildRequiredDirectoriesFromConfig()` を追加
+- **型定義**: `DirectoryFileDefinition`, `DirectoryStructure`, `DirectoryStructureMap`, `NormalizedDirectoryStructure`, `DynamicPathOptions` を追加
+
+### Changed
+- **ScaffoldService**: `directoryStructure` と `dynamicPathOptions` を受け付けるよう拡張
+- **ConfigResolver**: `directoryStructure` の正規化・検証ロジックを追加
+
 ## [0.4.1] - 2025-11-27
 ### Added
 - **Guard × Graph 連携 - 関連ドキュメント自動収集**: `eutelo guard` コマンドで関連ドキュメント（親、子、関連ドキュメント）を自動収集する機能を追加

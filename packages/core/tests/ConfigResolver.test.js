@@ -328,3 +328,44 @@ test('loadConfig rejects directoryStructure map with missing file property', asy
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('loadConfig accepts directoryStructure with dynamic paths', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-dynamic-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [],
+        'architecture/design/{FEATURE}/{SUB}': []
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    assert.ok('product/features/{FEATURE}' in resolved.directoryStructure);
+    assert.ok('architecture/design/{FEATURE}/{SUB}' in resolved.directoryStructure);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig accepts directoryStructure with file definitions containing variables', async () => {
+  const cwd = createTempDir('eutelo-config-dir-structure-vars-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            variables: ['FEATURE']
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    const files = resolved.directoryStructure['product/features/{FEATURE}'];
+    assert.equal(files.length, 1);
+    assert.deepEqual(files[0].variables, ['FEATURE']);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
