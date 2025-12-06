@@ -1,4 +1,45 @@
 {
-    "presets": ["@eutelo/preset-default"],
-    "docsRoot": "docs"
+  "presets": ["@eutelo/preset-default"],
+  "docsRoot": "new-docs",
+  "directoryStructure": {
+    "spec": [],
+    "spec/{FEATURE}": [
+      {
+        "file": "PRD-{FEATURE}.md",
+        "type": "prd",
+        "kind": "prd",
+        "template": "templates/prd.md",
+        "description": "Product Requirements Document",
+        "prefix": "PRD-",
+        "variables": ["FEATURE"],
+        "tags": ["prd", "feature"],
+        "frontmatterDefaults": {
+          "type": "prd",
+          "parent": "/"
+        }
+      },
+      {
+        "file": "BEH-{FEATURE}.md",
+        "type": "behavior",
+        "kind": "beh",
+        "template": "templates/beh.md",
+        "description": "Behavior Specification",
+        "prefix": "BEH-",
+        "variables": ["FEATURE"],
+        "tags": ["beh", "feature"],
+        "frontmatterDefaults": {
+          "type": "behavior",
+          "parent": "PRD-{FEATURE}"
+        }
+      },
+      {
+        "file": "ADR-{FEATURE}-{SEQ}.md",
+        "template": "templates/adr.md",
+        "description": "Architecture Decision Record",
+        "prefix": "ADR-",
+        "variables": ["FEATURE", "SEQ"],
+        "tags": ["adr", "architecture"]
+      }
+    ]
   }
+}

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, type FrontmatterFieldSchema, type FrontmatterSchemaConfig } from '@eutelo/core/config';
+import { defineConfig, type FrontmatterFieldSchema, type FrontmatterSchemaConfig, type DirectoryFileDefinition } from '@eutelo/core/config';
 import frontmatterCoreSchema from '../schemas/frontmatter-core.json' with { type: 'json' };
 
 const presetRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,117 +29,120 @@ const frontmatterSchemas: FrontmatterSchemaConfig[] = defaultFrontmatterKinds.ma
 export default defineConfig({
   presets: [],
   docsRoot: 'eutelo-docs',
-  scaffold: {
-    'document.prd': {
-      id: 'document.prd',
-      kind: 'prd',
-      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
-      template: templatePath('_template-prd.md'),
-      variables: {
-        ID: 'PRD-{FEATURE}',
-        PARENT: '/'
+  directoryStructure: {
+    // Root directories (no files)
+    'product': [],
+    'product/features': [],
+    'architecture': [],
+    'architecture/design': [],
+    
+    // Feature directories with document templates
+    'product/features/{FEATURE}': [
+      {
+        file: 'PRD-{FEATURE}.md',
+        kind: 'prd',
+        template: templatePath('_template-prd.md'),
+        prefix: 'PRD-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'prd',
+          parent: '/'
+        }
       },
-      frontmatterDefaults: {
-        type: 'prd',
-        parent: '/'
-      }
-    },
-    'document.beh': {
-      id: 'document.beh',
-      kind: 'beh',
-      path: 'product/features/{FEATURE}/BEH-{FEATURE}.md',
-      template: templatePath('_template-beh.md'),
-      variables: {
-        ID: 'BEH-{FEATURE}',
-        PARENT: 'PRD-{FEATURE}'
+      {
+        file: 'BEH-{FEATURE}.md',
+        kind: 'beh',
+        template: templatePath('_template-beh.md'),
+        prefix: 'BEH-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'behavior',
+          parent: 'PRD-{FEATURE}'
+        }
       },
-      frontmatterDefaults: {
-        type: 'behavior',
-        parent: '{PARENT}'
-      }
-    },
-    'document.sub-prd': {
-      id: 'document.sub-prd',
-      kind: 'sub-prd',
-      path: 'product/features/{FEATURE}/SUB-PRD-{SUB}.md',
-      template: templatePath('_template-sub-prd.md'),
-      variables: {
-        ID: 'SUB-PRD-{SUB}',
-        PARENT: 'PRD-{FEATURE}'
+      {
+        file: 'SUB-PRD-{SUB}.md',
+        kind: 'sub-prd',
+        template: templatePath('_template-sub-prd.md'),
+        prefix: 'SUB-PRD-',
+        variables: ['FEATURE', 'SUB'],
+        frontmatterDefaults: {
+          type: 'prd',
+          parent: 'PRD-{FEATURE}'
+        }
       },
-      frontmatterDefaults: {
-        type: 'prd',
-        parent: '{PARENT}'
+      {
+        file: 'BEH-{FEATURE}-{SUB}.md',
+        kind: 'sub-beh',
+        template: templatePath('_template-sub-beh.md'),
+        prefix: 'BEH-',
+        variables: ['FEATURE', 'SUB'],
+        frontmatterDefaults: {
+          type: 'behavior',
+          parent: 'SUB-PRD-{SUB}'
+        }
       }
-    },
-    'document.sub-beh': {
-      id: 'document.sub-beh',
-      kind: 'sub-beh',
-      path: 'product/features/{FEATURE}/BEH-{FEATURE}-{SUB}.md',
-      template: templatePath('_template-sub-beh.md'),
-      variables: {
-        ID: 'BEH-{FEATURE}-{SUB}',
-        PARENT: 'SUB-PRD-{SUB}'
-      },
-      frontmatterDefaults: {
-        type: 'behavior',
-        parent: '{PARENT}'
+    ],
+    
+    // Architecture design directories
+    'architecture/design/{FEATURE}': [
+      {
+        file: 'DSG-{FEATURE}.md',
+        kind: 'dsg',
+        template: templatePath('_template-dsg.md'),
+        prefix: 'DSG-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'design',
+          parent: 'PRD-{FEATURE}'
+        }
       }
-    },
-    'document.dsg': {
-      id: 'document.dsg',
-      kind: 'dsg',
-      path: 'architecture/design/{FEATURE}/DSG-{FEATURE}.md',
-      template: templatePath('_template-dsg.md'),
-      variables: {
-        ID: 'DSG-{FEATURE}',
-        PARENT: 'PRD-{FEATURE}'
-      },
-      frontmatterDefaults: {
-        type: 'design',
-        parent: '{PARENT}'
+    ],
+    
+    // ADR directory (with sequence numbering) - files directly in adr/
+    'architecture/adr': [
+      {
+        file: 'ADR-{FEATURE}-{SEQUENCE}.md',
+        kind: 'adr',
+        template: templatePath('_template-adr.md'),
+        prefix: 'ADR-',
+        variables: ['FEATURE', 'SEQUENCE'],
+        frontmatterDefaults: {
+          type: 'adr',
+          parent: 'PRD-{FEATURE}'
+        }
       }
-    },
-    'document.adr': {
-      id: 'document.adr',
-      kind: 'adr',
-      path: 'architecture/adr/ADR-{FEATURE}-{SEQUENCE}.md',
-      template: templatePath('_template-adr.md'),
-      variables: {
-        ID: 'ADR-{FEATURE}-{SEQUENCE}',
-        PARENT: 'PRD-{FEATURE}'
-      },
-      frontmatterDefaults: {
-        type: 'adr',
-        parent: '{PARENT}'
+    ],
+    
+    // Tasks directory - files directly in tasks/
+    'tasks': [
+      {
+        file: 'TASK-{NAME}.md',
+        kind: 'task',
+        template: templatePath('_template-task.md'),
+        prefix: 'TASK-',
+        variables: ['NAME'],
+        frontmatterDefaults: {
+          type: 'task',
+          parent: '/'
+        }
       }
-    },
-    'document.task': {
-      id: 'document.task',
-      kind: 'task',
-      path: 'tasks/TASK-{NAME}.md',
-      template: templatePath('_template-task.md'),
-      variables: {
-        ID: 'TASK-{NAME}'
-      },
-      frontmatterDefaults: {
-        type: 'task',
-        parent: '/'
+    ],
+    
+    // Ops directory - files directly in ops/
+    'ops': [
+      {
+        file: 'OPS-{NAME}.md',
+        kind: 'ops',
+        template: templatePath('_template-ops.md'),
+        prefix: 'OPS-',
+        variables: ['NAME'],
+        frontmatterDefaults: {
+          type: 'ops',
+          parent: '/'
+        }
       }
-    },
-    'document.ops': {
-      id: 'document.ops',
-      kind: 'ops',
-      path: 'ops/OPS-{NAME}.md',
-      template: templatePath('_template-ops.md'),
-      variables: {
-        ID: 'OPS-{NAME}'
-      },
-      frontmatterDefaults: {
-        type: 'ops',
-        parent: '/'
-      }
-    }
+    ]
   },
   frontmatter: {
     rootParentIds: ['PRINCIPLE-GLOBAL'],

@@ -142,23 +142,59 @@ directoryStructure: {
   'product/features/{FEATURE}': [
     {
       file: 'PRD-{FEATURE}.md',
+      kind: 'prd',                      // Document kind for eutelo add
       template: 'templates/prd.md',
-      description: 'PRD document'
+      prefix: 'PRD-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {            // Frontmatter defaults
+        type: 'prd',
+        parent: '/'
+      }
+    },
+    {
+      file: 'BEH-{FEATURE}.md',
+      kind: 'beh',
+      template: 'templates/beh.md',
+      prefix: 'BEH-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {
+        type: 'behavior',
+        parent: 'PRD-{FEATURE}'
+      }
     }
   ],
   'architecture/design/{FEATURE}': [
     {
       file: 'DSG-{FEATURE}.md',
-      template: 'templates/dsg.md'
+      kind: 'dsg',
+      template: 'templates/dsg.md',
+      prefix: 'DSG-',
+      variables: ['FEATURE'],
+      frontmatterDefaults: {
+        type: 'design',
+        parent: 'PRD-{FEATURE}'
+      }
     }
   ]
 }
 ```
 
+**File Definition Fields:**
+- `file`: File name pattern with placeholders (e.g., `PRD-{FEATURE}.md`)
+- `kind`: Document kind used by `eutelo add` command (e.g., `'prd'`, `'beh'`, `'dsg'`)
+- `template`: Template file path
+- `prefix`: File name prefix (e.g., `PRD-`)
+- `variables`: Array of variable names used in the path/file
+- `frontmatterDefaults`: Default frontmatter values:
+  - `type`: Document type value
+  - `parent`: Parent document ID (use `'/'` for root documents)
+
 **Dynamic Paths:**
 Paths containing placeholders like `{FEATURE}` are treated as dynamic paths. During `eutelo init`, these are converted to placeholder directories (e.g., `__FEATURE__`). Use `--skip-dynamic-paths` to skip creating these directories.
 
-#### `scaffold` (optional)
+#### `scaffold` (deprecated)
+> **Note:** The `scaffold` configuration is deprecated. Use `directoryStructure` with file definitions instead. `directoryStructure` entries are automatically converted to scaffold entries internally.
+
 Object mapping scaffold IDs to template configurations:
 - `id`: Unique identifier for the scaffold entry
 - `kind`: Document kind (e.g., `'prd'`, `'beh'`, `'adr'`)

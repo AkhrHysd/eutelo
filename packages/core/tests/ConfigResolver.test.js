@@ -369,3 +369,248 @@ test('loadConfig accepts directoryStructure with file definitions containing var
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// Phase 1: DirectoryFileDefinition extended fields tests
+test('DirectoryFileDefinition accepts kind field', async () => {
+  const cwd = createTempDir('eutelo-config-dir-kind-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',
+            template: 'templates/prd.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    const files = resolved.directoryStructure['product/features/{FEATURE}'];
+    assert.equal(files[0].kind, 'prd');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('DirectoryFileDefinition accepts frontmatterDefaults field', async () => {
+  const cwd = createTempDir('eutelo-config-dir-frontmatter-');
+  try {
+    writeJsonConfig(cwd, {
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',
+            template: 'templates/prd.md',
+            frontmatterDefaults: {
+              type: 'prd',
+              parent: '/'
+            }
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    assert.ok(resolved.directoryStructure);
+    const files = resolved.directoryStructure['product/features/{FEATURE}'];
+    assert.deepEqual(files[0].frontmatterDefaults, { type: 'prd', parent: '/' });
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// Phase 2: directoryStructure to scaffold conversion tests
+test('loadConfig converts directoryStructure to scaffold entries', async () => {
+  const cwd = createTempDir('eutelo-config-dir-to-scaffold-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',
+            template: 'templates/prd.md',
+            frontmatterDefaults: {
+              type: 'prd',
+              parent: '/'
+            }
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    // scaffold should contain entries derived from directoryStructure
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const prdEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'prd');
+    assert.ok(prdEntry, 'Should have scaffold entry with kind=prd');
+    assert.equal(resolved.scaffold[prdEntry].path, 'product/features/{FEATURE}/PRD-{FEATURE}.md');
+    assert.equal(resolved.scaffold[prdEntry].template, 'templates/prd.md');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig infers kind from prefix when kind is not specified', async () => {
+  const cwd = createTempDir('eutelo-config-dir-infer-prefix-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            prefix: 'PRD-',
+            template: 'templates/prd.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const prdEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'prd');
+    assert.ok(prdEntry, 'Should infer kind=prd from prefix PRD-');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig infers kind from filename when prefix is not specified', async () => {
+  const cwd = createTempDir('eutelo-config-dir-infer-filename-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'BEH-{FEATURE}.md',
+            template: 'templates/beh.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const behEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'beh');
+    assert.ok(behEntry, 'Should infer kind=beh from filename BEH-{FEATURE}.md');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig directoryStructure scaffold entries have correct frontmatterDefaults', async () => {
+  const cwd = createTempDir('eutelo-config-dir-frontmatter-scaffold-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',
+            template: 'templates/prd.md',
+            frontmatterDefaults: {
+              type: 'prd',
+              parent: '/'
+            }
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const prdEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'prd');
+    assert.ok(prdEntry);
+    assert.deepEqual(resolved.scaffold[prdEntry].frontmatterDefaults, { type: 'prd', parent: '/' });
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig directoryStructure scaffold does not override explicit scaffold', async () => {
+  const cwd = createTempDir('eutelo-config-dir-explicit-scaffold-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',
+            template: 'templates/prd-from-dir.md'
+          }
+        ]
+      },
+      scaffold: {
+        'explicit.prd': {
+          id: 'explicit.prd',
+          kind: 'prd',
+          path: 'docs/prd/{FEATURE}/PRD-{FEATURE}.md',
+          template: 'templates/prd-explicit.md'
+        }
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    // explicit scaffold should be preserved
+    assert.ok(resolved.scaffold['explicit.prd']);
+    assert.equal(resolved.scaffold['explicit.prd'].template, 'templates/prd-explicit.md');
+    // directoryStructure derived entry should also exist
+    const dirScaffoldKeys = Object.keys(resolved.scaffold).filter(k => k !== 'explicit.prd');
+    assert.ok(dirScaffoldKeys.length > 0, 'Should have directoryStructure derived scaffold entries');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig directoryStructure accepts type field for command name', async () => {
+  const cwd = createTempDir('eutelo-config-dir-type-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            type: 'my-prd',  // カスタムコマンド名
+            kind: 'prd',     // ドキュメント種別
+            template: 'templates/prd.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    // type が kind として使用される
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const myPrdEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'my-prd');
+    assert.ok(myPrdEntry, 'Should have scaffold entry with kind=my-prd (from type field)');
+    assert.equal(resolved.scaffold[myPrdEntry].kind, 'my-prd');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig directoryStructure uses kind when type is not specified', async () => {
+  const cwd = createTempDir('eutelo-config-dir-kind-fallback-');
+  try {
+    writeJsonConfig(cwd, {
+      presets: [],
+      directoryStructure: {
+        'product/features/{FEATURE}': [
+          {
+            file: 'PRD-{FEATURE}.md',
+            kind: 'prd',  // type がない場合は kind を使用
+            template: 'templates/prd.md'
+          }
+        ]
+      }
+    });
+    const resolved = await loadConfig({ cwd });
+    const scaffoldKeys = Object.keys(resolved.scaffold);
+    const prdEntry = scaffoldKeys.find(k => resolved.scaffold[k].kind === 'prd');
+    assert.ok(prdEntry, 'Should have scaffold entry with kind=prd (from kind field)');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

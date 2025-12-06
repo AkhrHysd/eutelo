@@ -20,6 +20,7 @@ import type {
   EuteloConfigResolved,
   FrontmatterFieldSchema,
   FrontmatterSchemaConfig,
+  FrontmatterDefaults,
   GuardPromptConfig,
   ScaffoldTemplateConfig
 } from './types.js';
@@ -95,15 +96,28 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Eutel
   const merged = mergeConfigLayers(mergedLayers);
 
   // directoryStructure の正規化（配列形式をディレクトリごとのファイル定義形式に変換）
+  const docsRoot = merged.docsRoot ?? resolveDocsRoot();
   const normalizedDirectoryStructure = merged.directoryStructure
-    ? normalizeDirectoryStructureToMap(merged.directoryStructure, merged.docsRoot ?? resolveDocsRoot())
+    ? normalizeDirectoryStructureToMap(merged.directoryStructure, docsRoot)
     : undefined;
+
+  // directoryStructure から scaffold を生成してマージ
+  const directoryDerivedScaffold = normalizedDirectoryStructure
+    ? convertDirectoryStructureToScaffold(normalizedDirectoryStructure)
+    : {};
+  
+  // directoryStructure 由来の scaffold と明示的な scaffold をマージ
+  // 明示的な scaffold が優先（後から上書き）
+  const mergedScaffold = {
+    ...directoryDerivedScaffold,
+    ...merged.scaffold
+  };
 
   return {
     presets: appliedPresets,
-    docsRoot: merged.docsRoot ?? resolveDocsRoot(),
+    docsRoot,
     directoryStructure: normalizedDirectoryStructure,
-    scaffold: merged.scaffold,
+    scaffold: mergedScaffold,
     frontmatter: merged.frontmatter,
     guard: merged.guard,
     sources: {
@@ -517,6 +531,43 @@ function normalizeDirectoryStructure(value: unknown, context: string): Directory
           return t.trim();
         }).filter(t => t.length > 0);
       }
+      if (fileDef.kind !== undefined) {
+        if (typeof fileDef.kind !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].kind must be a string`,
+            context
+          );
+        }
+        normalized.kind = fileDef.kind.trim();
+      }
+      if (fileDef.type !== undefined) {
+        if (typeof fileDef.type !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].type must be a string`,
+            context
+          );
+        }
+        normalized.type = fileDef.type.trim();
+      }
+      if (fileDef.frontmatterDefaults !== undefined) {
+        if (!isPlainObject(fileDef.frontmatterDefaults)) {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].frontmatterDefaults must be an object`,
+            context
+          );
+        }
+        const fmd = fileDef.frontmatterDefaults;
+        if (typeof fmd.type !== 'string' || typeof fmd.parent !== 'string') {
+          throw new ConfigValidationError(
+            `directoryStructure["${dirPath}"][${i}].frontmatterDefaults must have type and parent strings`,
+            context
+          );
+        }
+        normalized.frontmatterDefaults = {
+          type: fmd.type.trim(),
+          parent: fmd.parent.trim()
+        };
+      }
       fileDefinitions.push(normalized);
     }
     result[dirPath] = fileDefinitions;
@@ -826,4 +877,106 @@ function isArrayFormat(structure: DirectoryStructure): structure is string[][] {
     }
   }
   return true;
+}
+
+/**
+ * directoryStructure から scaffold エントリを生成する
+ */
+function convertDirectoryStructureToScaffold(
+  directoryStructure: NormalizedDirectoryStructure
+): Record<string, ScaffoldTemplateConfig> {
+  const scaffold: Record<string, ScaffoldTemplateConfig> = {};
+  const usedKinds = new Set<string>();
+
+  for (const [dirPath, files] of Object.entries(directoryStructure)) {
+    for (const fileDef of files) {
+      // type が指定されていればそれを優先、なければ kind を推定
+      const kind = fileDef.type ?? inferKindFromFileDef(fileDef);
+      
+      // ID を生成: 最初に出現する kind は `document.{kind}` 形式を使用（後方互換性のため）
+      // 同じ kind が複数回出現する場合は、パスを含めたユニークな ID を生成
+      let id: string;
+      if (!usedKinds.has(kind)) {
+        id = `document.${kind}`;
+        usedKinds.add(kind);
+      } else {
+        const sanitizedPath = dirPath.replace(/[\/{}]/g, '-').replace(/^-+|-+$/g, '');
+        id = `document.${kind}.${sanitizedPath}`;
+      }
+      
+      // path は dirPath と file を結合
+      const docPath = `${dirPath}/${fileDef.file}`;
+      
+      // template はファイル定義から取得、なければデフォルト
+      const template = fileDef.template ?? `templates/${kind}.md`;
+      
+      // variables を構築（DirectoryFileDefinition.variables から Record<string, string> に変換）
+      const variables = buildVariablesFromFileDef(fileDef, kind);
+
+      const entry: ScaffoldTemplateConfig = {
+        id,
+        kind,
+        path: docPath,
+        template
+      };
+
+      if (Object.keys(variables).length > 0) {
+        entry.variables = variables;
+      }
+
+      if (fileDef.frontmatterDefaults) {
+        entry.frontmatterDefaults = fileDef.frontmatterDefaults;
+      }
+
+      scaffold[id] = entry;
+    }
+  }
+
+  return scaffold;
+}
+
+/**
+ * DirectoryFileDefinition から kind を推定する
+ */
+function inferKindFromFileDef(fileDef: DirectoryFileDefinition): string {
+  // 1. kind が明示されている場合はそれを使用
+  if (fileDef.kind) {
+    return fileDef.kind.toLowerCase();
+  }
+
+  // 2. prefix から推定（例: "PRD-" → "prd"）
+  if (fileDef.prefix) {
+    return fileDef.prefix.replace(/-$/, '').toLowerCase();
+  }
+
+  // 3. ファイル名から推定（例: "PRD-{FEATURE}.md" → "prd"）
+  const match = fileDef.file.match(/^([A-Z]+)-/);
+  if (match) {
+    return match[1].toLowerCase();
+  }
+
+  // 4. デフォルト
+  return 'doc';
+}
+
+/**
+ * DirectoryFileDefinition から variables マップを構築する
+ */
+function buildVariablesFromFileDef(
+  fileDef: DirectoryFileDefinition,
+  kind: string
+): Record<string, string> {
+  const variables: Record<string, string> = {};
+
+  // ID テンプレートを構築
+  // ファイル名から拡張子を除いたものを ID テンプレートとして使用
+  const idTemplate = fileDef.file.replace(/\.md$/i, '');
+  variables.ID = idTemplate;
+
+  // frontmatterDefaults.parent があればそれを使用
+  if (fileDef.frontmatterDefaults?.parent) {
+    variables.PARENT = fileDef.frontmatterDefaults.parent;
+  }
+
+  return variables;
 }

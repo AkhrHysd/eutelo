@@ -204,14 +204,32 @@ test('add unknown document type reports error with available types', () => {
 
 test('add reports missing templates when template root lacks files', () => {
   const cwd = setupProject();
-  const templateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-templates-missing-'));
   try {
-    const result = runCli(['add', 'prd', 'AUTH'], cwd, { EUTELO_TEMPLATE_ROOT: templateRoot });
+    // Create a config with a scaffold entry pointing to a non-existent template
+    const configPath = path.join(cwd, 'eutelo.config.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          presets: [],
+          scaffold: {
+            'custom.doc': {
+              id: 'custom.doc',
+              kind: 'custom',
+              path: 'docs/{FEATURE}/CUSTOM-{FEATURE}.md',
+              template: 'nonexistent-template.md'
+            }
+          }
+        },
+        null,
+        2
+      )
+    );
+    const result = runCli(['add', 'custom', 'AUTH', '--config', configPath], cwd);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /template/i);
   } finally {
     cleanup(cwd);
-    cleanup(templateRoot);
   }
 });
 
