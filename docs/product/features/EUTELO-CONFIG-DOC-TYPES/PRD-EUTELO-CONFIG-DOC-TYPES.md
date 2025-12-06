@@ -57,12 +57,16 @@ KPI（例）:
 ### Out of Scope
 - GUI での DocumentType 設定管理（今回は CLI/設定ファイル運用）。
 - Guard プロンプトの自動生成など、高度な DSL 設計。
+- **`eutelo sync`、`eutelo check`、`eutelo lint` コマンド**: これらのコマンドは固定種類のドキュメントタイプ（prd、beh、dsg など）を前提としており、本機能では完全にオミットする。カスタムドキュメントタイプを正常系とする設計方針に基づき、固定種類を前提としたコマンドは本機能のスコープ外とする。
+  - **`eutelo sync`**: `document.prd` に強く依存し、固定のディレクトリ構造（`product/features`、`architecture/design`）を想定している。本機能では完全にオミットする。
+  - **`eutelo check`**: scaffold が提供されていない場合は固定の命名規則（`DEFAULT_NAMING_RULES`）にフォールバックする。本機能では完全にオミットする。
+  - **`eutelo lint`**: 設定ベースの frontmatter スキーマ検証をサポートしているが、固定種類を前提とした実装のため、本機能では完全にオミットする。
 
 ---
 
 ## Requirements
 ### Functional (FR)
-- **FR-1:** Config/Preset 内で宣言されたすべての DocumentType を Add/Scaffold/Lint/Guard が認識し、
+- **FR-1:** Config/Preset 内で宣言されたすべての DocumentType を Add/Scaffold/Guard が認識し、
   必要なテンプレート・frontmatter・parent 定義を解決できること。
 - **FR-2:** CLI は config を解釈して新種別の生成コマンドを提供する（または汎用コマンドで type を受け取る）。
 - **FR-3:** Validation/Graph/Guard は、config に未登録の種別に対しては警告またはエラーを出し、
