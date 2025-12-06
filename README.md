@@ -513,36 +513,7 @@ The command `eutelo add custom <feature>` is automatically generated based on th
 - `{SUB}` → requires `<sub>` argument
 - `{NAME}` → requires `<name>` argument
 
-**Note**: Custom document types are validated during `eutelo check` and included in `eutelo graph`. Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
-
-### `eutelo lint`
-
-Runs linting on documentation files.
-
-```bash
-pnpm exec eutelo lint                    # Lint all documents
-pnpm exec eutelo lint docs/**/*.md       # Lint specified paths
-pnpm exec eutelo lint --format json      # Output in JSON format
-```
-
-### `eutelo sync`
-
-Generates missing documentation artifacts based on the current structure.
-
-```bash
-pnpm exec eutelo sync                    # Generate missing documents
-pnpm exec eutelo sync --check-only       # Report only without generating
-```
-
-### `eutelo check`
-
-Validates Eutelo documentation structure and frontmatter consistency.
-
-```bash
-pnpm exec eutelo check                   # Validate structure and frontmatter
-pnpm exec eutelo check --format json     # Output in JSON format
-pnpm exec eutelo check --ci              # CI-friendly JSON output
-```
+**Note**: Custom document types are included in `eutelo graph`. Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
 
 ### `eutelo guard`
 

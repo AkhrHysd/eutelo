@@ -1,0 +1,34 @@
+# Cursor Rules for Eutelo Project
+
+## Node.js and mise Configuration
+
+This project uses `mise` (formerly rtx) for Node.js version management. When executing any Node.js-related commands (npm, node, npx, etc.), you MUST activate mise first.
+
+### Rule: Node.js Command Execution
+
+**ALWAYS** prefix Node.js commands with mise activation:
+
+```bash
+eval "$(mise activate zsh)" && <your-node-command>
+```
+
+### Examples:
+
+- **Build**: `eval "$(mise activate zsh)" && npm run build`
+- **Test**: `eval "$(mise activate zsh)" && npm test`
+- **Install**: `eval "$(mise activate zsh)" && npm install`
+- **Run script**: `eval "$(mise activate zsh)" && npm run <script-name>`
+- **Direct node**: `eval "$(mise activate zsh)" && node <script>`
+- **npx**: `eval "$(mise activate zsh)" && npx <command>`
+
+### Why this is necessary:
+
+- The project specifies Node.js 18 in `mise.toml`
+- mise manages the Node.js installation and PATH
+- Without activation, Node.js commands may fail or use the wrong version
+- This ensures consistent Node.js version across all commands
+
+### Implementation Note:
+
+When using the `run_terminal_cmd` tool, always include `eval "$(mise activate zsh)" &&` before any Node.js-related command.
+
