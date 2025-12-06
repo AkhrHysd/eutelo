@@ -9,7 +9,6 @@ import {
   TemplateService,
   createAddDocumentService,
   createScaffoldService,
-  createValidationService,
   createGuardService,
   createGraphService,
   GraphSerializer,
@@ -17,12 +16,9 @@ import {
   DocumentScanner,
   GraphBuilder,
   type DocumentType,
-  type SyncOptions,
-  CHECK_EXIT_CODES,
   GUARD_EXIT_CODES,
   type GuardRunResult,
   type GuardOutputFormat,
-  RuleEngine,
   resolveDocsRoot,
   loadConfig,
   ConfigError,
@@ -50,18 +46,6 @@ type AddParams = {
   feature?: string;
   sub?: string;
   name?: string;
-};
-
-type SyncCliOptions = Pick<SyncOptions, 'checkOnly'>;
-
-type CheckCliOptions = {
-  format?: string;
-  ci?: boolean;
-};
-
-type LintCliOptions = {
-  format?: string;
-  paths?: string[];
 };
 
 type GuardCliOptions = {
@@ -179,128 +163,6 @@ async function executeAddDocument(
 ) {
   const result = await service.addDocument({ cwd: process.cwd(), type, ...params });
   process.stdout.write(`Created ${result.relativePath}\n`);
-}
-
-async function runSyncCommand(scaffoldService: ReturnType<typeof createScaffoldService>, options: SyncCliOptions) {
-  const result = await scaffoldService.sync({ cwd: process.cwd(), checkOnly: Boolean(options.checkOnly) });
-
-  if (result.plan.length === 0) {
-    process.stdout.write('No changes. All documents are up to date.\n');
-    return;
-  }
-
-  const paths = result.plan.map((entry) => entry.relativePath);
-  if (options.checkOnly) {
-    process.stdout.write('Missing documents detected:\n');
-    process.stdout.write(`${formatList(paths)}\n`);
-    process.exitCode = 1;
-  } else {
-    process.stdout.write('Generated documents:\n');
-    process.stdout.write(`${formatList(paths)}\n`);
-  }
-}
-
-async function runCheckCommand(
-  validationService: ReturnType<typeof createValidationService>,
-  options: CheckCliOptions,
-  argv: string[]
-) {
-  const formatOverride = resolveFormatArgument(argv);
-  const normalizedFormat = (formatOverride ?? 'text').toLowerCase();
-  const useJson = normalizedFormat === 'json' || Boolean(options.ci);
-  const report = await validationService.runChecks({ cwd: process.cwd() });
-  const hasIssues = report.issues.length > 0;
-  const hasWarnings = report.warnings && report.warnings.length > 0;
-
-  if (useJson) {
-    const indent = options.ci ? 0 : 2;
-    process.stdout.write(`${JSON.stringify(report, null, indent)}\n`);
-  } else {
-    if (!hasIssues && !hasWarnings) {
-      process.stdout.write('No issues found. Documentation structure looks good.\n');
-    } else {
-      if (hasIssues) {
-        process.stdout.write(`Found ${report.issues.length} issue(s):\n`);
-        for (const issue of report.issues) {
-          process.stdout.write(`- [${issue.type}] ${issue.path}: ${issue.message}\n`);
-        }
-      }
-      if (hasWarnings && report.warnings) {
-        process.stdout.write(`\nWarning(s) (non-blocking):\n`);
-        for (const warning of report.warnings) {
-          process.stdout.write(`- [${warning.type}] ${warning.path}: ${warning.message}\n`);
-        }
-      }
-    }
-  }
-
-  // Only set exit code to error if there are actual issues (not warnings)
-  process.exitCode = hasIssues ? CHECK_EXIT_CODES.VALIDATION_ERROR : CHECK_EXIT_CODES.SUCCESS;
-}
-
-async function collectMarkdownFiles(root: string, adapter: FileSystemAdapter, accumulator: string[] = []): Promise<string[]> {
-  const entries = await adapter.readDir(root);
-  for (const entry of entries) {
-    const entryPath = path.join(root, entry);
-    const stats = await adapter.stat(entryPath);
-    if (stats.isDirectory()) {
-      await collectMarkdownFiles(entryPath, adapter, accumulator);
-    } else if (stats.isFile() && entry.toLowerCase().endsWith('.md')) {
-      accumulator.push(entryPath);
-    }
-  }
-  return accumulator.sort((a, b) => a.localeCompare(b));
-}
-
-function determineLintFormat(argv: string[], options: LintCliOptions): 'json' | 'text' {
-  const override = resolveFormatArgument(argv) ?? options.format;
-  if (!override) return 'text';
-  const normalized = override.toLowerCase();
-  return normalized === 'json' ? 'json' : 'text';
-}
-
-async function runLintCommand(
-  ruleEngine: RuleEngine,
-  fileSystemAdapter: FileSystemAdapter,
-  options: LintCliOptions,
-  argv: string[] = process.argv,
-  docsRootOverride?: string
-) {
-  const docsRoot = docsRootOverride
-    ? path.resolve(process.cwd(), docsRootOverride)
-    : path.resolve(process.cwd(), resolveDocsRoot());
-  const targetPaths =
-    options.paths && options.paths.length > 0
-      ? options.paths.map((entry) => path.resolve(process.cwd(), entry))
-      : await collectMarkdownFiles(docsRoot, fileSystemAdapter);
-
-  const results = [];
-  for (const filePath of targetPaths) {
-    const content = await fileSystemAdapter.readFile(filePath);
-    const { issues } = await ruleEngine.lint({ content, filePath });
-    results.push({ path: filePath, issues });
-  }
-
-  const hasErrors = results.some((result) => result.issues.some((issue) => issue.severity === 'error'));
-  const format = determineLintFormat(argv, options);
-
-  if (format === 'json') {
-    process.stdout.write(`${JSON.stringify({ results }, null, 2)}\n`);
-  } else {
-    if (!hasErrors && results.every((entry) => entry.issues.length === 0)) {
-      process.stdout.write('No lint issues found.\n');
-    } else {
-      for (const result of results) {
-        if (result.issues.length === 0) continue;
-        process.stdout.write(`${result.path}\n`);
-        for (const issue of result.issues) {
-          process.stdout.write(`  - ${issue.severity.toUpperCase()}: ${issue.message}\n`);
-        }
-      }
-    }
-  }
-
-  process.exitCode = hasErrors ? 1 : 0;
 }
 
 async function runGuardCommand(
@@ -914,27 +776,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     }
   }
 
-  program
-    .command('lint [paths...]')
-    .description('Run doc-lint across documentation files')
-    .option('--format <format>', 'Output format (text or json)')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (paths: string[], options: LintCliOptions = {}) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const ruleEngine = new RuleEngine({
-            docsRoot,
-            frontmatterSchemas: config.frontmatter?.schemas
-          });
-          await runLintCommand(ruleEngine, fileSystemAdapter, { ...options, paths }, argv, docsRoot);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
   add
     .command('prd <feature>')
     .description('Generate a PRD document for the given feature')
@@ -1108,55 +949,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         });
       } catch (error) {
         handleCommandError(error);
-      }
-    });
-
-  program
-    .command('sync')
-    .description('Generate any missing documentation artifacts based on the current structure')
-    .option('--check-only', 'Report missing documents without writing to disk')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (options: SyncCliOptions = {}) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const scaffoldService = createScaffoldService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await runSyncCommand(scaffoldService, options);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  program
-    .command('check')
-    .description('Validate eutelo-docs structure and frontmatter consistency')
-    .option('--format <format>', 'Output format: text or json')
-    .option('--ci', 'Emit CI-friendly JSON output')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (options: CheckCliOptions = {}) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const validationService = createValidationService({
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            rootParentIds: config.frontmatter.rootParentIds,
-            scaffold: config.scaffold
-          });
-          await runCheckCommand(validationService, options, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-        process.exitCode = CHECK_EXIT_CODES.ERROR;
       }
     });
 
