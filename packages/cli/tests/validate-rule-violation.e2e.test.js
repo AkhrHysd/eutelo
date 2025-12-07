@@ -251,8 +251,10 @@ last_updated: "2025-01-27"
 Test purpose
 `);
 
-    // Run validate
-    const result = runCli(['validate', prdFile], cwd);
+    // Run validate with stub mode
+    const result = runCli(['validate', prdFile], cwd, {
+      EUTELO_VALIDATE_STUB_RESULT: 'success'
+    });
 
     // Should pass validation
     assert(result.stdout.includes('Validated') || result.stdout.includes('✓'), 

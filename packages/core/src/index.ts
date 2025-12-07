@@ -123,6 +123,12 @@ export {
   RuleValidationService,
   createRuleValidationService
 } from './rule-validation/RuleValidationService.js';
+export {
+  PromptComposer
+} from './rule-validation/PromptComposer.js';
+export {
+  LLMValidator
+} from './rule-validation/LLMValidator.js';
 export type {
   RuleValidationServiceDependencies,
   RunValidationOptions,

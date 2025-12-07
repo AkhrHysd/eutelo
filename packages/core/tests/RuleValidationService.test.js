@@ -62,10 +62,17 @@ type: prd
     config
   });
 
-  // Run validation
+  // Run validation with stub mode
+  const originalStub = process.env.EUTELO_VALIDATE_STUB_RESULT;
+  process.env.EUTELO_VALIDATE_STUB_RESULT = 'issues';
   const result = await service.runValidation({
     documents: [docFile]
   });
+  if (originalStub) {
+    process.env.EUTELO_VALIDATE_STUB_RESULT = originalStub;
+  } else {
+    delete process.env.EUTELO_VALIDATE_STUB_RESULT;
+  }
 
   assert.equal(result.summary.total, 1);
   assert(result.results.length > 0, `Expected results, got: ${JSON.stringify(result.results)}`);
@@ -80,7 +87,8 @@ type: prd
     (issue.rule.includes('purpose') || 
      issue.message.includes('purpose') || 
      issue.hint?.includes('purpose') ||
-     issue.message.includes('必須'))
+     issue.message.includes('必須') ||
+     issue.message.includes('missing'))
   );
   assert(hasPurposeError, `Expected purpose error, got: ${JSON.stringify(firstResult.issues)}`);
 

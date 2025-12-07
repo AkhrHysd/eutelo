@@ -48,5 +48,6 @@ export type RuleValidationServiceDependencies = {
   cwd?: string;
   docsRoot?: string;
   config?: import('../config/types.js').EuteloConfigResolved;
+  llmClient?: import('../guard/LLMClient.js').LLMClient;
 };
 

@@ -8,12 +8,15 @@ import { FileSystemAdapter as DefaultFileSystemAdapter } from '@eutelo/infrastru
 import { FrontmatterParser } from '../doc-lint/frontmatter-parser.js';
 import { RuleFileLoader } from './RuleFileLoader.js';
 import { RuleParser } from './RuleParser.js';
-import { DocumentValidator } from './DocumentValidator.js';
+import { PromptComposer } from './PromptComposer.js';
+import { LLMValidator } from './LLMValidator.js';
+import type { LLMClient } from '../guard/LLMClient.js';
 import type {
   RuleValidationServiceDependencies,
   RunValidationOptions,
   ValidationRunResult,
   RuleValidationResult,
+  RuleValidationIssue,
   ValidationRunError
 } from './types.js';
 
@@ -24,7 +27,8 @@ export class RuleValidationService {
   private readonly config?: RuleValidationServiceDependencies['config'];
   private readonly ruleFileLoader: RuleFileLoader;
   private readonly ruleParser: RuleParser;
-  private readonly documentValidator: DocumentValidator;
+  private readonly promptComposer: PromptComposer;
+  private readonly llmValidator: LLMValidator;
   private readonly frontmatterParser: FrontmatterParser;
 
   constructor(deps: RuleValidationServiceDependencies = {}) {
@@ -33,7 +37,7 @@ export class RuleValidationService {
     this.docsRoot = deps.docsRoot ?? 'eutelo-docs';
     this.config = deps.config;
 
-    // Find config file path for RuleFileLoader
+    // Find config file path for RuleFileLoader and PromptComposer
     const configPath = this.findConfigPath();
     this.ruleFileLoader = new RuleFileLoader({
       fileSystemAdapter: this.fileSystemAdapter,
@@ -41,7 +45,20 @@ export class RuleValidationService {
       configPath
     });
     this.ruleParser = new RuleParser();
-    this.documentValidator = new DocumentValidator();
+    this.promptComposer = new PromptComposer({
+      fileSystemAdapter: this.fileSystemAdapter,
+      cwd: this.cwd,
+      configPath
+    });
+    
+    // Get LLM client from dependencies or create default
+    const llmClient = deps.llmClient;
+    this.llmValidator = new LLMValidator({
+      llmClient,
+      model: undefined, // Will use from rule file
+      temperature: undefined // Will use from rule file
+    });
+    
     this.frontmatterParser = new FrontmatterParser({
       requiredFields: [],
       allowedFields: [] // Allow all fields
@@ -185,13 +202,71 @@ export class RuleValidationService {
       };
     }
 
-    // Validate document against rules
-    const validationResult = this.documentValidator.validate(
-      { path: docPath, content },
-      parseResult.rule
-    );
+    // Use LLM validation
+    const rule = parseResult.rule;
+    
+    // Extract user-defined rules content (body of rule file)
+    const lines = ruleContent.split(/\r?\n/);
+    const startIndex = lines.findIndex((line) => line.trim() === '---');
+    const endIndex = startIndex >= 0 
+      ? lines.findIndex((line, index) => index > startIndex && line.trim() === '---')
+      : -1;
+    
+    const bodyStart = endIndex >= 0 ? endIndex + 1 : 0;
+    const userRulesContent = lines.slice(bodyStart).join('\n').trim();
 
-    return validationResult;
+    // Get default prompt paths
+    const defaultPrompts = this.promptComposer.getDefaultPromptPaths();
+
+    // Compose prompt
+    const prompt = await this.promptComposer.composePrompt({
+      commonPromptPath: defaultPrompts.commonPromptPath,
+      euteloRulesPath: defaultPrompts.euteloRulesPath,
+      userRulesContent,
+      documentContent: content,
+      documentPath: docPath
+    });
+
+    // Validate using LLM
+    try {
+      const llmResult = await this.llmValidator.validate(
+        prompt,
+        rule.model,
+        rule.temperature
+      );
+
+      // Combine all issues
+      const allIssues: RuleValidationIssue[] = [
+        ...llmResult.issues.map(issue => ({
+          ...issue,
+          file: docPath
+        })),
+        ...llmResult.warnings.map(issue => ({
+          ...issue,
+          file: docPath
+        })),
+        ...llmResult.suggestions.map(issue => ({
+          ...issue,
+          file: docPath
+        }))
+      ];
+
+      return {
+        file: docPath,
+        issues: allIssues
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        file: docPath,
+        issues: [{
+          severity: 'error',
+          rule: 'LLM Validation',
+          message: `LLM validation failed: ${errorMessage}`,
+          file: docPath
+        }]
+      };
+    }
   }
 
   private findRuleFileForKind(kind: string | undefined): string | null {
