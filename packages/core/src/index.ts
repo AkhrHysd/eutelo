@@ -119,3 +119,16 @@ export {
   ConfigParseError,
   ConfigValidationError
 } from './config/errors.js';
+export {
+  RuleValidationService,
+  createRuleValidationService
+} from './rule-validation/RuleValidationService.js';
+export type {
+  RuleValidationServiceDependencies,
+  RunValidationOptions,
+  ValidationRunResult,
+  RuleValidationIssue,
+  RuleValidationResult,
+  ValidationRunError,
+  ValidationOutputFormat
+} from './rule-validation/types.js';

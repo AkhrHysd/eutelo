@@ -11,6 +11,7 @@ import {
   createScaffoldService,
   createGuardService,
   createGraphService,
+  createRuleValidationService,
   GraphSerializer,
   RelatedDocumentResolver,
   DocumentScanner,
@@ -19,6 +20,8 @@ import {
   GUARD_EXIT_CODES,
   type GuardRunResult,
   type GuardOutputFormat,
+  type ValidationRunResult,
+  type ValidationOutputFormat,
   resolveDocsRoot,
   loadConfig,
   ConfigError,
@@ -57,6 +60,13 @@ type GuardCliOptions = {
   depth?: string;
   all?: boolean;
   japanese?: boolean;
+};
+
+type ValidateCliOptions = {
+  format?: string;
+  failOnError?: boolean;
+  warnOnly?: boolean;
+  ci?: boolean;
 };
 
 type GraphBuildCliOptions = {
@@ -222,6 +232,72 @@ async function runGuardCommand(
 
   renderGuardResult(result, format);
   process.exitCode = determineGuardExitCode(result, { warnOnly, failOnError });
+}
+
+async function runValidateCommand(
+  validationService: ReturnType<typeof createRuleValidationService>,
+  documents: string[],
+  options: ValidateCliOptions = {},
+  argv: string[] = []
+): Promise<void> {
+  // Handle CI mode
+  const ciMode = Boolean(options.ci);
+  const formatOverride = resolveFormatArgument(argv);
+  const format = normalizeValidateFormat(formatOverride ?? (ciMode ? 'json' : options.format));
+  const warnOnly = Boolean(options.warnOnly);
+  const failOnError = ciMode ? true : (warnOnly ? false : options.failOnError ?? true);
+
+  // Normalize document paths
+  const normalizedDocuments = normalizeValidateDocuments(documents, argv);
+
+  const result = await validationService.runValidation({
+    documents: normalizedDocuments,
+    format,
+    failOnError,
+    warnOnly
+  });
+
+  renderValidateResult(result, format);
+  process.exitCode = determineValidateExitCode(result, { warnOnly, failOnError });
+}
+
+function normalizeValidateDocuments(positional: string[], argv: string[]): string[] {
+  if (Array.isArray(positional) && positional.length > 0) {
+    return positional
+      .filter((doc) => typeof doc === 'string')
+      .map((doc) => doc.trim())
+      .filter((doc) => doc.length > 0);
+  }
+
+  const validateIndex = Array.isArray(argv) ? argv.indexOf('validate') : -1;
+  if (validateIndex === -1) {
+    return [];
+  }
+  const collected: string[] = [];
+  let skipNext = false;
+  let readEverything = false;
+  for (const token of argv.slice(validateIndex + 1)) {
+    if (!readEverything && token === '--') {
+      readEverything = true;
+      continue;
+    }
+    if (!readEverything && token === '--format') {
+      skipNext = true;
+      continue;
+    }
+    if (skipNext) {
+      skipNext = false;
+      continue;
+    }
+    if (!readEverything && token.startsWith('--')) {
+      continue;
+    }
+    const normalized = token.trim();
+    if (normalized.length > 0) {
+      collected.push(normalized);
+    }
+  }
+  return collected;
 }
 
 async function runConfigInspect(options: ConfigInspectOptions, argv: string[]): Promise<void> {
@@ -985,6 +1061,32 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
     });
 
+  program
+    .command('validate [documents...]')
+    .description('Validate documents against user-defined rules')
+    .option('--format <format>', 'Output format (text or json)')
+    .option('--fail-on-error', 'Exit with code 1 when rule violations are detected (default)')
+    .option('--warn-only', 'Never exit with code 1, even when rule violations are detected')
+    .option('--ci', 'CI mode (enables --format=json and --fail-on-error)')
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: ValidateCliOptions = {}, documents: string[] = []) => {
+      const configPath = resolveOptionValue(argv, '--config');
+      try {
+        await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
+          const configuredValidationService = createRuleValidationService({
+            fileSystemAdapter,
+            docsRoot,
+            cwd: process.cwd(),
+            config
+          });
+          await runValidateCommand(configuredValidationService, documents, options, argv);
+        });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
   graph
     .command('build')
     .description('Scan eutelo-docs and output the document graph')
@@ -1210,6 +1312,91 @@ function normalizeGuardFormat(value?: string | boolean): GuardOutputFormat {
     return normalized;
   }
   throw new Error(`Invalid --format value: ${value}`);
+}
+
+function normalizeValidateFormat(value?: string | boolean): ValidationOutputFormat {
+  if (!value || typeof value !== 'string') {
+    return 'text';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'text' || normalized === 'json') {
+    return normalized;
+  }
+  throw new Error(`Invalid --format value: ${value}`);
+}
+
+function renderValidateResult(result: ValidationRunResult, format: ValidationOutputFormat): void {
+  if (format === 'json') {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+
+  // Text format
+  const { summary, results, error } = result;
+
+  if (error) {
+    process.stdout.write(`Error: ${error.message}\n`);
+    if (error.file) {
+      process.stdout.write(`  File: ${error.file}\n`);
+    }
+    if (error.line) {
+      process.stdout.write(`  Line: ${error.line}\n`);
+    }
+    return;
+  }
+
+  if (summary.errors === 0 && summary.warnings === 0) {
+    process.stdout.write(`✓ Validated ${summary.total} document(s)\n`);
+    for (const r of results) {
+      process.stdout.write(`  ✓ ${r.file}\n`);
+    }
+    return;
+  }
+
+  process.stdout.write(`✗ Validated ${summary.total} document(s), found ${summary.errors} error(s), ${summary.warnings} warning(s)\n\n`);
+
+  for (const r of results) {
+    if (r.issues.length === 0) {
+      continue;
+    }
+    process.stdout.write(`${r.file}\n`);
+    for (const issue of r.issues) {
+      const icon = issue.severity === 'error' ? '✗' : '⚠';
+      process.stdout.write(`  ${icon} ${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}\n`);
+      if (issue.rule) {
+        process.stdout.write(`    Rule: ${issue.rule}\n`);
+      }
+      if (issue.hint) {
+        process.stdout.write(`    Hint: ${issue.hint}\n`);
+      }
+    }
+    process.stdout.write('\n');
+  }
+}
+
+type ValidateExitIntent = {
+  warnOnly: boolean;
+  failOnError: boolean;
+};
+
+function determineValidateExitCode(result: ValidationRunResult, intent: ValidateExitIntent): number {
+  // Exit code 2: System error (file not found, syntax error, etc.)
+  if (result.error) {
+    return 2;
+  }
+
+  // Exit code 0: Success or warn-only mode with warnings only
+  if (intent.warnOnly) {
+    return 0;
+  }
+
+  // Exit code 1: Rule violations found
+  if (result.summary.errors > 0 && intent.failOnError) {
+    return 1;
+  }
+
+  // Exit code 0: No errors or fail-on-error disabled
+  return 0;
 }
 
 function renderGuardResult(result: GuardRunResult, format: GuardOutputFormat): void {
