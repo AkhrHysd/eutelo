@@ -146,6 +146,7 @@ directoryStructure: {
       template: 'templates/prd.md',
       prefix: 'PRD-',
       variables: ['FEATURE'],
+      rules: 'rules/prd-validation.md', // Rule file for eutelo validate (optional)
       frontmatterDefaults: {            // Frontmatter defaults
         type: 'prd',
         parent: '/'
@@ -157,6 +158,7 @@ directoryStructure: {
       template: 'templates/beh.md',
       prefix: 'BEH-',
       variables: ['FEATURE'],
+      rules: 'rules/beh-validation.md', // Rule file for eutelo validate (optional)
       frontmatterDefaults: {
         type: 'behavior',
         parent: 'PRD-{FEATURE}'
@@ -185,6 +187,7 @@ directoryStructure: {
 - `template`: Template file path
 - `prefix`: File name prefix (e.g., `PRD-`)
 - `variables`: Array of variable names used in the path/file
+- `rules`: Rule file path for `eutelo validate` (optional, see `eutelo validate` section)
 - `frontmatterDefaults`: Default frontmatter values:
   - `type`: Document type value
   - `parent`: Parent document ID (use `'/'` for root documents)
@@ -585,6 +588,141 @@ pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
 - `--no-related`: Disable related document collection
 - `--depth <n>`: Set traversal depth for related document collection (default: 1)
 - `--all`: Collect all related documents regardless of depth (max: 100 documents)
+
+### `eutelo validate`
+
+Validates individual documents against user-defined rules using LLM-based validation.
+
+**Overview**
+
+The `eutelo validate` command validates documents against rules defined in Markdown rule files. Unlike `eutelo guard` (which checks inter-document consistency) and `eutelo lint` (which checks static Eutelo rules), `eutelo validate` focuses on validating individual documents against custom rules you define.
+
+**Environment Variable Configuration**
+
+To use the `eutelo validate` command, you need to set the following environment variables (same as `eutelo guard`):
+
+1. **Using `.env` file (Recommended)**
+
+   Create a `.env` file in the project root:
+
+   ```bash
+   EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   EUTELO_GUARD_API_KEY=your-api-key-here
+   EUTELO_GUARD_MODEL=gpt-4o-mini
+   ```
+
+2. **Set environment variables directly**
+
+   ```bash
+   export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   export EUTELO_GUARD_API_KEY=your-api-key-here
+   export EUTELO_GUARD_MODEL=gpt-4o-mini
+   pnpm exec eutelo validate
+   ```
+
+**Configuration**
+
+Rule files are specified in `directoryStructure` using the `rules` field:
+
+```typescript
+// eutelo.config.ts
+export default {
+  directoryStructure: {
+    'product/features/{FEATURE}': [
+      {
+        file: 'PRD-{FEATURE}.md',
+        kind: 'prd',
+        template: 'templates/prd.md',
+        rules: 'rules/prd-validation.md'  // Rule file path
+      }
+    ]
+  }
+};
+```
+
+Rule file paths can be:
+- **Relative to project root**: `rules/prd-validation.md`
+- **Relative to config file**: `./rules/prd-validation.md`
+- **Absolute paths**: `/path/to/rules/prd-validation.md`
+
+**Rule File Format**
+
+Rule files are Markdown files with YAML frontmatter:
+
+```markdown
+---
+version: "1.0"
+description: "PRD Validation Rules"
+validationMode: "llm"  # Required: "llm" for LLM-based validation
+---
+
+## Frontmatter Rules
+
+### Required Fields
+- `purpose`: Required. Must not be empty
+- `type`: Required. Value must be `prd`
+
+### Field Format
+- `id`: Required. Format: `PRD-{FEATURE}`
+- `status`: Required. Value must be one of: `draft`, `review`, `approved`
+
+## Structure Rules
+
+### Section Requirements
+- `## Purpose` section must exist
+- `## Background` section must exist
+
+## Content Rules
+
+### Quality Guidelines
+- Purpose section should be clear and specific
+- Background should explain the problem context
+```
+
+**Usage**
+
+```bash
+# Validate specific documents
+pnpm exec eutelo validate docs/product/features/AUTH/PRD-AUTH.md
+
+# Validate multiple documents
+pnpm exec eutelo validate docs/**/*.md
+
+# Output in JSON format
+pnpm exec eutelo validate --format=json docs/**/*.md
+
+# CI mode (automatically uses JSON format and fail-on-error)
+pnpm exec eutelo validate --ci docs/**/*.md
+
+# Warn only (don't exit with code 1 for rule violations)
+pnpm exec eutelo validate --warn-only docs/**/*.md
+```
+
+**Options:**
+- `[documents...]`: Document paths to validate (if omitted, validates all documents with rules)
+- `--format <format>`: Output format (`text` or `json`, default: `text`)
+- `--fail-on-error`: Exit with code 1 when rule violations are detected (default: enabled)
+- `--warn-only`: Never exit with code 1, even when rule violations are detected
+- `--ci`: CI mode (enables `--format=json` and `--fail-on-error`)
+- `--config <path>`: Path to custom config file
+
+**Exit Codes:**
+- `0`: Validation successful (no rule violations)
+- `1`: Rule violations detected (errors or warnings)
+- `2`: System error (rule file not found, syntax error, LLM configuration missing, etc.)
+
+**How It Works**
+
+1. For each document, `eutelo validate` looks up the corresponding rule file from `directoryStructure.rules`
+2. If a rule file is found, it loads the rule file and composes a prompt combining:
+   - Common Eutelo system instructions
+   - Eutelo standard rules
+   - User-defined rules from the rule file
+   - The document content
+3. The composed prompt is sent to the LLM for validation
+4. The LLM response is parsed and rule violations are reported
+
+**Note**: Documents without a `rules` field in their `directoryStructure` definition are skipped during validation.
 
 ### `eutelo graph`
 

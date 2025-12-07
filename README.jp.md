@@ -146,6 +146,7 @@ directoryStructure: {
       template: 'templates/prd.md',
       prefix: 'PRD-',
       variables: ['FEATURE'],
+      rules: 'rules/prd-validation.md',  // eutelo validate 用のルールファイル（オプション）
       frontmatterDefaults: {            // フロントマターのデフォルト値
         type: 'prd',
         parent: '/'
@@ -157,6 +158,7 @@ directoryStructure: {
       template: 'templates/beh.md',
       prefix: 'BEH-',
       variables: ['FEATURE'],
+      rules: 'rules/beh-validation.md', // eutelo validate 用のルールファイル（オプション）
       frontmatterDefaults: {
         type: 'behavior',
         parent: 'PRD-{FEATURE}'
@@ -185,6 +187,7 @@ directoryStructure: {
 - `template`: テンプレートファイルのパス
 - `prefix`: ファイル名のプレフィックス（例：`PRD-`）
 - `variables`: パス/ファイルで使用される変数名の配列
+- `rules`: `eutelo validate`用のルールファイルパス（オプション、`eutelo validate`セクションを参照）
 - `frontmatterDefaults`: フロントマターのデフォルト値：
   - `type`: ドキュメントタイプの値
   - `parent`: 親ドキュメントのID（ルートドキュメントの場合は`'/'`）
@@ -585,6 +588,141 @@ pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
 - `--no-related`: 関連ドキュメント収集を無効化
 - `--depth <n>`: 関連ドキュメント収集の探索深度を設定（デフォルト: 1）
 - `--all`: 深度に関係なくすべての関連ドキュメントを収集（最大: 100ドキュメント）
+
+### `eutelo validate`
+
+ユーザー定義のルールに基づいて、個別のドキュメントをLLMベースで検証します。
+
+**概要**
+
+`eutelo validate`コマンドは、Markdown形式のルールファイルで定義されたルールに基づいてドキュメントを検証します。`eutelo guard`（ドキュメント間の整合性チェック）や`eutelo lint`（静的Euteloルールのチェック）とは異なり、`eutelo validate`は個別のドキュメントをカスタムルールに対して検証することに焦点を当てています。
+
+**環境変数の設定**
+
+`eutelo validate`コマンドを使用するには、以下の環境変数を設定する必要があります（`eutelo guard`と同じ）：
+
+1. **`.env`ファイルを使用（推奨）**
+
+   プロジェクトルートに`.env`ファイルを作成：
+
+   ```bash
+   EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   EUTELO_GUARD_API_KEY=your-api-key-here
+   EUTELO_GUARD_MODEL=gpt-4o-mini
+   ```
+
+2. **環境変数を直接設定**
+
+   ```bash
+   export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
+   export EUTELO_GUARD_API_KEY=your-api-key-here
+   export EUTELO_GUARD_MODEL=gpt-4o-mini
+   pnpm exec eutelo validate
+   ```
+
+**設定**
+
+ルールファイルは`directoryStructure`の`rules`フィールドで指定します：
+
+```typescript
+// eutelo.config.ts
+export default {
+  directoryStructure: {
+    'product/features/{FEATURE}': [
+      {
+        file: 'PRD-{FEATURE}.md',
+        kind: 'prd',
+        template: 'templates/prd.md',
+        rules: 'rules/prd-validation.md'  // ルールファイルのパス
+      }
+    ]
+  }
+};
+```
+
+ルールファイルのパスは以下の形式をサポートします：
+- **プロジェクトルートからの相対パス**: `rules/prd-validation.md`
+- **設定ファイルからの相対パス**: `./rules/prd-validation.md`
+- **絶対パス**: `/path/to/rules/prd-validation.md`
+
+**ルールファイルの形式**
+
+ルールファイルはYAML frontmatterを含むMarkdownファイルです：
+
+```markdown
+---
+version: "1.0"
+description: "PRD Validation Rules"
+validationMode: "llm"  # 必須: LLMベースの検証には "llm" を指定
+---
+
+## Frontmatter Rules
+
+### Required Fields
+- `purpose`: 必須。空文字列不可
+- `type`: 必須。値は `prd` であること
+
+### Field Format
+- `id`: 必須。形式: `PRD-{FEATURE}`
+- `status`: 必須。値は `draft`, `review`, `approved` のいずれか
+
+## Structure Rules
+
+### Section Requirements
+- `## Purpose` セクションが存在すること
+- `## Background` セクションが存在すること
+
+## Content Rules
+
+### Quality Guidelines
+- Purposeセクションは明確で具体的であること
+- Backgroundは問題の文脈を説明していること
+```
+
+**使用方法**
+
+```bash
+# 特定のドキュメントを検証
+pnpm exec eutelo validate docs/product/features/AUTH/PRD-AUTH.md
+
+# 複数のドキュメントを検証
+pnpm exec eutelo validate docs/**/*.md
+
+# JSON形式で出力
+pnpm exec eutelo validate --format=json docs/**/*.md
+
+# CIモード（自動的にJSON形式とfail-on-errorを有効化）
+pnpm exec eutelo validate --ci docs/**/*.md
+
+# 警告のみ（ルール違反があっても終了コード1を返さない）
+pnpm exec eutelo validate --warn-only docs/**/*.md
+```
+
+**オプション:**
+- `[documents...]`: 検証対象のドキュメントパス（省略時はルールを持つすべてのドキュメントを検証）
+- `--format <format>`: 出力形式（`text` または `json`、デフォルト: `text`）
+- `--fail-on-error`: ルール違反検出時に終了コード1を返す（デフォルト: 有効）
+- `--warn-only`: ルール違反があっても終了コード1を返さない
+- `--ci`: CIモード（`--format=json`と`--fail-on-error`を自動有効化）
+- `--config <path>`: カスタム設定ファイルのパス
+
+**終了コード:**
+- `0`: 検証成功（ルール違反なし）
+- `1`: ルール違反検出（エラーまたは警告）
+- `2`: システムエラー（ルールファイルが見つからない、構文エラー、LLM設定が不足しているなど）
+
+**動作の仕組み**
+
+1. 各ドキュメントについて、`eutelo validate`は`directoryStructure.rules`から対応するルールファイルを検索します
+2. ルールファイルが見つかった場合、ルールファイルを読み込み、以下の内容を組み合わせたプロンプトを構成します：
+   - Euteloシステムの共通指示
+   - Eutelo標準ルール
+   - ルールファイルからのユーザー定義ルール
+   - ドキュメントの内容
+3. 構成されたプロンプトがLLMに送信され、検証が実行されます
+4. LLMの応答が解析され、ルール違反が報告されます
+
+**注意**: `directoryStructure`定義に`rules`フィールドがないドキュメントは、検証時にスキップされます。
 
 ### `eutelo graph`
 
