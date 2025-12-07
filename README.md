@@ -345,7 +345,6 @@ You can execute commands without global installation if project dependencies are
 ```bash
 npm ci
 npx eutelo init
-npx eutelo check --format=json
 npx eutelo guard docs/**/*.md --warn-only
 ```
 

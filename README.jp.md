@@ -345,7 +345,6 @@ pnpm exec eutelo add prd <feature>
 ```bash
 npm ci
 npx eutelo init
-npx eutelo check --format=json
 npx eutelo guard docs/**/*.md --warn-only
 ```
 
@@ -513,36 +512,7 @@ pnpm exec eutelo add custom <feature>
 - `{SUB}` → `<sub>`引数が必要
 - `{NAME}` → `<name>`引数が必要
 
-**注意**: カスタムドキュメント種別は`eutelo check`で検証され、`eutelo graph`に含まれます。未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
-
-### `eutelo lint`
-
-ドキュメントファイルに対して lint を実行します。
-
-```bash
-pnpm exec eutelo lint                    # すべてのドキュメントを lint
-pnpm exec eutelo lint docs/**/*.md       # 指定したパスを lint
-pnpm exec eutelo lint --format json      # JSON形式で出力
-```
-
-### `eutelo sync`
-
-現在の構造に基づいて、不足しているドキュメントアーティファクトを生成します。
-
-```bash
-pnpm exec eutelo sync                    # 不足しているドキュメントを生成
-pnpm exec eutelo sync --check-only       # 生成せずにレポートのみ
-```
-
-### `eutelo check`
-
-Eutelo ドキュメント構造と frontmatter の一貫性を検証します。
-
-```bash
-pnpm exec eutelo check                   # 構造と frontmatter を検証
-pnpm exec eutelo check --format json     # JSON形式で出力
-pnpm exec eutelo check --ci              # CI向けのJSON出力
-```
+**注意**: カスタムドキュメント種別は`eutelo graph`に含まれます。未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
 
 ### `eutelo guard`
 
