@@ -24,8 +24,6 @@ yarn add @eutelo/eutelo
 - **@eutelo/infrastructure** - インフラストラクチャアダプター
 - **@eutelo/distribution** - ドキュメントテンプレートと構成ガイド
 - **@eutelo/cli** - コマンドラインインターフェース
-- **@eutelo/biome-doc-lint** - Biome用のドキュメントリンター
-- **@eutelo/eslint-plugin-docs** - ESLint用のドキュメントプラグイン
 
 ## 使用方法
 
@@ -46,26 +44,6 @@ import { FileSystemAdapter } from '@eutelo/infrastructure';
 import templates from '@eutelo/distribution/templates';
 ```
 
-### リンターの使用
-
-**Biome を使用する場合：**
-
-```json
-{
-  "extends": ["@eutelo/biome-doc-lint"]
-}
-```
-
-**ESLint を使用する場合：**
-
-```json
-{
-  "plugins": ["@eutelo/eslint-plugin-docs"],
-  "rules": {
-    "eutelo-docs/require-frontmatter": "error"
-  }
-}
-```
 
 ## 個別パッケージのインストール
 

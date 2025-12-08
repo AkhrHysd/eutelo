@@ -110,8 +110,6 @@ export function validateVersionConsistency() {
     'commander',
     'cli',
     'eutelo',
-    'biome-doc-lint',
-    'eslint-plugin-docs',
   ];
 
   const results = {

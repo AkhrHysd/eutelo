@@ -34,9 +34,7 @@ examples/
 
 **主な機能:**
 - 変更されたドキュメントファイルを検出
-- `eutelo graph build` でグラフ全体を構築
-- 変更されたドキュメントとグラフのエッジから関連ファイルを抽出
-- 抽出した関連ファイルを `eutelo guard` で検証
+- 変更されたドキュメントと関連ファイルを `eutelo guard` で検証
 - 検証結果（Issues/Warnings）をPRコメントとして投稿
 
 **必要なシークレット:**
@@ -80,15 +78,7 @@ examples/
 1. **変更ファイルの検出**
    - `tj-actions/changed-files` を使用して `docs/**/*.md` の変更を検出
 
-2. **グラフの構築**
-   - `eutelo graph build --format json --output graph.json` でドキュメントグラフを構築
-
-3. **関連ファイルの抽出**
-   - 変更されたファイルの document ID を特定
-   - グラフのエッジ（`parent`、`related`、`mentions` など）から関連ファイルを抽出
-   - 変更ファイル自体も含めて、重複を除去したファイルリストを作成
-
-4. **Guard 実行**
+2. **Guard 実行**
    - 抽出した関連ファイルを `eutelo guard --format json` に渡して検証
    - JSON形式で結果を取得
 

@@ -63,6 +63,3 @@ jobs:
           # Exit with error if any guard check failed
           exit ${GUARD_EXIT:-0}
 
-      - name: Build document graph
-        # Verify the document graph can be built successfully
-        run: npx eutelo graph build

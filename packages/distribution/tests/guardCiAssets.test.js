@@ -69,12 +69,10 @@ test('guard workflow templates target common triggers and run guard inline', () 
   assert.match(pr, /pull_request:/, 'PR template missing pull_request trigger');
   assert.match(pr, /paths:\n      - 'docs\/\*\*'/, 'PR template missing docs path filter');
   assert.match(pr, /npx eutelo guard/, 'PR template missing guard command');
-  assert.match(pr, /npx eutelo graph build/, 'PR template missing graph build command');
 
   // Main template checks
   assert.match(main, /branches:\n      - main/, 'main template missing branch trigger');
   assert.match(main, /npx eutelo guard/, 'main template missing guard command');
-  assert.match(main, /npx eutelo graph build/, 'main template missing graph build command');
 
   // Dispatch template checks
   assert.match(dispatch, /workflow_dispatch:/, 'dispatch template missing manual trigger');

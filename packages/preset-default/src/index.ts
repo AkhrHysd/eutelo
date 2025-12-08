@@ -15,7 +15,9 @@ function promptPath(fileName: string): string {
   return path.join(promptsDir, fileName);
 }
 
-const defaultFrontmatterKinds = ['prd', 'sub-prd', 'behavior', 'sub-behavior', 'design', 'sub-design', 'adr', 'task', 'ops'];
+// frontmatterSchemasのkindは、directoryStructureで使用されるkindと一致させる必要がある
+// DocumentTypeRegistryは正規化機能を持っているが、スキーマのkindは実際に使用されるkindに合わせる
+const defaultFrontmatterKinds = ['prd', 'sub-prd', 'beh', 'sub-beh', 'dsg', 'adr', 'task', 'ops'];
 
 function cloneFields(): Record<string, FrontmatterFieldSchema> {
   return JSON.parse(JSON.stringify(frontmatterCoreSchema.fields)) as Record<string, FrontmatterFieldSchema>;

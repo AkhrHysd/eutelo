@@ -26,8 +26,6 @@ const PUBLISH_ORDER = [
   'commander',
   'cli',
   'eutelo',
-  'biome-doc-lint',
-  'eslint-plugin-docs',
 ];
 
 /**

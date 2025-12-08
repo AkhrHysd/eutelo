@@ -1,5 +1,4 @@
 export { REQUIRED_DIRECTORIES } from './constants/requiredDirectories.js';
-export { CHECK_EXIT_CODES } from './constants/check.js';
 export { GUARD_EXIT_CODES } from './constants/guard.js';
 export {
   ScaffoldService,
