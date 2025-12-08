@@ -5,7 +5,7 @@ feature: EUTELO-FEATURE-SIMPLIFICATION
 title: ドキュメント更新
 purpose: >
   README、移行ガイド、CHANGELOGを更新し、削除された機能と移行方法を明記する。
-status: pending
+status: completed
 version: 0.1
 owners: ["@AkhrHysd"]
 related: [PRD-EUTELO-FEATURE-SIMPLIFICATION, DSG-EUTELO-FEATURE-SIMPLIFICATION]

@@ -43,6 +43,36 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+#### 削除されたコマンド
+- **`eutelo graph`コマンド全体を削除**
+  - `eutelo graph build` - ドキュメントグラフの構築・出力
+  - `eutelo graph show <documentId>` - ドキュメントの関係性表示
+  - `eutelo graph impact <documentId>` - 影響範囲分析
+  - `eutelo graph summary` - グラフ統計情報の表示
+  - `eutelo graph related <documentPath>` - 関連ドキュメント一覧
+  - **代替方法**: `eutelo guard`の関連ドキュメント収集機能を使用。詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照
+- **`eutelo config inspect`コマンドを削除**
+  - **代替方法**: 設定ファイル（`eutelo.config.*`）を直接確認
+
+#### 削除されたオプション
+- **`eutelo init --placeholder-format`オプションを削除**
+  - プレースホルダー形式は固定形式（`__VARIABLE__`）を使用
+- **`eutelo guard --japanese`/`--ja`オプションを削除**
+  - LLMの応答言語は、プロンプトテンプレートやモデル設定で制御
+
+#### 非推奨
+- **`eutelo add`の組み込みドキュメント種別を非推奨化**
+  - 組み込み種別: `prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`
+  - **推奨**: カスタム種別を設定ファイルで定義して使用
+  - 組み込み種別を使用した場合、非推奨警告が表示されますが、動作は継続します
+  - 詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照
+
+### Migration Guide
+
+詳細な移行ガイドは [MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md) を参照してください。
+
 ### Added
 - **`directoryStructure` 設定**: `eutelo init` で作成されるディレクトリ構造を設定ファイルでカスタマイズ可能に
   - 配列形式とディレクトリ-ファイル定義形式の2つの形式をサポート
@@ -54,7 +84,6 @@
 - **`eutelo init` 新オプション**:
   - `--skip-dynamic-paths`: 動的パスを含むディレクトリの作成をスキップ
   - `--create-placeholders`: プレースホルダーディレクトリの作成を制御（デフォルト有効）
-  - `--placeholder-format <format>`: プレースホルダー形式のカスタマイズ（将来の拡張用）
 - **動的パス処理関数**: `hasDynamicSegments()`, `extractVariables()`, `convertDynamicPathToPlaceholder()`, `buildRequiredDirectoriesFromConfig()` を追加
 - **型定義**: `DirectoryFileDefinition`, `DirectoryStructure`, `DirectoryStructureMap`, `NormalizedDirectoryStructure`, `DynamicPathOptions` を追加
 

@@ -6,7 +6,7 @@ title: 不要なコマンドの削除
 purpose: >
   `eutelo graph`コマンド全体と`eutelo config inspect`コマンドを削除し、
   コアバリューに集中したシンプルなエコシステムを実現する。
-status: pending
+status: completed
 version: 0.1
 owners: ["@AkhrHysd"]
 related: [PRD-EUTELO-FEATURE-SIMPLIFICATION, DSG-EUTELO-FEATURE-SIMPLIFICATION]

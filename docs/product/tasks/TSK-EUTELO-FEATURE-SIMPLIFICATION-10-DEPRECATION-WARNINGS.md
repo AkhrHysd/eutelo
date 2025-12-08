@@ -6,7 +6,7 @@ title: 組み込みドキュメント種別の非推奨警告追加
 purpose: >
   `eutelo add`の組み込みドキュメント種別（prd, beh, sub-prd, sub-beh, dsg, adr, task, ops）
   に非推奨警告を追加し、カスタム種別の使用を推奨する。
-status: pending
+status: completed
 version: 0.1
 owners: ["@AkhrHysd"]
 related: [PRD-EUTELO-FEATURE-SIMPLIFICATION, DSG-EUTELO-FEATURE-SIMPLIFICATION]

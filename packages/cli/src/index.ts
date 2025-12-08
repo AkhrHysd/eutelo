@@ -1,5 +1,4 @@
 import { Command } from '@eutelo/commander';
-import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { config } from 'dotenv';
@@ -10,25 +9,19 @@ import {
   createAddDocumentService,
   createScaffoldService,
   createGuardService,
-  createGraphService,
   createRuleValidationService,
-  GraphSerializer,
-  RelatedDocumentResolver,
-  DocumentScanner,
-  GraphBuilder,
   type DocumentType,
   GUARD_EXIT_CODES,
   type GuardRunResult,
   type GuardOutputFormat,
   type ValidationRunResult,
   type ValidationOutputFormat,
-  resolveDocsRoot,
   loadConfig,
   ConfigError,
   DocumentTypeNotFoundError,
   DocumentTypeRegistry
 } from '@eutelo/core';
-import type { EuteloConfigResolved, ScaffoldTemplateConfig, FrontmatterSchemaConfig } from '@eutelo/core';
+import type { EuteloConfigResolved, ScaffoldTemplateConfig } from '@eutelo/core';
 import { FileSystemAdapter } from '@eutelo/infrastructure';
 
 // Load .env file from project root (where CLI is executed)
@@ -42,7 +35,6 @@ type InitCliOptions = {
   dryRun?: boolean;
   createPlaceholders?: boolean;
   skipDynamicPaths?: boolean;
-  placeholderFormat?: string;
 };
 
 type AddParams = {
@@ -59,7 +51,6 @@ type GuardCliOptions = {
   related?: boolean;
   depth?: string;
   all?: boolean;
-  japanese?: boolean;
 };
 
 type ValidateCliOptions = {
@@ -69,19 +60,6 @@ type ValidateCliOptions = {
   ci?: boolean;
 };
 
-type GraphBuildCliOptions = {
-  format?: string;
-  output?: string;
-};
-
-type GraphImpactCliOptions = {
-  depth?: string;
-};
-
-type ConfigInspectOptions = {
-  config?: string;
-  format?: string;
-};
 
 type ConfigCacheEntry = {
   key: string;
@@ -128,6 +106,13 @@ function resolveDocsRootFromConfig(config: EuteloConfigResolved): string {
 
 function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
+}
+
+function showDeprecationWarning(type: string): void {
+  process.stderr.write(
+    `Warning: 'eutelo add ${type}' is deprecated. ` +
+    `Please define custom document types in eutelo.config.* and use 'eutelo add <kind>' instead.\n`
+  );
 }
 
 function resolveTemplateRoot(): string {
@@ -206,16 +191,13 @@ async function runGuardCommand(
     process.stderr.write(`Resolving related documents (depth: ${depthInfo})...\n`);
   }
   
-  const japanese = options.japanese || argv.includes('--japanese') || argv.includes('--ja');
-  
   const result = await guardService.run({
     documents: normalizedDocuments,
     checkId: typeof checkOverride === 'string' ? checkOverride : undefined,
     format,
     warnOnly,
     failOnError,
-    relatedOptions,
-    japanese
+    relatedOptions
   });
 
   // Log collected related documents if any
@@ -300,301 +282,6 @@ function normalizeValidateDocuments(positional: string[], argv: string[]): strin
   return collected;
 }
 
-async function runConfigInspect(options: ConfigInspectOptions, argv: string[]): Promise<void> {
-  const format = normalizeConfigInspectFormat(resolveFormatArgument(argv) ?? options.format);
-  const explicitPath = typeof options.config === 'string' ? options.config : undefined;
-  const argvPath = resolveOptionValue(argv, '--config');
-  const configPath = explicitPath ?? argvPath;
-  const absoluteConfigPath = configPath ? path.resolve(process.cwd(), configPath) : undefined;
-  const resolved = await loadConfig({
-    cwd: process.cwd(),
-    configFile: absoluteConfigPath
-  });
-
-  if (format === 'json') {
-    process.stdout.write(`${JSON.stringify(resolved, null, 2)}\n`);
-    return;
-  }
-
-  process.stdout.write(renderConfigInspection(resolved));
-}
-
-function normalizeConfigInspectFormat(value?: string | boolean): 'text' | 'json' {
-  if (!value || typeof value !== 'string') {
-    return 'text';
-  }
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'json' || normalized === 'text') {
-    return normalized;
-  }
-  throw new Error(`Invalid --format value: ${value}`);
-}
-
-function renderConfigInspection(config: EuteloConfigResolved): string {
-  const scaffoldEntries = Object.entries(config.scaffold ?? {}).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-  const guardEntries = Object.entries(config.guard?.prompts ?? {}).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-  const schemaEntries = [...(config.frontmatter?.schemas ?? [])].sort((a, b) =>
-    a.kind.localeCompare(b.kind)
-  );
-
-  const lines: string[] = [];
-  lines.push(`Config file: ${config.sources.configPath ?? '(auto-detected)'}`);
-  lines.push(`Working directory: ${config.sources.cwd}`);
-  lines.push('Presets:');
-  if (config.presets.length === 0) {
-    lines.push('  (none)');
-  } else {
-    for (const preset of config.presets) {
-      lines.push(`  - ${preset}`);
-    }
-  }
-
-  lines.push('Scaffold entries:');
-  if (scaffoldEntries.length === 0) {
-    lines.push('  (none)');
-  } else {
-    for (const [, entry] of scaffoldEntries) {
-      lines.push(`  - ${entry.id}: ${entry.path} (template: ${entry.template})`);
-    }
-  }
-
-  lines.push('Frontmatter schemas:');
-  if (schemaEntries.length === 0) {
-    lines.push('  (none)');
-  } else {
-    for (const schema of schemaEntries) {
-      lines.push(`  - ${schema.kind}: ${Object.keys(schema.fields).length} field(s)`);
-    }
-  }
-
-  lines.push('Guard prompts:');
-  if (guardEntries.length === 0) {
-    lines.push('  (none)');
-  } else {
-    for (const [, prompt] of guardEntries) {
-      const modelSegment = prompt.model ? ` model=${prompt.model}` : '';
-      lines.push(`  - ${prompt.id}: ${prompt.templatePath}${modelSegment}`);
-    }
-  }
-
-  lines.push('');
-  return lines.join('\n');
-}
-
-type GraphOutputFormat = 'json' | 'mermaid';
-
-async function runGraphBuildCommand(
-  graphService: ReturnType<typeof createGraphService>,
-  argv: string[]
-): Promise<void> {
-  const format = normalizeGraphFormat(resolveFormatArgument(argv));
-  const outputValue = resolveOptionValue(argv, '--output')?.trim();
-  const graph = await graphService.buildGraph({ cwd: process.cwd() });
-  const payload = GraphSerializer.serialize(graph, format, { maxEdges: 400 });
-
-  const wroteToFile = Boolean(outputValue);
-  if (wroteToFile && outputValue) {
-    const absoluteOutput = path.resolve(process.cwd(), outputValue);
-    await fs.mkdir(path.dirname(absoluteOutput), { recursive: true });
-    await fs.writeFile(absoluteOutput, payload);
-    process.stdout.write(`Graph exported to ${absoluteOutput}\n`);
-  } else {
-    process.stdout.write(format === 'json' ? `${payload}\n` : payload);
-  }
-
-  renderGraphWarnings(graph.errors);
-  const summaryStream = format === 'json' && !wroteToFile ? process.stderr : process.stdout;
-  summaryStream.write(`Nodes: ${graph.stats.nodeCount}, edges: ${graph.stats.edgeCount}\n`);
-  if (graph.integrity.orphanNodeIds.length > 0) {
-    summaryStream.write(`Orphan nodes: ${graph.integrity.orphanNodeIds.slice(0, 5).join(', ')}\n`);
-  }
-  if (graph.integrity.danglingEdges.length > 0) {
-    summaryStream.write(`Dangling edges: ${graph.integrity.danglingEdges.length}\n`);
-  }
-}
-
-async function runGraphShowCommand(
-  graphService: ReturnType<typeof createGraphService>,
-  documentId: string
-): Promise<void> {
-  const result = await graphService.describeNode({ cwd: process.cwd(), documentIdOrPath: documentId });
-  process.stdout.write(`Document: ${result.node.id} (${result.node.type})\n`);
-  process.stdout.write(`Path: ${result.node.path}\n`);
-  if (result.node.feature) {
-    process.stdout.write(`Feature: ${result.node.feature}\n`);
-  }
-  if (result.node.tags.length > 0) {
-    process.stdout.write(`Tags: ${result.node.tags.join(', ')}\n`);
-  }
-
-  printEdgeList('Parents', result.parents, (edge) => edge.from);
-  printEdgeList('Children', result.children, (edge) => edge.to);
-  printEdgeList('Related', result.related, (edge) => edge.to);
-  printEdgeList('Mentions', result.mentions, (edge) => edge.to);
-  printEdgeList('Mentioned By', result.mentionedBy, (edge) => edge.from);
-}
-
-async function runGraphImpactCommand(
-  graphService: ReturnType<typeof createGraphService>,
-  documentId: string,
-  argv: string[]
-): Promise<void> {
-  const depthValue = resolveOptionValue(argv, '--depth');
-  const depth = depthValue ? Number.parseInt(depthValue, 10) : undefined;
-  const result = await graphService.analyzeImpact({
-    cwd: process.cwd(),
-    documentIdOrPath: documentId,
-    impact: depth && Number.isFinite(depth) ? { maxDepth: depth } : undefined
-  });
-
-  process.stdout.write(`Impact radius from ${result.node.id}\n`);
-  if (result.findings.length === 0) {
-    process.stdout.write('No connected documents were found.\n');
-    return;
-  }
-
-  for (const finding of result.findings) {
-    process.stdout.write(
-      `  hop=${finding.hop} [${finding.priority}] ${finding.id} (${finding.direction} via ${finding.via})\n`
-    );
-  }
-}
-
-async function runGraphSummaryCommand(graphService: ReturnType<typeof createGraphService>): Promise<void> {
-  const summary = await graphService.summarize({ cwd: process.cwd() });
-  const graph = summary.graph;
-  process.stdout.write(`Nodes: ${graph.stats.nodeCount}\n`);
-  process.stdout.write(`Edges: ${graph.stats.edgeCount}\n`);
-
-  process.stdout.write('By type:\n');
-  for (const [type, count] of Object.entries(graph.stats.byType)) {
-    process.stdout.write(`  - ${type}: ${count}\n`);
-  }
-
-  if (summary.topFeatures.length > 0) {
-    process.stdout.write('Top features:\n');
-    for (const feature of summary.topFeatures) {
-      process.stdout.write(`  - ${feature.feature}: ${feature.count}\n`);
-    }
-  }
-
-  if (graph.integrity.orphanNodeIds.length > 0) {
-    process.stdout.write(`Orphan nodes (${graph.integrity.orphanNodeIds.length}):\n`);
-    for (const orphan of graph.integrity.orphanNodeIds.slice(0, 10)) {
-      process.stdout.write(`  - ${orphan}\n`);
-    }
-  } else {
-    process.stdout.write('No orphan nodes detected.\n');
-  }
-
-  if (graph.integrity.danglingEdges.length > 0) {
-    process.stdout.write(`Dangling references (${graph.integrity.danglingEdges.length}):\n`);
-    for (const edge of graph.integrity.danglingEdges.slice(0, 5)) {
-      process.stdout.write(`  - ${edge.from} -> ${edge.to} (${edge.relation})\n`);
-    }
-  }
-
-  renderGraphWarnings(graph.errors);
-}
-
-type GraphRelatedCommandOptions = {
-  fileSystemAdapter: FileSystemAdapter;
-  docsRoot: string;
-  frontmatterSchemas?: FrontmatterSchemaConfig[];
-  scaffold?: Record<string, ScaffoldTemplateConfig>;
-  depth?: string;
-  all?: boolean;
-  direction?: string;
-  format?: string;
-};
-
-async function runGraphRelatedCommand(
-  documentPath: string,
-  options: GraphRelatedCommandOptions,
-  argv: string[]
-): Promise<void> {
-  const formatValue = resolveFormatArgument(argv) ?? options.format;
-  const format = formatValue === 'json' ? 'json' : 'text';
-  const depthValue = resolveOptionValue(argv, '--depth') ?? options.depth;
-  const depth = depthValue ? Number.parseInt(depthValue, 10) : 1;
-  const all = options.all || argv.includes('--all');
-  const directionValue = resolveOptionValue(argv, '--direction') ?? options.direction ?? 'both';
-  const direction = directionValue as 'upstream' | 'downstream' | 'both';
-
-  // Create scanner, builder, and resolver
-  const scanner = new DocumentScanner({
-    fileSystemAdapter: options.fileSystemAdapter,
-    docsRoot: options.docsRoot,
-    frontmatterSchemas: options.frontmatterSchemas,
-    scaffold: options.scaffold
-  });
-  const builder = new GraphBuilder();
-  const resolver = new RelatedDocumentResolver({
-    scanner,
-    builder,
-    cwd: process.cwd()
-  });
-
-  try {
-    const result = await resolver.resolve(documentPath, {
-      depth: all ? undefined : depth,
-      all,
-      direction,
-      cwd: process.cwd()
-    });
-
-    if (format === 'json') {
-      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-      return;
-    }
-
-    // Text format output
-    process.stdout.write(`Related documents for ${result.origin.id}:\n\n`);
-    
-    if (result.related.length === 0) {
-      process.stdout.write('  No related documents found.\n');
-    } else {
-      process.stdout.write('  Direction  Hop  Via       ID\n');
-      process.stdout.write('  ─────────  ───  ────────  ────────────────────\n');
-      for (const doc of result.related) {
-        const dir = doc.direction === 'upstream' ? '↑ upstream' : '↓ downstream';
-        const via = doc.via.padEnd(8);
-        process.stdout.write(`  ${dir.padEnd(11)} ${String(doc.hop).padEnd(3)}  ${via}  ${doc.id}\n`);
-      }
-    }
-    
-    process.stdout.write(`\nTotal: ${result.stats.totalFound} related document(s)\n`);
-    
-    if (result.warnings.length > 0) {
-      process.stdout.write('\nWarnings:\n');
-      for (const warning of result.warnings) {
-        process.stdout.write(`  - ${warning}\n`);
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      process.stderr.write(`Error: ${error.message}\n`);
-      process.exitCode = 1;
-      return;
-    }
-    throw error;
-  }
-}
-
-function normalizeGraphFormat(value?: string | boolean): GraphOutputFormat {
-  if (!value || typeof value !== 'string') {
-    return 'json';
-  }
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'json' || normalized === 'mermaid') {
-    return normalized;
-  }
-  throw new Error(`Invalid --format value: ${value}`);
-}
 
 function resolveOptionValue(argv: string[], optionName: string): string | undefined {
   if (!Array.isArray(argv)) {
@@ -619,29 +306,6 @@ function resolveOptionValue(argv: string[], optionName: string): string | undefi
   return undefined;
 }
 
-function renderGraphWarnings(errors: { path: string; message: string }[]): void {
-  if (!errors || errors.length === 0) {
-    return;
-  }
-  process.stderr.write('Warnings while building graph:\n');
-  for (const entry of errors.slice(0, 10)) {
-    process.stderr.write(`  - ${entry.path}: ${entry.message}\n`);
-  }
-  if (errors.length > 10) {
-    process.stderr.write(`  ... ${errors.length - 10} more warnings\n`);
-  }
-}
-
-function printEdgeList(label: string, edges: { from: string; to: string }[], selector: (edge: any) => string) {
-  if (!edges || edges.length === 0) {
-    process.stdout.write(`${label}: (none)\n`);
-    return;
-  }
-  process.stdout.write(`${label}:\n`);
-  for (const edge of edges) {
-    process.stdout.write(`  - ${selector(edge)}\n`);
-  }
-}
 
 function handleCommandError(error: unknown): void {
   if (error instanceof FileAlreadyExistsError) {
@@ -669,7 +333,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     templateRoot: resolveTemplateRoot(),
     overrideRoot: resolveTemplateOverrideRoot()
   });
-  const guardService = createGuardService();
 
   const program = new Command();
   program.name('eutelo').description('Eutelo documentation toolkit');
@@ -681,7 +344,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--config <path>', 'Path to eutelo.config.*')
     .option('--create-placeholders', 'Create placeholder directories for dynamic paths (default: true)')
     .option('--skip-dynamic-paths', 'Skip creating directories for dynamic paths')
-    .option('--placeholder-format <format>', 'Placeholder format (default: __VARIABLE__)')
     .action(async (options: InitCliOptions = {}) => {
       const configPath = resolveOptionValue(argv, '--config');
       try {
@@ -695,18 +357,11 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
           } else if (options.createPlaceholders !== undefined) {
             dynamicPathOptions.createPlaceholders = options.createPlaceholders;
           } else {
-            // デフォルトでプレースホルダーを作成
-            dynamicPathOptions.createPlaceholders = true;
-          }
-          
-          // プレースホルダー形式のカスタマイズ（将来の拡張用）
-          if (options.placeholderFormat) {
-            // 形式: "__VARIABLE__" または "[VARIABLE]" など
-            // 現在は固定形式を使用
-            // TODO: 将来的にカスタム形式をサポート
-          }
-          
-          const scaffoldService = createScaffoldService({
+          // デフォルトでプレースホルダーを作成
+          dynamicPathOptions.createPlaceholders = true;
+        }
+        
+        const scaffoldService = createScaffoldService({
             fileSystemAdapter,
             templateService,
             docsRoot,
@@ -722,8 +377,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     });
 
   const add = program.command('add').description('Generate documentation from templates');
-  const graph = program.command('graph').description('Inspect the document dependency graph');
-  const configCommand = program.command('config').description('Inspect or debug Eutelo configuration');
 
   // Track registered command names to avoid duplicates with fixed commands
   const registeredCommands = new Set<string>(['prd', 'beh', 'sub-prd', 'sub-beh', 'dsg', 'adr', 'task', 'ops']);
@@ -857,6 +510,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a PRD document for the given feature')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      showDeprecationWarning('prd');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -879,6 +533,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a BEH document for the given feature')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      showDeprecationWarning('beh');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -901,6 +556,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a SUB-PRD document for the given feature and sub-feature')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string, sub: string) => {
+      showDeprecationWarning('sub-prd');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -923,6 +579,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a sub BEH document linked to a SUB-PRD')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string, sub: string) => {
+      showDeprecationWarning('sub-beh');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -945,6 +602,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a DSG document for the given feature')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      showDeprecationWarning('dsg');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -967,6 +625,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate an ADR document for the given feature with sequential numbering')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (feature: string) => {
+      showDeprecationWarning('adr');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -989,6 +648,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate a TASK plan document')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (name: string) => {
+      showDeprecationWarning('task');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -1011,6 +671,7 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .description('Generate an OPS runbook document')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (name: string) => {
+      showDeprecationWarning('ops');
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -1040,7 +701,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--no-related', 'Disable automatic related document collection')
     .option('--depth <number>', 'Depth for related document traversal (default: 1)')
     .option('--all', 'Collect all related documents regardless of depth')
-    .option('--japanese, --ja', 'Output results in Japanese')
     .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
       const configPath = resolveOptionValue(argv, '--config');
       try {
@@ -1087,142 +747,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       }
     });
 
-  graph
-    .command('build')
-    .description('Scan eutelo-docs and output the document graph')
-    .option('--format <format>', 'Output format (json or mermaid)')
-    .option('--output <file>', 'Write the graph to a file')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async () => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const graphService = createGraphService({
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold
-          });
-          await runGraphBuildCommand(graphService, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  graph
-    .command('show <documentId>')
-    .description('Display parents, children, and related nodes for a document')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (documentId: string) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const graphService = createGraphService({
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold
-          });
-          await runGraphShowCommand(graphService, documentId);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  graph
-    .command('impact <documentId>')
-    .description('List 1-hop / 2-hop dependencies for a document')
-    .option('--depth <n>', 'Search depth (default: 3)')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (documentId: string) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const graphService = createGraphService({
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold
-          });
-          await runGraphImpactCommand(graphService, documentId, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  graph
-    .command('summary')
-    .description('Show graph-wide statistics and orphan nodes')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async () => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const graphService = createGraphService({
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold
-          });
-          await runGraphSummaryCommand(graphService);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  graph
-    .command('related <documentPath>')
-    .description('List related documents for a given document')
-    .option('--depth <n>', 'Search depth (default: 1)')
-    .option('--all', 'Search all related documents regardless of depth')
-    .option('--direction <dir>', 'Search direction: upstream, downstream, or both (default: both)')
-    .option('--format <format>', 'Output format (text or json)')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (documentPath: string) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      const depth = resolveOptionValue(argv, '--depth');
-      const all = argv.includes('--all');
-      const direction = resolveOptionValue(argv, '--direction');
-      const format = resolveOptionValue(argv, '--format');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          await runGraphRelatedCommand(documentPath, {
-            fileSystemAdapter,
-            docsRoot,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold,
-            depth,
-            all,
-            direction,
-            format
-          }, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  configCommand
-    .command('inspect')
-    .description('Resolve eutelo.config.* and presets, showing merged values')
-    .option('--config <path>', 'Explicit config file path')
-    .option('--format <format>', 'Output format (text or json)')
-    .action(async (options: ConfigInspectOptions) => {
-      try {
-        await runConfigInspect(options, argv);
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
 
   // Register dynamic commands from config before parsing
   await registerDynamicCommands();

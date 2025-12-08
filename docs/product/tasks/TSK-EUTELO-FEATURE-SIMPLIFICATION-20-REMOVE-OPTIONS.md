@@ -6,7 +6,7 @@ title: 過剰なオプションの削除
 purpose: >
   `eutelo init --placeholder-format`と`eutelo guard --japanese`/`--ja`オプションを削除し、
   コマンドラインインターフェースを簡素化する。
-status: pending
+status: completed
 version: 0.1
 owners: ["@AkhrHysd"]
 related: [PRD-EUTELO-FEATURE-SIMPLIFICATION, DSG-EUTELO-FEATURE-SIMPLIFICATION]

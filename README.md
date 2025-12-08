@@ -314,10 +314,6 @@ Eutelo merges configurations from presets and your local configuration file:
 2. Additional presets specified in `presets` are merged in order
 3. Local configuration file overrides preset values
 
-You can inspect the merged configuration using:
-```bash
-pnpm exec eutelo config inspect
-```
 
 ## CLI Commands
 
@@ -399,6 +395,8 @@ pnpm exec eutelo init --dry-run  # Preview without creating directories
 - `--skip-dynamic-paths`: Skip creating directories with dynamic paths (e.g., `{FEATURE}`)
 - `--create-placeholders`: Create placeholder directories for dynamic paths (default: enabled)
 
+> **Note:** The `--placeholder-format` option has been removed. Placeholder format is now fixed to `__VARIABLE__`.
+
 **Custom Directory Structure:**
 
 You can customize the directory structure by defining `directoryStructure` in your config file:
@@ -426,32 +424,36 @@ When `directoryStructure` is not specified, the default structure is used.
 
 Generates documents from templates.
 
-#### Built-in Document Types
+#### Built-in Document Types (Deprecated)
+
+> **Warning:** Built-in document types (`prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`) are deprecated.  
+> Please define custom document types in `eutelo.config.*` and use `eutelo add <kind>` instead.  
+> See [Migration Guide](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md) for details.
 
 ```bash
 # Generate a PRD (Product Requirements Document)
-pnpm exec eutelo add prd <feature>
+pnpm exec eutelo add prd <feature>  # Deprecated: Use custom document types instead
 
 # Generate a BEH (Behavior Specification)
-pnpm exec eutelo add beh <feature>
+pnpm exec eutelo add beh <feature>  # Deprecated: Use custom document types instead
 
 # Generate a SUB-PRD (Sub Product Requirements Document)
-pnpm exec eutelo add sub-prd <feature> <sub>
+pnpm exec eutelo add sub-prd <feature> <sub>  # Deprecated: Use custom document types instead
 
 # Generate a SUB-BEH (Sub Behavior Specification)
-pnpm exec eutelo add sub-beh <feature> <sub>
+pnpm exec eutelo add sub-beh <feature> <sub>  # Deprecated: Use custom document types instead
 
 # Generate a DSG (Design Specification)
-pnpm exec eutelo add dsg <feature>
+pnpm exec eutelo add dsg <feature>  # Deprecated: Use custom document types instead
 
 # Generate an ADR (Architecture Decision Record)
-pnpm exec eutelo add adr <feature>
+pnpm exec eutelo add adr <feature>  # Deprecated: Use custom document types instead
 
 # Generate a TASK (Task Plan)
-pnpm exec eutelo add task <name>
+pnpm exec eutelo add task <name>  # Deprecated: Use custom document types instead
 
 # Generate an OPS (Operations Runbook)
-pnpm exec eutelo add ops <name>
+pnpm exec eutelo add ops <name>  # Deprecated: Use custom document types instead
 ```
 
 #### Custom Document Types
@@ -515,7 +517,7 @@ The command `eutelo add custom <feature>` is automatically generated based on th
 - `{SUB}` → requires `<sub>` argument
 - `{NAME}` → requires `<name>` argument
 
-**Note**: Custom document types are included in `eutelo graph`. Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
+**Note**: Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
 
 ### `eutelo guard`
 
@@ -724,83 +726,9 @@ pnpm exec eutelo validate --warn-only docs/**/*.md
 
 **Note**: Documents without a `rules` field in their `directoryStructure` definition are skipped during validation.
 
-### `eutelo graph`
+## Migration Guide
 
-Operates and analyzes the dependency graph between documents.
-
-#### `eutelo graph build`
-
-Builds and outputs the document graph.
-
-```bash
-pnpm exec eutelo graph build                    # Output graph in JSON format
-pnpm exec eutelo graph build --format mermaid   # Output in Mermaid format
-pnpm exec eutelo graph build --output graph.json # Write to file
-```
-
-#### `eutelo graph show <documentId>`
-
-Displays parent-child relationships and related nodes for a specified document.
-
-```bash
-pnpm exec eutelo graph show <documentId>        # Display document relationships
-```
-
-#### `eutelo graph impact <documentId>`
-
-Analyzes the impact scope (1-hop / 2-hop dependencies) of a specified document.
-
-```bash
-pnpm exec eutelo graph impact <documentId>      # Analyze impact scope
-pnpm exec eutelo graph impact <documentId> --depth 5  # Specify search depth (default: 3)
-```
-
-#### `eutelo graph related <documentId>`
-
-Lists related documents (parents, children, related documents) for a specified document. Useful for understanding document relationships and debugging guard checks.
-
-```bash
-# Show related documents for a document
-pnpm exec eutelo graph related PRD-AUTH
-
-# Output in JSON format
-pnpm exec eutelo graph related PRD-AUTH --format=json
-
-# Specify traversal depth (default: 1)
-pnpm exec eutelo graph related PRD-AUTH --depth=2
-
-# Collect all related documents regardless of depth
-pnpm exec eutelo graph related PRD-AUTH --all
-
-# Specify traversal direction
-pnpm exec eutelo graph related BEH-AUTH --direction=upstream   # Show only parents
-pnpm exec eutelo graph related PRD-AUTH --direction=downstream # Show only children
-pnpm exec eutelo graph related PRD-AUTH --direction=both       # Show both (default)
-```
-
-**Options:**
-- `--format <format>`: Output format (`text` or `json`)
-- `--depth <n>`: Set traversal depth (default: 1)
-- `--all`: Collect all related documents regardless of depth
-- `--direction <dir>`: Traversal direction (`upstream`, `downstream`, or `both`)
-
-#### `eutelo graph summary`
-
-Displays graph-wide statistics (node count, edge count, orphan nodes, etc.).
-
-```bash
-pnpm exec eutelo graph summary                  # Display graph statistics
-```
-
-### `eutelo config inspect`
-
-Resolves `eutelo.config.*` and presets, showing the merged configuration.
-
-```bash
-pnpm exec eutelo config inspect                         # Resolve configuration at project root
-pnpm exec eutelo config inspect --config ./eutelo.config.yaml
-pnpm exec eutelo config inspect --format json           # Output in JSON format
-```
+For information about removed features and migration steps, see [Migration Guide](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md).
 
 ## For Developers
 
