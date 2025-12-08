@@ -1,6 +1,6 @@
 # CI ワークフロー例
 
-このディレクトリには、`eutelo guard` を使用してドキュメントの整合性を検証する GitHub Actions ワークフローの例が含まれています。
+このディレクトリには、`eutelo align` を使用してドキュメントの整合性を検証する GitHub Actions ワークフローの例が含まれています。
 
 ## ファイル一覧
 
@@ -21,7 +21,7 @@
 
 **機能:**
 1. 変更されたドキュメントファイルを検出
-2. 変更ファイルと関連ファイルを `eutelo guard` で検証（`--related`オプションで自動的に関連ファイルを収集）
+2. 変更ファイルと関連ファイルを `eutelo align` で検証（`--related`オプションで自動的に関連ファイルを収集）
 3. 検証結果（Issues/Warnings/Errors）をPRコメントとして投稿
 
 **必要なシークレット:**
@@ -64,7 +64,7 @@
 
 **機能:**
 - 指定されたパスのファイルを検証
-- 指定ファイルと関連ファイルを `eutelo guard` で検証（`--related`オプションで自動的に関連ファイルを収集）
+- 指定ファイルと関連ファイルを `eutelo align` で検証（`--related`オプションで自動的に関連ファイルを収集）
 - 検証結果をワークフローのログに出力
 
 **必要なシークレット:**
@@ -94,10 +94,10 @@
 
 ### 2. Guard 実行
 
-抽出した関連ファイルを `eutelo guard` に渡して検証します。
+抽出した関連ファイルを `eutelo align` に渡して検証します。
 
 ```bash
-npx eutelo guard --format json $RELATED_FILES
+npx eutelo align --format json $RELATED_FILES
 ```
 
 ### 3. 結果の投稿

@@ -57,7 +57,7 @@ jobs:
             
             # Run guard for this file (guard will automatically collect related documents)
             # Use --depth=1 to limit traversal depth for CI performance
-            npx eutelo guard --depth=1 "$file" || GUARD_EXIT=$?
+            npx eutelo align --depth=1 "$file" || GUARD_EXIT=$?
           done
           
           # Exit with error if any guard check failed

@@ -77,20 +77,20 @@ test('CLI works with project-local config that has no presets (generic migration
     const prdPath = path.join(cwd, 'docs', 'prd', 'GENERIC', 'PRD-GENERIC.md');
     assert.ok(fs.existsSync(prdPath));
 
-    const guardResult = runCli(
-      ['guard', '--format=json', '--config', 'eutelo.config.json', prdPath],
+    const alignResult = runCli(
+      ['align', '--format=json', '--config', 'eutelo.config.json', prdPath],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
-    assert.equal(guardResult.status, 0, guardResult.stderr);
-    const payload = JSON.parse(guardResult.stdout);
+    assert.equal(alignResult.status, 0, alignResult.stderr);
+    const payload = JSON.parse(alignResult.stdout);
     assert.equal(payload.error, null);
   } finally {
     cleanup(cwd);
   }
 });
 
-test('guard fails clearly when config has no guard prompts (preset missing)', () => {
+test('align fails clearly when config has no guard prompts (preset missing)', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-migration-no-preset-'));
   try {
     const docPath = path.join(cwd, 'docs', 'PRD-NO-PRESET.md');
@@ -103,10 +103,10 @@ test('guard fails clearly when config has no guard prompts (preset missing)', ()
     );
     fs.writeFileSync(path.join(cwd, 'eutelo.config.json'), JSON.stringify({ guard: {}, scaffold: {} }, null, 2));
 
-    const result = runCli(['guard', '--format=json', '--config', 'eutelo.config.json', docPath], cwd, {
+    const result = runCli(['align', '--format=json', '--config', 'eutelo.config.json', docPath], cwd, {
       NODE_ENV: 'test'
     });
-    assert.notEqual(result.status, 0, 'guard should fail when prompts are missing');
+    assert.notEqual(result.status, 0, 'align should fail when prompts are missing');
     const payload = JSON.parse(result.stdout);
     assert.match(payload.summary, /environment variables are missing/i);
     assert.equal(payload.error.type, 'configuration');

@@ -81,7 +81,7 @@ jobs:
             ERROR_FILE="guard-error-$(basename "$file").txt"
             
             # Run guard and capture stdout (JSON) and stderr (errors) separately
-            npx eutelo guard --format json --depth=1 "$file" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
+            npx eutelo align --format json --depth=1 "$file" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
             
             # Debug: Show what was captured
             echo "Guard exit code: ${GUARD_EXIT:-0}"

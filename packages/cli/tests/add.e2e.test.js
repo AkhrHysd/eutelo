@@ -45,9 +45,6 @@ test('eutelo add prd creates a PRD file with correct frontmatter', () => {
   try {
     const result = runCli(['add', 'prd', 'AUTH'], cwd);
     assert.equal(result.status, 0, result.stderr);
-    assert.ok(result.stderr.includes('deprecated'), 'Should show deprecation warning');
-    assert.ok(result.stderr.includes('eutelo add prd'), 'Warning should mention the command');
-    assert.ok(result.stderr.includes('eutelo.config.*'), 'Warning should mention config file');
 
     const target = path.join(cwd, 'eutelo-docs/product/features/AUTH/PRD-AUTH.md');
     assert.ok(fs.existsSync(target), 'PRD file should exist');
@@ -81,21 +78,18 @@ test('add beh/sub-prd/sub-beh generate linked documents', () => {
     runCli(['add', 'prd', 'AUTH'], cwd);
     const beh = runCli(['add', 'beh', 'AUTH'], cwd);
     assert.equal(beh.status, 0, beh.stderr);
-    assert.ok(beh.stderr.includes('deprecated'), 'Should show deprecation warning for beh');
     const behFile = path.join(cwd, 'eutelo-docs/product/features/AUTH/BEH-AUTH.md');
     const behFrontmatter = readFrontmatter(behFile);
     assert.equal(behFrontmatter.parent, 'PRD-AUTH');
 
     const subPrd = runCli(['add', 'sub-prd', 'AUTH', 'LOGIN'], cwd);
     assert.equal(subPrd.status, 0, subPrd.stderr);
-    assert.ok(subPrd.stderr.includes('deprecated'), 'Should show deprecation warning for sub-prd');
     const subPrdFile = path.join(cwd, 'eutelo-docs/product/features/AUTH/SUB-PRD-LOGIN.md');
     const subPrdFrontmatter = readFrontmatter(subPrdFile);
     assert.equal(subPrdFrontmatter.parent, 'PRD-AUTH');
 
     const subBeh = runCli(['add', 'sub-beh', 'AUTH', 'LOGIN'], cwd);
     assert.equal(subBeh.status, 0, subBeh.stderr);
-    assert.ok(subBeh.stderr.includes('deprecated'), 'Should show deprecation warning for sub-beh');
     const subBehFile = path.join(cwd, 'eutelo-docs/product/features/AUTH/BEH-AUTH-LOGIN.md');
     const subBehFrontmatter = readFrontmatter(subBehFile);
     assert.equal(subBehFrontmatter.parent, 'SUB-PRD-LOGIN');
@@ -110,31 +104,26 @@ test('add dsg/adr/task/ops cover architecture and ops documents', () => {
     runCli(['add', 'prd', 'AUTH'], cwd);
     const dsg = runCli(['add', 'dsg', 'AUTH'], cwd);
     assert.equal(dsg.status, 0, dsg.stderr);
-    assert.ok(dsg.stderr.includes('deprecated'), 'Should show deprecation warning for dsg');
     const dsgFile = path.join(cwd, 'eutelo-docs/architecture/design/AUTH/DSG-AUTH.md');
     assert.ok(fs.existsSync(dsgFile));
 
     const adrFirst = runCli(['add', 'adr', 'AUTH'], cwd);
     assert.equal(adrFirst.status, 0, adrFirst.stderr);
-    assert.ok(adrFirst.stderr.includes('deprecated'), 'Should show deprecation warning for adr');
     const adrFirstPath = path.join(cwd, 'eutelo-docs/architecture/adr/ADR-AUTH-0001.md');
     assert.ok(fs.existsSync(adrFirstPath));
 
     const adrSecond = runCli(['add', 'adr', 'AUTH'], cwd);
     assert.equal(adrSecond.status, 0, adrSecond.stderr);
-    assert.ok(adrSecond.stderr.includes('deprecated'), 'Should show deprecation warning for adr');
     const adrSecondPath = path.join(cwd, 'eutelo-docs/architecture/adr/ADR-AUTH-0002.md');
     assert.ok(fs.existsSync(adrSecondPath));
 
     const task = runCli(['add', 'task', 'setup-ci'], cwd);
     assert.equal(task.status, 0, task.stderr);
-    assert.ok(task.stderr.includes('deprecated'), 'Should show deprecation warning for task');
     const taskFile = path.join(cwd, 'eutelo-docs/tasks/TASK-setup-ci.md');
     assert.ok(fs.existsSync(taskFile));
 
     const ops = runCli(['add', 'ops', 'doc-scaffold-ci'], cwd);
     assert.equal(ops.status, 0, ops.stderr);
-    assert.ok(ops.stderr.includes('deprecated'), 'Should show deprecation warning for ops');
     const opsFile = path.join(cwd, 'eutelo-docs/ops/OPS-doc-scaffold-ci.md');
     assert.ok(fs.existsSync(opsFile));
   } finally {

@@ -119,9 +119,9 @@ function cleanup(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
-test('validate command exists and returns success for empty documents', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-validate-'));
-  const result = runCli(['validate'], cwd);
+test('rule command exists and returns success for empty documents', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-rule-'));
+  const result = runCli(['rule'], cwd);
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Validated.*document/i);
@@ -129,7 +129,7 @@ test('validate command exists and returns success for empty documents', () => {
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('validate command detects rule violations', () => {
+test('rule command detects rule violations', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document without purpose
@@ -142,7 +142,7 @@ type: prd
 # PRD-TEST
 `);
 
-    const result = runCli(['validate', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
+    const result = runCli(['rule', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
 
@@ -154,7 +154,7 @@ type: prd
   }
 });
 
-test('validate command detects format errors', () => {
+test('rule command detects format errors', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document with invalid id format
@@ -177,7 +177,7 @@ Some content.
 Some background.
 `);
 
-    const result = runCli(['validate', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
+    const result = runCli(['rule', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
 
@@ -188,7 +188,7 @@ Some background.
   }
 });
 
-test('validate command reports rule file not found error', () => {
+test('rule command reports rule file not found error', () => {
   const cwd = setupValidateProject();
   try {
     // Update config with non-existent rule file
@@ -216,7 +216,7 @@ type: prd
 # PRD-TEST
 `);
 
-    const result = runCli(['validate', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd);
+    const result = runCli(['rule', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd);
 
     assert.equal(result.status, 2, result.stderr);
     assert.match(result.stdout, /not found/i);
@@ -225,7 +225,7 @@ type: prd
   }
 });
 
-test('validate command supports --format=json', () => {
+test('rule command supports --format=json', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document without purpose
@@ -238,7 +238,7 @@ type: prd
 # PRD-TEST
 `);
 
-    const result = runCli(['validate', '--format=json', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
+    const result = runCli(['rule', '--format=json', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
 
@@ -253,7 +253,7 @@ type: prd
   }
 });
 
-test('validate command supports --ci mode', () => {
+test('rule command supports --ci mode', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document without purpose
@@ -266,7 +266,7 @@ type: prd
 # PRD-TEST
 `);
 
-    const result = runCli(['validate', '--ci', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
+    const result = runCli(['rule', '--ci', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
 
@@ -279,7 +279,7 @@ type: prd
   }
 });
 
-test('validate command returns success for valid document', () => {
+test('rule command returns success for valid document', () => {
   const cwd = setupValidateProject();
   try {
     // Create valid PRD document
@@ -302,7 +302,7 @@ Test purpose content.
 Test background content.
 `);
 
-    const result = runCli(['validate', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
+    const result = runCli(['rule', 'eutelo-docs/product/features/TEST/PRD-TEST.md'], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'success'
     });
 
@@ -313,7 +313,7 @@ Test background content.
   }
 });
 
-test('validate command detects rule violations', () => {
+test('rule command detects rule violations', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document directly without purpose
@@ -336,8 +336,8 @@ Some background.
 `;
     fs.writeFileSync(prdFile, prdContent, 'utf8');
     
-    // Run validate with stub mode
-    const result = runCli(['validate', prdFile], cwd, {
+    // Run rule with stub mode
+    const result = runCli(['rule', prdFile], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
     
@@ -348,7 +348,7 @@ Some background.
   }
 });
 
-test('validate command supports --format=json', () => {
+test('rule command supports --format=json', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document without purpose
@@ -367,8 +367,8 @@ parent: PRINCIPLE-GLOBAL
 `;
     fs.writeFileSync(prdFile, prdContent, 'utf8');
     
-    // Run validate with JSON format and stub mode
-    const result = runCli(['validate', '--format=json', prdFile], cwd, {
+    // Run rule with JSON format and stub mode
+    const result = runCli(['rule', '--format=json', prdFile], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
     
@@ -382,7 +382,7 @@ parent: PRINCIPLE-GLOBAL
   }
 });
 
-test('validate command supports --ci mode', () => {
+test('rule command supports --ci mode', () => {
   const cwd = setupValidateProject();
   try {
     // Create PRD document without purpose
@@ -401,8 +401,8 @@ parent: PRINCIPLE-GLOBAL
 `;
     fs.writeFileSync(prdFile, prdContent, 'utf8');
     
-    // Run validate with CI mode and stub mode
-    const result = runCli(['validate', '--ci', prdFile], cwd, {
+    // Run rule with CI mode and stub mode
+    const result = runCli(['rule', '--ci', prdFile], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'issues'
     });
     
@@ -415,7 +415,7 @@ parent: PRINCIPLE-GLOBAL
   }
 });
 
-test('validate command returns exit code 2 for system errors', () => {
+test('rule command returns exit code 2 for system errors', () => {
   const cwd = setupValidateProject();
   try {
     // Try to validate with non-existent rule file
@@ -450,7 +450,7 @@ Test purpose.
 `;
     fs.writeFileSync(prdFile, prdContent, 'utf8');
     
-    const result = runCli(['validate', prdFile], cwd);
+    const result = runCli(['rule', prdFile], cwd);
     
     // Should exit with code 2 for system error (rule file not found)
     assert.equal(result.status, 2);
@@ -460,7 +460,7 @@ Test purpose.
   }
 });
 
-test('validate command returns exit code 0 for valid documents', () => {
+test('rule command returns exit code 0 for valid documents', () => {
   const cwd = setupValidateProject();
   try {
     // Create valid PRD document
@@ -484,8 +484,8 @@ Test purpose section.
 `;
     fs.writeFileSync(prdFile, prdContent, 'utf8');
     
-    // Run validate with stub mode for success
-    const result = runCli(['validate', prdFile], cwd, {
+    // Run rule with stub mode for success
+    const result = runCli(['rule', prdFile], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'success'
     });
     
@@ -500,7 +500,7 @@ Test purpose section.
 // E2E Tests for Command Rename (EUTELO-CLI-COMMAND-RENAME)
 // ============================================================================
 
-test('rule command works the same as validate command', () => {
+test('rule command works correctly', () => {
   const cwd = setupValidateProject();
   try {
     // Create directory structure
@@ -537,50 +537,6 @@ Test purpose section.
     assert.equal(result.status, 0, 'Should exit with code 0 for valid documents');
     assert.match(result.stdout, /✓/);
     // Should not show deprecation warning
-    assert.doesNotMatch(result.stderr, /deprecated/i);
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-test('validate command shows deprecation warning', () => {
-  const cwd = setupValidateProject();
-  try {
-    // Create directory structure
-    const prdPath = path.join(cwd, 'eutelo-docs', 'product', 'features', 'TEST');
-    fs.mkdirSync(prdPath, { recursive: true });
-    
-    const prdFile = path.join(prdPath, 'PRD-TEST.md');
-    const prdContent = `---
-id: PRD-TEST
-type: prd
-feature: TEST
-purpose: >
-  Test feature
-status: draft
-version: 0.1
-parent: PRINCIPLE-GLOBAL
-owners: ["@test"]
-tags: ["test"]
-last_updated: "2025-01-27"
----
-
-# PRD-TEST
-
-## Purpose
-
-Test purpose section.
-`;
-    fs.writeFileSync(prdFile, prdContent, 'utf8');
-    
-    const result = runCli(['validate', prdFile], cwd, {
-      EUTELO_VALIDATE_STUB_RESULT: 'success'
-    });
-    
-    assert.equal(result.status, 0, 'Should exit with code 0 for valid documents');
-    assert.match(result.stderr, /deprecated/i);
-    assert.match(result.stderr, /eutelo rule/i);
-    assert.match(result.stdout, /✓/);
   } finally {
     cleanup(cwd);
   }

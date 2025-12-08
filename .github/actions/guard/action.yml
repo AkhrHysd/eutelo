@@ -1,10 +1,10 @@
-name: 'Eutelo Guard'
+name: 'Eutelo Align'
 
-description: 'Composite action to install @eutelo/cli and run eutelo guard'
+description: 'Composite action to install @eutelo/cli and run eutelo align'
 
 inputs:
   paths:
-    description: 'Space-separated file paths or globs to guard'
+    description: 'Space-separated file paths or globs to align'
     required: false
     default: 'docs/**/*.md'
   working-directory:
@@ -12,7 +12,7 @@ inputs:
     required: false
     default: '.'
   format:
-    description: 'Output format forwarded to eutelo guard (--format)'
+    description: 'Output format forwarded to eutelo align (--format)'
     required: false
     default: 'text'
   node-version:
@@ -36,7 +36,7 @@ runs:
         set -euo pipefail
         npm ci
 
-    - name: Run eutelo guard
+    - name: Run eutelo align
       shell: bash
       working-directory: ${{ inputs.working-directory != '' && inputs.working-directory || '.' }}
       env:
@@ -46,4 +46,4 @@ runs:
         EUTELO_GUARD_DEBUG: ${{ env.EUTELO_GUARD_DEBUG }}
       run: |
         set -euo pipefail
-        npx eutelo guard ${{ inputs.paths }} --format=${{ inputs.format }}
+        npx eutelo align ${{ inputs.paths }} --format=${{ inputs.format }}

@@ -108,13 +108,6 @@ function formatList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
 }
 
-function showDeprecationWarning(type: string): void {
-  process.stderr.write(
-    `Warning: 'eutelo add ${type}' is deprecated. ` +
-    `Please define custom document types in eutelo.config.* and use 'eutelo add <kind>' instead.\n`
-  );
-}
-
 function resolveTemplateRoot(): string {
   const require = createRequire(import.meta.url);
   const presetPath = require.resolve('@eutelo/preset-default/package.json');
@@ -251,7 +244,7 @@ function normalizeValidateDocuments(positional: string[], argv: string[]): strin
       .filter((doc) => doc.length > 0);
   }
 
-  const validateIndex = Array.isArray(argv) ? (argv.indexOf('validate') !== -1 ? argv.indexOf('validate') : argv.indexOf('rule')) : -1;
+  const validateIndex = Array.isArray(argv) ? argv.indexOf('rule') : -1;
   if (validateIndex === -1) {
     return [];
   }
@@ -378,8 +371,8 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
 
   const add = program.command('add').description('Generate documentation from templates');
 
-  // Track registered command names to avoid duplicates with fixed commands
-  const registeredCommands = new Set<string>(['prd', 'beh', 'sub-prd', 'sub-beh', 'dsg', 'adr', 'task', 'ops']);
+  // Track registered command names to avoid duplicates
+  const registeredCommands = new Set<string>();
 
   // Helper function to check if scaffold requires specific placeholders
   function usesPlaceholder(scaffold: ScaffoldTemplateConfig, placeholder: string): boolean {
@@ -505,190 +498,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     }
   }
 
-  add
-    .command('prd <feature>')
-    .description('Generate a PRD document for the given feature')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string) => {
-      showDeprecationWarning('prd');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'prd', { feature });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('beh <feature>')
-    .description('Generate a BEH document for the given feature')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string) => {
-      showDeprecationWarning('beh');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'beh', { feature });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('sub-prd <feature> <sub>')
-    .description('Generate a SUB-PRD document for the given feature and sub-feature')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string, sub: string) => {
-      showDeprecationWarning('sub-prd');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'sub-prd', { feature, sub });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('sub-beh <feature> <sub>')
-    .description('Generate a sub BEH document linked to a SUB-PRD')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string, sub: string) => {
-      showDeprecationWarning('sub-beh');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'sub-beh', { feature, sub });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('dsg <feature>')
-    .description('Generate a DSG document for the given feature')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string) => {
-      showDeprecationWarning('dsg');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'dsg', { feature });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('adr <feature>')
-    .description('Generate an ADR document for the given feature with sequential numbering')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (feature: string) => {
-      showDeprecationWarning('adr');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'adr', { feature });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('task <name>')
-    .description('Generate a TASK plan document')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (name: string) => {
-      showDeprecationWarning('task');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'task', { name });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  add
-    .command('ops <name>')
-    .description('Generate an OPS runbook document')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (name: string) => {
-      showDeprecationWarning('ops');
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const addDocumentService = createAddDocumentService({
-            fileSystemAdapter,
-            templateService,
-            docsRoot,
-            scaffold: config.scaffold
-          });
-          await executeAddDocument(addDocumentService, 'ops', { name });
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
   program
     .command('align [documents...]')
     .description('Check document consistency across related documents')
@@ -702,42 +511,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--depth <number>', 'Depth for related document traversal (default: 1)')
     .option('--all', 'Collect all related documents regardless of depth')
     .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const configuredGuardService = createGuardService({
-            fileSystemAdapter,
-            prompts: config.guard.prompts,
-            frontmatterSchemas: config.frontmatter.schemas,
-            scaffold: config.scaffold,
-            docsRoot,
-            cwd: process.cwd()
-          });
-          await runGuardCommand(configuredGuardService, documents, options, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
-  program
-    .command('guard [documents...]')
-    .description('Run the experimental document guard consistency checks (deprecated: use "eutelo align" instead)')
-    .option('--format <format>', 'Output format (text or json)')
-    .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
-    .option('--warn-only', 'Never exit with code 2, even when issues are detected')
-    .option('--check <id>', 'Guard prompt id to execute (config.guard.prompts key)')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .option('--with-related', 'Automatically collect related documents (default: enabled)')
-    .option('--no-related', 'Disable automatic related document collection')
-    .option('--depth <number>', 'Depth for related document traversal (default: 1)')
-    .option('--all', 'Collect all related documents regardless of depth')
-    .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
-      process.stderr.write(
-        'Warning: "eutelo guard" is deprecated and will be removed in a future version.\n' +
-        'Please use "eutelo align" instead.\n\n'
-      );
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {
@@ -782,37 +555,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
         handleCommandError(error);
       }
     });
-
-  program
-    .command('validate [documents...]')
-    .description('Validate documents against user-defined rules (deprecated: use "eutelo rule" instead)')
-    .option('--format <format>', 'Output format (text or json)')
-    .option('--fail-on-error', 'Exit with code 1 when rule violations are detected (default)')
-    .option('--warn-only', 'Never exit with code 1, even when rule violations are detected')
-    .option('--ci', 'CI mode (enables --format=json and --fail-on-error)')
-    .option('--config <path>', 'Path to eutelo.config.*')
-    .action(async (options: ValidateCliOptions = {}, documents: string[] = []) => {
-      process.stderr.write(
-        'Warning: "eutelo validate" is deprecated and will be removed in a future version.\n' +
-        'Please use "eutelo rule" instead.\n\n'
-      );
-      const configPath = resolveOptionValue(argv, '--config');
-      try {
-        await withConfig(configPath, async (config) => {
-          const docsRoot = resolveDocsRootFromConfig(config);
-          const configuredValidationService = createRuleValidationService({
-            fileSystemAdapter,
-            docsRoot,
-            cwd: process.cwd(),
-            config
-          });
-          await runValidateCommand(configuredValidationService, documents, options, argv);
-        });
-      } catch (error) {
-        handleCommandError(error);
-      }
-    });
-
 
   // Register dynamic commands from config before parsing
   await registerDynamicCommands();
@@ -1060,7 +802,7 @@ function normalizeGuardDocuments(positional: string[], argv: string[]): string[]
       .filter((doc) => doc.length > 0);
   }
 
-  const guardIndex = Array.isArray(argv) ? (argv.indexOf('guard') !== -1 ? argv.indexOf('guard') : argv.indexOf('align')) : -1;
+  const guardIndex = Array.isArray(argv) ? argv.indexOf('align') : -1;
   if (guardIndex === -1) {
     return [];
   }

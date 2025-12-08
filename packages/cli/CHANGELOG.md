@@ -9,12 +9,12 @@
 ## [Unreleased]
 
 ### Added
-- `eutelo align` コマンド: ドキュメント間の一貫性チェックを実行（`eutelo guard` の新しい名前）
-- `eutelo rule` コマンド: ユーザー定義ルールに対してドキュメントを検証（`eutelo validate` の新しい名前）
+- `eutelo align` コマンド: ドキュメント間の一貫性チェックを実行
+- `eutelo rule` コマンド: ユーザー定義ルールに対してドキュメントを検証
 
-### Deprecated
-- `eutelo guard` コマンド: 非推奨となり、将来のバージョンで削除されます。代わりに `eutelo align` を使用してください。
-- `eutelo validate` コマンド: 非推奨となり、将来のバージョンで削除されます。代わりに `eutelo rule` を使用してください。
+### Removed
+- `eutelo guard` コマンド: `eutelo align` に置き換えられました
+- `eutelo validate` コマンド: `eutelo rule` に置き換えられました
 
 ### Changed
 - コマンド名の変更: 実態をより的確に表すコマンド名に変更

@@ -523,8 +523,6 @@ The command `eutelo add custom <feature>` is automatically generated based on th
 
 Checks document consistency across related documents.
 
-> **Note:** `eutelo guard` is deprecated and will be removed in a future version. Please use `eutelo align` instead.
-
 **Environment Variable Configuration**
 
 To use the `eutelo align` command, you need to set the following environment variables. You can set them using either of the following methods:
@@ -596,8 +594,6 @@ pnpm exec eutelo align --all docs/product/features/AUTH/PRD-AUTH.md
 ### `eutelo rule`
 
 Validates individual documents against user-defined rules using LLM-based validation.
-
-> **Note:** `eutelo validate` is deprecated and will be removed in a future version. Please use `eutelo rule` instead.
 
 **Overview**
 
@@ -741,8 +737,6 @@ For commands and procedures used for development of this repository, see [Docume
 ## Running align in CI
 
 Eutelo provides reusable workflows and Composite Actions for running `eutelo align` in GitHub Actions. If you want to introduce it with minimal configuration, choose one of the following:
-
-> **Note:** The workflow files and examples still reference `eutelo guard` for backward compatibility, but you can use `eutelo align` instead.
 
 ### Call Reusable Workflow
 

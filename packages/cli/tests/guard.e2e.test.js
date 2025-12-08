@@ -48,9 +48,13 @@ function cleanup(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
-test('guard command reports the processed document count in its summary', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
-  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
+test('align command reports the processed document count in its summary', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
+  const result = runCli(['align', 'docs/product/features/DUMMY.md'], cwd, {
     EUTELO_GUARD_STUB_RESULT: 'success'
   });
 
@@ -60,9 +64,13 @@ test('guard command reports the processed document count in its summary', () => 
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command reports configuration requirements when not set up', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
-  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd);
+test('align command reports configuration requirements when not set up', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
+  const result = runCli(['align', 'docs/product/features/DUMMY.md'], cwd);
 
   assert.equal(result.status, 3, result.stderr);
   assert.match(result.stdout, /environment variables are missing/i);
@@ -70,10 +78,14 @@ test('guard command reports configuration requirements when not set up', () => {
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command supports --format=json for structured output', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+test('align command supports --format=json for structured output', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
   const result = runCli(
-    ['guard', '--format=json', '--fail-on-error', 'docs/product/features/DUMMY.md'],
+    ['align', '--format=json', '--fail-on-error', 'docs/product/features/DUMMY.md'],
     cwd,
     { EUTELO_GUARD_STUB_RESULT: 'issues' }
   );
@@ -86,18 +98,21 @@ test('guard command supports --format=json for structured output', () => {
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command maps warn-only and connection errors to exit codes', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+test('align command maps warn-only and connection errors to exit codes', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
 
   const warnOnly = runCli(
-    ['guard', '--warn-only', 'docs/product/features/DUMMY.md'],
+    ['align', '--warn-only', 'docs/product/features/DUMMY.md'],
     cwd,
     { EUTELO_GUARD_STUB_RESULT: 'issues' }
   );
   assert.equal(warnOnly.status, 0, warnOnly.stderr);
   assert.match(warnOnly.stdout, /Issues:/);
 
-  const connectionFailure = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
+  const connectionFailure = runCli(['align', 'docs/product/features/DUMMY.md'], cwd, {
     EUTELO_GUARD_STUB_RESULT: 'connection-error'
   });
   assert.equal(connectionFailure.status, 3, connectionFailure.stderr);
@@ -106,10 +121,14 @@ test('guard command maps warn-only and connection errors to exit codes', () => {
   fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-test('guard command rejects unsupported --format values before invoking the service', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+test('align command rejects unsupported --format values before invoking the service', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
   const result = runCli(
-    ['guard', '--format=unknown', 'docs/product/features/DUMMY.md'],
+    ['align', '--format=unknown', 'docs/product/features/DUMMY.md'],
     cwd,
     {
       EUTELO_GUARD_STUB_RESULT: 'success'
@@ -126,11 +145,11 @@ test('guard command rejects unsupported --format values before invoking the serv
 // E2E Tests for Related Document Collection (DOC-GUARD-GRAPH-INTEGRATION)
 // ============================================================================
 
-test('guard command with related documents collects BEH/DSG when checking PRD', () => {
+test('align command with related documents collects BEH/DSG when checking PRD', () => {
   const cwd = setupRelatedDocsProject();
   try {
     const result = runCli(
-      ['guard', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
+      ['align', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
@@ -143,11 +162,11 @@ test('guard command with related documents collects BEH/DSG when checking PRD', 
   }
 });
 
-test('guard command with --no-related processes only specified document', () => {
+test('align command with --no-related processes only specified document', () => {
   const cwd = setupRelatedDocsProject();
   try {
     const result = runCli(
-      ['guard', '--no-related', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
+      ['align', '--no-related', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
@@ -160,11 +179,11 @@ test('guard command with --no-related processes only specified document', () => 
   }
 });
 
-test('guard command with --depth=2 collects documents up to 2 hops', () => {
+test('align command with --depth=2 collects documents up to 2 hops', () => {
   const cwd = setupRelatedDocsProject();
   try {
     const result = runCli(
-      ['guard', '--depth=2', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
+      ['align', '--depth=2', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
@@ -176,11 +195,11 @@ test('guard command with --depth=2 collects documents up to 2 hops', () => {
   }
 });
 
-test('guard command with --all collects all related documents regardless of depth', () => {
+test('align command with --all collects all related documents regardless of depth', () => {
   const cwd = setupRelatedDocsProject();
   try {
     const result = runCli(
-      ['guard', '--all', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
+      ['align', '--all', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
@@ -192,11 +211,11 @@ test('guard command with --all collects all related documents regardless of dept
   }
 });
 
-test('guard command --format=json includes relatedDocuments in output', () => {
+test('align command --format=json includes relatedDocuments in output', () => {
   const cwd = setupRelatedDocsProject();
   try {
     const result = runCli(
-      ['guard', '--format=json', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
+      ['align', '--format=json', 'eutelo-docs/product/features/FEATURE/PRD-FEATURE.md'],
       cwd,
       { EUTELO_GUARD_STUB_RESULT: 'success' }
     );
@@ -226,22 +245,6 @@ test('align command works the same as guard command', () => {
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /processed 1 document\(s\)/i);
-  // Should not show deprecation warning
-  assert.doesNotMatch(result.stderr, /deprecated/i);
-
-  fs.rmSync(cwd, { recursive: true, force: true });
-});
-
-test('guard command shows deprecation warning', () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
-  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
-    EUTELO_GUARD_STUB_RESULT: 'success'
-  });
-
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /deprecated/i);
-  assert.match(result.stderr, /eutelo align/i);
   assert.match(result.stdout, /processed 1 document\(s\)/i);
 
   fs.rmSync(cwd, { recursive: true, force: true });

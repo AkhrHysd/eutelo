@@ -96,7 +96,7 @@ jobs:
           ERROR_FILE="guard-error.txt"
           
           # Run guard with all files at once
-          npx eutelo guard --format json --depth=1 "${VALID_FILES[@]}" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
+          npx eutelo align --format json --depth=1 "${VALID_FILES[@]}" > "$RESULT_FILE" 2> "$ERROR_FILE" || GUARD_EXIT=$?
           
           # Process the single result
           if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then

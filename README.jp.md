@@ -523,8 +523,6 @@ pnpm exec eutelo add custom <feature>
 
 関連ドキュメント間の一貫性をチェックします。
 
-> **注意:** `eutelo guard` は非推奨となり、将来のバージョンで削除されます。代わりに `eutelo align` を使用してください。
-
 **環境変数の設定**
 
 `eutelo align` コマンドを使用するには、以下の環境変数を設定する必要があります。環境変数は以下のいずれかの方法で設定できます：
@@ -596,8 +594,6 @@ pnpm exec eutelo align --all docs/product/features/AUTH/PRD-AUTH.md
 ### `eutelo rule`
 
 ユーザー定義のルールに基づいて、個別のドキュメントをLLMベースで検証します。
-
-> **注意:** `eutelo validate` は非推奨となり、将来のバージョンで削除されます。代わりに `eutelo rule` を使用してください。
 
 **概要**
 
@@ -741,8 +737,6 @@ pnpm exec eutelo rule --warn-only docs/**/*.md
 ## CI での align 実行方法
 
 Eutelo には、GitHub Actions で `eutelo align` を実行するための再利用ワークフローと Composite Action を用意しています。最小設定で導入したい場合は、次のいずれかを選んでください。
-
-> **注意:** ワークフローファイルや例では後方互換性のため `eutelo guard` を参照していますが、`eutelo align` を使用することもできます。
 
 ### 再利用ワークフローを呼び出す
 

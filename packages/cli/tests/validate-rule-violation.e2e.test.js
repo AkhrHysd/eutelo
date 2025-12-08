@@ -19,7 +19,7 @@ function runCli(args, cwd, envOverrides = {}) {
   });
 }
 
-test('validate detects rule violations', async () => {
+test('rule detects rule violations', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-validate-'));
   
   try {
@@ -129,7 +129,7 @@ Test purpose
 `);
 
     // Run validate
-    const result = runCli(['validate', prdFile], cwd);
+    const result = runCli(['rule', prdFile], cwd);
 
     // Should detect the violation
     assert(result.stdout.includes('purpose') || result.stdout.includes('必須') || result.stdout.includes('error'), 
@@ -142,7 +142,7 @@ Test purpose
   }
 });
 
-test('validate returns success for valid documents', async () => {
+test('rule returns success for valid documents', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-validate-'));
   
   try {
@@ -251,8 +251,8 @@ last_updated: "2025-01-27"
 Test purpose
 `);
 
-    // Run validate with stub mode
-    const result = runCli(['validate', prdFile], cwd, {
+    // Run rule with stub mode
+    const result = runCli(['rule', prdFile], cwd, {
       EUTELO_VALIDATE_STUB_RESULT: 'success'
     });
 
@@ -267,7 +267,7 @@ Test purpose
   }
 });
 
-test('validate handles missing rule file gracefully', async () => {
+test('rule handles missing rule file gracefully', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-validate-'));
   
   try {
@@ -338,7 +338,7 @@ Test purpose
 `);
 
     // Run validate
-    const result = runCli(['validate', prdFile], cwd);
+    const result = runCli(['rule', prdFile], cwd);
 
     // Should report rule file not found
     assert(result.stdout.includes('not found') || result.stdout.includes('Rule file'), 
@@ -351,7 +351,7 @@ Test purpose
   }
 });
 
-test('validate supports --format=json', async () => {
+test('rule supports --format=json', async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-validate-'));
   
   try {
@@ -384,7 +384,7 @@ Test purpose
 `);
 
     // Run validate with JSON format
-    const result = runCli(['validate', '--format', 'json', prdFile], cwd);
+    const result = runCli(['rule', '--format', 'json', prdFile], cwd);
 
     // Should output valid JSON
     let jsonOutput;

@@ -67,7 +67,7 @@ jobs:
               if [ -f "$file" ]; then
                 echo "Checking: $file"
                 # Run guard for this file (guard will automatically collect related documents)
-                npx eutelo guard $FORMAT_FLAG $DEPTH_FLAG "$file" || GUARD_EXIT=$?
+                npx eutelo align $FORMAT_FLAG $DEPTH_FLAG "$file" || GUARD_EXIT=$?
               fi
             done
           done
