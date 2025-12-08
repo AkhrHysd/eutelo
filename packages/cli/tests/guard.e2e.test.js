@@ -209,3 +209,61 @@ test('guard command --format=json includes relatedDocuments in output', () => {
     cleanup(cwd);
   }
 });
+
+// ============================================================================
+// E2E Tests for Command Rename (EUTELO-CLI-COMMAND-RENAME)
+// ============================================================================
+
+test('align command works the same as guard command', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
+  const result = runCli(['align', 'docs/product/features/DUMMY.md'], cwd, {
+    EUTELO_GUARD_STUB_RESULT: 'success'
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /processed 1 document\(s\)/i);
+  // Should not show deprecation warning
+  assert.doesNotMatch(result.stderr, /deprecated/i);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('guard command shows deprecation warning', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-guard-'));
+  const result = runCli(['guard', 'docs/product/features/DUMMY.md'], cwd, {
+    EUTELO_GUARD_STUB_RESULT: 'success'
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /deprecated/i);
+  assert.match(result.stderr, /eutelo align/i);
+  assert.match(result.stdout, /processed 1 document\(s\)/i);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('align command supports all guard command options', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
+  const result = runCli(
+    ['align', '--format=json', '--fail-on-error', 'docs/product/features/DUMMY.md'],
+    cwd,
+    { EUTELO_GUARD_STUB_RESULT: 'issues' }
+  );
+
+  assert.equal(result.status, 2, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.stats.issues, 1);
+  assert.equal(payload.error, null);
+
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
