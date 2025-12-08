@@ -251,7 +251,7 @@ function normalizeValidateDocuments(positional: string[], argv: string[]): strin
       .filter((doc) => doc.length > 0);
   }
 
-  const validateIndex = Array.isArray(argv) ? argv.indexOf('validate') : -1;
+  const validateIndex = Array.isArray(argv) ? (argv.indexOf('validate') !== -1 ? argv.indexOf('validate') : argv.indexOf('rule')) : -1;
   if (validateIndex === -1) {
     return [];
   }
@@ -1060,7 +1060,7 @@ function normalizeGuardDocuments(positional: string[], argv: string[]): string[]
       .filter((doc) => doc.length > 0);
   }
 
-  const guardIndex = Array.isArray(argv) ? argv.indexOf('guard') : -1;
+  const guardIndex = Array.isArray(argv) ? (argv.indexOf('guard') !== -1 ? argv.indexOf('guard') : argv.indexOf('align')) : -1;
   if (guardIndex === -1) {
     return [];
   }

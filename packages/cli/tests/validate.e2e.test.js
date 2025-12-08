@@ -503,7 +503,11 @@ Test purpose section.
 test('rule command works the same as validate command', () => {
   const cwd = setupValidateProject();
   try {
-    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    // Create directory structure
+    const prdPath = path.join(cwd, 'eutelo-docs', 'product', 'features', 'TEST');
+    fs.mkdirSync(prdPath, { recursive: true });
+    
+    const prdFile = path.join(prdPath, 'PRD-TEST.md');
     const prdContent = `---
 id: PRD-TEST
 type: prd
@@ -542,7 +546,11 @@ Test purpose section.
 test('validate command shows deprecation warning', () => {
   const cwd = setupValidateProject();
   try {
-    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    // Create directory structure
+    const prdPath = path.join(cwd, 'eutelo-docs', 'product', 'features', 'TEST');
+    fs.mkdirSync(prdPath, { recursive: true });
+    
+    const prdFile = path.join(prdPath, 'PRD-TEST.md');
     const prdContent = `---
 id: PRD-TEST
 type: prd
@@ -581,7 +589,11 @@ Test purpose section.
 test('rule command supports all validate command options', () => {
   const cwd = setupValidateProject();
   try {
-    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    // Create directory structure
+    const prdPath = path.join(cwd, 'eutelo-docs', 'product', 'features', 'TEST');
+    fs.mkdirSync(prdPath, { recursive: true });
+    
+    const prdFile = path.join(prdPath, 'PRD-TEST.md');
     const prdContent = `---
 id: PRD-TEST
 type: prd

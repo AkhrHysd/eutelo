@@ -216,6 +216,11 @@ test('guard command --format=json includes relatedDocuments in output', () => {
 
 test('align command works the same as guard command', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
   const result = runCli(['align', 'docs/product/features/DUMMY.md'], cwd, {
     EUTELO_GUARD_STUB_RESULT: 'success'
   });
@@ -244,6 +249,11 @@ test('guard command shows deprecation warning', () => {
 
 test('align command supports all guard command options', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eutelo-cli-align-'));
+  
+  // Initialize project to ensure config exists
+  const init = runCli(['init'], cwd);
+  assert.equal(init.status, 0, init.stderr);
+  
   const result = runCli(
     ['align', '--format=json', '--fail-on-error', 'docs/product/features/DUMMY.md'],
     cwd,
