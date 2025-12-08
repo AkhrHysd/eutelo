@@ -496,3 +496,124 @@ Test purpose section.
   }
 });
 
+// ============================================================================
+// E2E Tests for Command Rename (EUTELO-CLI-COMMAND-RENAME)
+// ============================================================================
+
+test('rule command works the same as validate command', () => {
+  const cwd = setupValidateProject();
+  try {
+    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    const prdContent = `---
+id: PRD-TEST
+type: prd
+feature: TEST
+purpose: >
+  Test feature
+status: draft
+version: 0.1
+parent: PRINCIPLE-GLOBAL
+owners: ["@test"]
+tags: ["test"]
+last_updated: "2025-01-27"
+---
+
+# PRD-TEST
+
+## Purpose
+
+Test purpose section.
+`;
+    fs.writeFileSync(prdFile, prdContent, 'utf8');
+    
+    const result = runCli(['rule', prdFile], cwd, {
+      EUTELO_VALIDATE_STUB_RESULT: 'success'
+    });
+    
+    assert.equal(result.status, 0, 'Should exit with code 0 for valid documents');
+    assert.match(result.stdout, /✓/);
+    // Should not show deprecation warning
+    assert.doesNotMatch(result.stderr, /deprecated/i);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('validate command shows deprecation warning', () => {
+  const cwd = setupValidateProject();
+  try {
+    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    const prdContent = `---
+id: PRD-TEST
+type: prd
+feature: TEST
+purpose: >
+  Test feature
+status: draft
+version: 0.1
+parent: PRINCIPLE-GLOBAL
+owners: ["@test"]
+tags: ["test"]
+last_updated: "2025-01-27"
+---
+
+# PRD-TEST
+
+## Purpose
+
+Test purpose section.
+`;
+    fs.writeFileSync(prdFile, prdContent, 'utf8');
+    
+    const result = runCli(['validate', prdFile], cwd, {
+      EUTELO_VALIDATE_STUB_RESULT: 'success'
+    });
+    
+    assert.equal(result.status, 0, 'Should exit with code 0 for valid documents');
+    assert.match(result.stderr, /deprecated/i);
+    assert.match(result.stderr, /eutelo rule/i);
+    assert.match(result.stdout, /✓/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('rule command supports all validate command options', () => {
+  const cwd = setupValidateProject();
+  try {
+    const prdFile = path.join(cwd, 'eutelo-docs/product/features/TEST/PRD-TEST.md');
+    const prdContent = `---
+id: PRD-TEST
+type: prd
+feature: TEST
+purpose: >
+  Test feature
+status: draft
+version: 0.1
+parent: PRINCIPLE-GLOBAL
+owners: ["@test"]
+tags: ["test"]
+last_updated: "2025-01-27"
+---
+
+# PRD-TEST
+
+## Purpose
+
+Test purpose section.
+`;
+    fs.writeFileSync(prdFile, prdContent, 'utf8');
+    
+    const result = runCli(['rule', '--format=json', prdFile], cwd, {
+      EUTELO_VALIDATE_STUB_RESULT: 'issues'
+    });
+    
+    assert.equal(result.status, 1, 'Should exit with code 1 for rule violations');
+    const payload = JSON.parse(result.stdout);
+    assert.ok('summary' in payload);
+    assert.ok('results' in payload);
+  } finally {
+    cleanup(cwd);
+  }
+});
+

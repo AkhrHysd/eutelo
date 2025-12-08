@@ -146,7 +146,7 @@ directoryStructure: {
       template: 'templates/prd.md',
       prefix: 'PRD-',
       variables: ['FEATURE'],
-      rules: 'rules/prd-validation.md',  // eutelo validate 用のルールファイル（オプション）
+      rules: 'rules/prd-validation.md',  // eutelo rule 用のルールファイル（オプション）
       frontmatterDefaults: {            // フロントマターのデフォルト値
         type: 'prd',
         parent: '/'
@@ -187,7 +187,7 @@ directoryStructure: {
 - `template`: テンプレートファイルのパス
 - `prefix`: ファイル名のプレフィックス（例：`PRD-`）
 - `variables`: パス/ファイルで使用される変数名の配列
-- `rules`: `eutelo validate`用のルールファイルパス（オプション、`eutelo validate`セクションを参照）
+- `rules`: `eutelo rule`用のルールファイルパス（オプション、`eutelo rule`セクションを参照）
 - `frontmatterDefaults`: フロントマターのデフォルト値：
   - `type`: ドキュメントタイプの値
   - `parent`: 親ドキュメントのID（ルートドキュメントの場合は`'/'`）
@@ -344,7 +344,7 @@ pnpm exec eutelo add prd <feature>
 ```bash
 npm ci
 npx eutelo init
-npx eutelo guard docs/**/*.md --warn-only
+npx eutelo align docs/**/*.md --warn-only
 ```
 
 **方法3: `package.json`の`scripts`に追加（推奨）**
@@ -519,13 +519,15 @@ pnpm exec eutelo add custom <feature>
 
 **注意**: 未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
 
-### `eutelo guard`
+### `eutelo align`
 
-実験的なドキュメントガード一貫性チェックを実行します。
+関連ドキュメント間の一貫性をチェックします。
+
+> **注意:** `eutelo guard` は非推奨となり、将来のバージョンで削除されます。代わりに `eutelo align` を使用してください。
 
 **環境変数の設定**
 
-`eutelo guard` コマンドを使用するには、以下の環境変数を設定する必要があります。環境変数は以下のいずれかの方法で設定できます：
+`eutelo align` コマンドを使用するには、以下の環境変数を設定する必要があります。環境変数は以下のいずれかの方法で設定できます：
 
 1. **`.env`ファイルを使用（推奨）**
    
@@ -551,38 +553,38 @@ pnpm exec eutelo add custom <feature>
    export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
    export EUTELO_GUARD_API_KEY=your-api-key-here
    export EUTELO_GUARD_MODEL=gpt-4o-mini
-   pnpm exec eutelo guard
+   pnpm exec eutelo align
    ```
 
 **使用方法**
 
 ```bash
-pnpm exec eutelo guard                           # ガードチェックを実行
-pnpm exec eutelo guard docs/**/*.md             # 指定したドキュメントをチェック
-pnpm exec eutelo guard --format json             # JSON形式で出力
-pnpm exec eutelo guard --warn-only               # エラーでも終了コード2を返さない
-pnpm exec eutelo guard --fail-on-error           # 問題検出時に終了コード2を返す（デフォルト）
-pnpm exec eutelo guard --check <id>              # 特定のガードプロンプトIDを実行
+pnpm exec eutelo align                           # 一貫性チェックを実行
+pnpm exec eutelo align docs/**/*.md             # 指定したドキュメントをチェック
+pnpm exec eutelo align --format json             # JSON形式で出力
+pnpm exec eutelo align --warn-only               # エラーでも終了コード2を返さない
+pnpm exec eutelo align --fail-on-error           # 問題検出時に終了コード2を返す（デフォルト）
+pnpm exec eutelo align --check <id>              # 特定のガードプロンプトIDを実行
 # preset を切り替えた場合でも、設定を再解決して 1 回だけ UseCase を呼び出します
 # guard プロンプトは config.guard.prompts から読み込まれるため、preset なしでは実行できません
 ```
 
-**関連ドキュメント自動収集（新機能）**
+**関連ドキュメント自動収集**
 
-`eutelo guard` 実行時、ドキュメントグラフに基づいて関連ドキュメント（親、子、関連ドキュメント）が自動的に収集されます。これにより、1つのドキュメントを指定するだけでドキュメント間の整合性チェックが可能になります。
+`eutelo align` 実行時、ドキュメントグラフに基づいて関連ドキュメント（親、子、関連ドキュメント）が自動的に収集されます。これにより、1つのドキュメントを指定するだけでドキュメント間の整合性チェックが可能になります。
 
 ```bash
 # 関連ドキュメントを自動収集（デフォルト動作）
-pnpm exec eutelo guard docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align docs/product/features/AUTH/PRD-AUTH.md
 
 # 関連ドキュメント収集を無効化（指定したドキュメントのみをチェック）
-pnpm exec eutelo guard --no-related docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --no-related docs/product/features/AUTH/PRD-AUTH.md
 
 # 探索深度を指定（デフォルト: 1）
-pnpm exec eutelo guard --depth=2 docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --depth=2 docs/product/features/AUTH/PRD-AUTH.md
 
 # 深度に関係なくすべての関連ドキュメントを収集
-pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --all docs/product/features/AUTH/PRD-AUTH.md
 ```
 
 **オプション:**
@@ -591,17 +593,19 @@ pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
 - `--depth <n>`: 関連ドキュメント収集の探索深度を設定（デフォルト: 1）
 - `--all`: 深度に関係なくすべての関連ドキュメントを収集（最大: 100ドキュメント）
 
-### `eutelo validate`
+### `eutelo rule`
 
 ユーザー定義のルールに基づいて、個別のドキュメントをLLMベースで検証します。
 
+> **注意:** `eutelo validate` は非推奨となり、将来のバージョンで削除されます。代わりに `eutelo rule` を使用してください。
+
 **概要**
 
-`eutelo validate`コマンドは、Markdown形式のルールファイルで定義されたルールに基づいてドキュメントを検証します。`eutelo guard`（ドキュメント間の整合性チェック）や`eutelo lint`（静的Euteloルールのチェック）とは異なり、`eutelo validate`は個別のドキュメントをカスタムルールに対して検証することに焦点を当てています。
+`eutelo rule`コマンドは、Markdown形式のルールファイルで定義されたルールに基づいてドキュメントを検証します。`eutelo align`（ドキュメント間の整合性チェック）や`eutelo lint`（静的Euteloルールのチェック）とは異なり、`eutelo rule`は個別のドキュメントをカスタムルールに対して検証することに焦点を当てています。
 
 **環境変数の設定**
 
-`eutelo validate`コマンドを使用するには、以下の環境変数を設定する必要があります（`eutelo guard`と同じ）：
+`eutelo rule`コマンドを使用するには、以下の環境変数を設定する必要があります（`eutelo align`と同じ）：
 
 1. **`.env`ファイルを使用（推奨）**
 
@@ -619,7 +623,7 @@ pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
    export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
    export EUTELO_GUARD_API_KEY=your-api-key-here
    export EUTELO_GUARD_MODEL=gpt-4o-mini
-   pnpm exec eutelo validate
+   pnpm exec eutelo rule
    ```
 
 **設定**
@@ -685,19 +689,19 @@ validationMode: "llm"  # 必須: LLMベースの検証には "llm" を指定
 
 ```bash
 # 特定のドキュメントを検証
-pnpm exec eutelo validate docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo rule docs/product/features/AUTH/PRD-AUTH.md
 
 # 複数のドキュメントを検証
-pnpm exec eutelo validate docs/**/*.md
+pnpm exec eutelo rule docs/**/*.md
 
 # JSON形式で出力
-pnpm exec eutelo validate --format=json docs/**/*.md
+pnpm exec eutelo rule --format=json docs/**/*.md
 
 # CIモード（自動的にJSON形式とfail-on-errorを有効化）
-pnpm exec eutelo validate --ci docs/**/*.md
+pnpm exec eutelo rule --ci docs/**/*.md
 
 # 警告のみ（ルール違反があっても終了コード1を返さない）
-pnpm exec eutelo validate --warn-only docs/**/*.md
+pnpm exec eutelo rule --warn-only docs/**/*.md
 ```
 
 **オプション:**
@@ -715,7 +719,7 @@ pnpm exec eutelo validate --warn-only docs/**/*.md
 
 **動作の仕組み**
 
-1. 各ドキュメントについて、`eutelo validate`は`directoryStructure.rules`から対応するルールファイルを検索します
+1. 各ドキュメントについて、`eutelo rule`は`directoryStructure.rules`から対応するルールファイルを検索します
 2. ルールファイルが見つかった場合、ルールファイルを読み込み、以下の内容を組み合わせたプロンプトを構成します：
    - Euteloシステムの共通指示
    - Eutelo標準ルール
@@ -734,9 +738,11 @@ pnpm exec eutelo validate --warn-only docs/**/*.md
 
 このリポジトリの開発に使用するコマンドや手順については、[開発者向けドキュメント](DEVELOPERS.jp.md)を参照してください。
 
-## CI での guard 実行方法
+## CI での align 実行方法
 
-Eutelo には、GitHub Actions で `eutelo guard` を実行するための再利用ワークフローと Composite Action を用意しています。最小設定で導入したい場合は、次のいずれかを選んでください。
+Eutelo には、GitHub Actions で `eutelo align` を実行するための再利用ワークフローと Composite Action を用意しています。最小設定で導入したい場合は、次のいずれかを選んでください。
+
+> **注意:** ワークフローファイルや例では後方互換性のため `eutelo guard` を参照していますが、`eutelo align` を使用することもできます。
 
 ### 再利用ワークフローを呼び出す
 
@@ -787,6 +793,6 @@ jobs:
 すぐに試せる PR/メイン/手動実行向けテンプレートは `packages/distribution/examples/ci/` 配下にあります。自分のリポジトリへコピーし、シークレットや `working-directory` を必要に応じて上書きしてください。
 
 ### CI 実行のポイント
-- ワークフローではグローバルインストールではなく `npm ci` + `npx eutelo guard ...` を推奨します（本リポジトリの `.github/workflows/guard.yml` も同様）。
+- ワークフローではグローバルインストールではなく `npm ci` + `npx eutelo align ...` を推奨します（本リポジトリの `.github/workflows/guard.yml` も同様）。
 - LLM 用の環境変数は Secrets/Vars で渡し、preset やローカル設定の差し替えをしてもワークフローは変更不要です。
 

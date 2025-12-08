@@ -690,8 +690,8 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     });
 
   program
-    .command('guard [documents...]')
-    .description('Run the experimental document guard consistency checks')
+    .command('align [documents...]')
+    .description('Check document consistency across related documents')
     .option('--format <format>', 'Output format (text or json)')
     .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
     .option('--warn-only', 'Never exit with code 2, even when issues are detected')
@@ -722,7 +722,43 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     });
 
   program
-    .command('validate [documents...]')
+    .command('guard [documents...]')
+    .description('Run the experimental document guard consistency checks (deprecated: use "eutelo align" instead)')
+    .option('--format <format>', 'Output format (text or json)')
+    .option('--fail-on-error', 'Exit with code 2 when issues are detected (default)')
+    .option('--warn-only', 'Never exit with code 2, even when issues are detected')
+    .option('--check <id>', 'Guard prompt id to execute (config.guard.prompts key)')
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .option('--with-related', 'Automatically collect related documents (default: enabled)')
+    .option('--no-related', 'Disable automatic related document collection')
+    .option('--depth <number>', 'Depth for related document traversal (default: 1)')
+    .option('--all', 'Collect all related documents regardless of depth')
+    .action(async (options: GuardCliOptions = {}, documents: string[] = []) => {
+      process.stderr.write(
+        'Warning: "eutelo guard" is deprecated and will be removed in a future version.\n' +
+        'Please use "eutelo align" instead.\n\n'
+      );
+      const configPath = resolveOptionValue(argv, '--config');
+      try {
+        await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
+          const configuredGuardService = createGuardService({
+            fileSystemAdapter,
+            prompts: config.guard.prompts,
+            frontmatterSchemas: config.frontmatter.schemas,
+            scaffold: config.scaffold,
+            docsRoot,
+            cwd: process.cwd()
+          });
+          await runGuardCommand(configuredGuardService, documents, options, argv);
+        });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  program
+    .command('rule [documents...]')
     .description('Validate documents against user-defined rules')
     .option('--format <format>', 'Output format (text or json)')
     .option('--fail-on-error', 'Exit with code 1 when rule violations are detected (default)')
@@ -730,6 +766,36 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .option('--ci', 'CI mode (enables --format=json and --fail-on-error)')
     .option('--config <path>', 'Path to eutelo.config.*')
     .action(async (options: ValidateCliOptions = {}, documents: string[] = []) => {
+      const configPath = resolveOptionValue(argv, '--config');
+      try {
+        await withConfig(configPath, async (config) => {
+          const docsRoot = resolveDocsRootFromConfig(config);
+          const configuredValidationService = createRuleValidationService({
+            fileSystemAdapter,
+            docsRoot,
+            cwd: process.cwd(),
+            config
+          });
+          await runValidateCommand(configuredValidationService, documents, options, argv);
+        });
+      } catch (error) {
+        handleCommandError(error);
+      }
+    });
+
+  program
+    .command('validate [documents...]')
+    .description('Validate documents against user-defined rules (deprecated: use "eutelo rule" instead)')
+    .option('--format <format>', 'Output format (text or json)')
+    .option('--fail-on-error', 'Exit with code 1 when rule violations are detected (default)')
+    .option('--warn-only', 'Never exit with code 1, even when rule violations are detected')
+    .option('--ci', 'CI mode (enables --format=json and --fail-on-error)')
+    .option('--config <path>', 'Path to eutelo.config.*')
+    .action(async (options: ValidateCliOptions = {}, documents: string[] = []) => {
+      process.stderr.write(
+        'Warning: "eutelo validate" is deprecated and will be removed in a future version.\n' +
+        'Please use "eutelo rule" instead.\n\n'
+      );
       const configPath = resolveOptionValue(argv, '--config');
       try {
         await withConfig(configPath, async (config) => {

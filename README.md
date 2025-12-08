@@ -146,7 +146,7 @@ directoryStructure: {
       template: 'templates/prd.md',
       prefix: 'PRD-',
       variables: ['FEATURE'],
-      rules: 'rules/prd-validation.md', // Rule file for eutelo validate (optional)
+      rules: 'rules/prd-validation.md', // Rule file for eutelo rule (optional)
       frontmatterDefaults: {            // Frontmatter defaults
         type: 'prd',
         parent: '/'
@@ -187,7 +187,7 @@ directoryStructure: {
 - `template`: Template file path
 - `prefix`: File name prefix (e.g., `PRD-`)
 - `variables`: Array of variable names used in the path/file
-- `rules`: Rule file path for `eutelo validate` (optional, see `eutelo validate` section)
+- `rules`: Rule file path for `eutelo rule` (optional, see `eutelo rule` section)
 - `frontmatterDefaults`: Default frontmatter values:
   - `type`: Document type value
   - `parent`: Parent document ID (use `'/'` for root documents)
@@ -344,7 +344,7 @@ You can execute commands without global installation if project dependencies are
 ```bash
 npm ci
 npx eutelo init
-npx eutelo guard docs/**/*.md --warn-only
+npx eutelo align docs/**/*.md --warn-only
 ```
 
 **Method 3: Add to `package.json` `scripts` (Recommended)**
@@ -519,13 +519,15 @@ The command `eutelo add custom <feature>` is automatically generated based on th
 
 **Note**: Unknown document types (not defined in configuration) will generate warnings but won't cause validation errors.
 
-### `eutelo guard`
+### `eutelo align`
 
-Runs experimental document guard consistency checks.
+Checks document consistency across related documents.
+
+> **Note:** `eutelo guard` is deprecated and will be removed in a future version. Please use `eutelo align` instead.
 
 **Environment Variable Configuration**
 
-To use the `eutelo guard` command, you need to set the following environment variables. You can set them using either of the following methods:
+To use the `eutelo align` command, you need to set the following environment variables. You can set them using either of the following methods:
 
 1. **Using `.env` file (Recommended)**
    
@@ -551,38 +553,38 @@ To use the `eutelo guard` command, you need to set the following environment var
    export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
    export EUTELO_GUARD_API_KEY=your-api-key-here
    export EUTELO_GUARD_MODEL=gpt-4o-mini
-   pnpm exec eutelo guard
+   pnpm exec eutelo align
    ```
 
 **Usage**
 
 ```bash
-pnpm exec eutelo guard                           # Run guard checks
-pnpm exec eutelo guard docs/**/*.md             # Check specified documents
-pnpm exec eutelo guard --format json             # Output in JSON format
-pnpm exec eutelo guard --warn-only               # Don't exit with code 2 even on errors
-pnpm exec eutelo guard --fail-on-error           # Exit with code 2 when issues are detected (default)
-pnpm exec eutelo guard --check <id>              # Execute a specific guard prompt ID
+pnpm exec eutelo align                           # Run consistency checks
+pnpm exec eutelo align docs/**/*.md             # Check specified documents
+pnpm exec eutelo align --format json             # Output in JSON format
+pnpm exec eutelo align --warn-only               # Don't exit with code 2 even on errors
+pnpm exec eutelo align --fail-on-error           # Exit with code 2 when issues are detected (default)
+pnpm exec eutelo align --check <id>              # Execute a specific guard prompt ID
 # Even when switching presets, the configuration is resolved and UseCase is called once
 # Guard prompts are loaded from config.guard.prompts, so execution is not possible without a preset
 ```
 
-**Related Document Auto-Collection (New)**
+**Related Document Auto-Collection**
 
-When running `eutelo guard`, related documents (parent, children, related documents) are automatically collected based on the document graph. This enables cross-document consistency checks with just a single document specified.
+When running `eutelo align`, related documents (parent, children, related documents) are automatically collected based on the document graph. This enables cross-document consistency checks with just a single document specified.
 
 ```bash
 # Automatically collect related documents (default behavior)
-pnpm exec eutelo guard docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align docs/product/features/AUTH/PRD-AUTH.md
 
 # Disable related document collection (check only the specified document)
-pnpm exec eutelo guard --no-related docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --no-related docs/product/features/AUTH/PRD-AUTH.md
 
 # Specify traversal depth (default: 1)
-pnpm exec eutelo guard --depth=2 docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --depth=2 docs/product/features/AUTH/PRD-AUTH.md
 
 # Collect all related documents regardless of depth
-pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo align --all docs/product/features/AUTH/PRD-AUTH.md
 ```
 
 **Options:**
@@ -591,17 +593,19 @@ pnpm exec eutelo guard --all docs/product/features/AUTH/PRD-AUTH.md
 - `--depth <n>`: Set traversal depth for related document collection (default: 1)
 - `--all`: Collect all related documents regardless of depth (max: 100 documents)
 
-### `eutelo validate`
+### `eutelo rule`
 
 Validates individual documents against user-defined rules using LLM-based validation.
 
+> **Note:** `eutelo validate` is deprecated and will be removed in a future version. Please use `eutelo rule` instead.
+
 **Overview**
 
-The `eutelo validate` command validates documents against rules defined in Markdown rule files. Unlike `eutelo guard` (which checks inter-document consistency) and `eutelo lint` (which checks static Eutelo rules), `eutelo validate` focuses on validating individual documents against custom rules you define.
+The `eutelo rule` command validates documents against rules defined in Markdown rule files. Unlike `eutelo align` (which checks inter-document consistency) and `eutelo lint` (which checks static Eutelo rules), `eutelo rule` focuses on validating individual documents against custom rules you define.
 
 **Environment Variable Configuration**
 
-To use the `eutelo validate` command, you need to set the following environment variables (same as `eutelo guard`):
+To use the `eutelo rule` command, you need to set the following environment variables (same as `eutelo align`):
 
 1. **Using `.env` file (Recommended)**
 
@@ -619,7 +623,7 @@ To use the `eutelo validate` command, you need to set the following environment 
    export EUTELO_GUARD_API_ENDPOINT=https://api.openai.com
    export EUTELO_GUARD_API_KEY=your-api-key-here
    export EUTELO_GUARD_MODEL=gpt-4o-mini
-   pnpm exec eutelo validate
+   pnpm exec eutelo rule
    ```
 
 **Configuration**
@@ -685,19 +689,19 @@ validationMode: "llm"  # Required: "llm" for LLM-based validation
 
 ```bash
 # Validate specific documents
-pnpm exec eutelo validate docs/product/features/AUTH/PRD-AUTH.md
+pnpm exec eutelo rule docs/product/features/AUTH/PRD-AUTH.md
 
 # Validate multiple documents
-pnpm exec eutelo validate docs/**/*.md
+pnpm exec eutelo rule docs/**/*.md
 
 # Output in JSON format
-pnpm exec eutelo validate --format=json docs/**/*.md
+pnpm exec eutelo rule --format=json docs/**/*.md
 
 # CI mode (automatically uses JSON format and fail-on-error)
-pnpm exec eutelo validate --ci docs/**/*.md
+pnpm exec eutelo rule --ci docs/**/*.md
 
 # Warn only (don't exit with code 1 for rule violations)
-pnpm exec eutelo validate --warn-only docs/**/*.md
+pnpm exec eutelo rule --warn-only docs/**/*.md
 ```
 
 **Options:**
@@ -715,7 +719,7 @@ pnpm exec eutelo validate --warn-only docs/**/*.md
 
 **How It Works**
 
-1. For each document, `eutelo validate` looks up the corresponding rule file from `directoryStructure.rules`
+1. For each document, `eutelo rule` looks up the corresponding rule file from `directoryStructure.rules`
 2. If a rule file is found, it loads the rule file and composes a prompt combining:
    - Common Eutelo system instructions
    - Eutelo standard rules
@@ -734,9 +738,11 @@ For information about removed features and migration steps, see [Migration Guide
 
 For commands and procedures used for development of this repository, see [Documentation for Developers](DEVELOPERS.md).
 
-## Running guard in CI
+## Running align in CI
 
-Eutelo provides reusable workflows and Composite Actions for running `eutelo guard` in GitHub Actions. If you want to introduce it with minimal configuration, choose one of the following:
+Eutelo provides reusable workflows and Composite Actions for running `eutelo align` in GitHub Actions. If you want to introduce it with minimal configuration, choose one of the following:
+
+> **Note:** The workflow files and examples still reference `eutelo guard` for backward compatibility, but you can use `eutelo align` instead.
 
 ### Call Reusable Workflow
 
@@ -787,5 +793,5 @@ jobs:
 Ready-to-use templates for PR/main/manual execution are located under `packages/distribution/examples/ci/`. Copy them to your repository and override secrets and `working-directory` as needed.
 
 ### CI Execution Points
-- In workflows, we recommend `npm ci` + `npx eutelo guard ...` instead of global installation (same as this repository's `.github/workflows/guard.yml`).
+- In workflows, we recommend `npm ci` + `npx eutelo align ...` instead of global installation (same as this repository's `.github/workflows/guard.yml`).
 - Pass LLM environment variables via Secrets/Vars; workflows don't need to change even when presets or local configurations are swapped.
