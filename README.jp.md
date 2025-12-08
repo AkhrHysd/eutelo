@@ -314,10 +314,6 @@ Euteloはpresetとローカル設定ファイルから設定をマージしま�
 2. `presets`で指定された追加のpresetが順番にマージされます
 3. ローカル設定ファイルがpresetの値を上書きします
 
-マージ後の設定を確認するには：
-```bash
-pnpm exec eutelo config inspect
-```
 
 ## CLI コマンド
 
@@ -399,6 +395,8 @@ pnpm exec eutelo init --dry-run  # ディレクトリを作成せずに確認
 - `--skip-dynamic-paths`: 動的パス（例：`{FEATURE}`）を含むディレクトリの作成をスキップ
 - `--create-placeholders`: 動的パスに対してプレースホルダーディレクトリを作成（デフォルト：有効）
 
+> **注意:** `--placeholder-format`オプションは削除されました。プレースホルダー形式は固定形式（`__VARIABLE__`）を使用します。
+
 **カスタムディレクトリ構造:**
 
 設定ファイルで`directoryStructure`を定義することでディレクトリ構造をカスタマイズできます：
@@ -426,32 +424,36 @@ export default {
 
 テンプレートからドキュメントを生成します。
 
-#### 組み込みドキュメント種別
+#### 組み込みドキュメント種別（非推奨）
+
+> **警告:** 組み込みドキュメント種別（`prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`）は非推奨です。  
+> `eutelo.config.*`でカスタムドキュメント種別を定義し、`eutelo add <kind>`を使用してください。  
+> 詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照してください。
 
 ```bash
 # PRD（Product Requirements Document）を生成
-pnpm exec eutelo add prd <feature>
+pnpm exec eutelo add prd <feature>  # 非推奨: カスタム種別を使用してください
 
 # BEH（Behavior Specification）を生成
-pnpm exec eutelo add beh <feature>
+pnpm exec eutelo add beh <feature>  # 非推奨: カスタム種別を使用してください
 
 # SUB-PRD（Sub Product Requirements Document）を生成
-pnpm exec eutelo add sub-prd <feature> <sub>
+pnpm exec eutelo add sub-prd <feature> <sub>  # 非推奨: カスタム種別を使用してください
 
 # SUB-BEH（Sub Behavior Specification）を生成
-pnpm exec eutelo add sub-beh <feature> <sub>
+pnpm exec eutelo add sub-beh <feature> <sub>  # 非推奨: カスタム種別を使用してください
 
 # DSG（Design Specification）を生成
-pnpm exec eutelo add dsg <feature>
+pnpm exec eutelo add dsg <feature>  # 非推奨: カスタム種別を使用してください
 
 # ADR（Architecture Decision Record）を生成
-pnpm exec eutelo add adr <feature>
+pnpm exec eutelo add adr <feature>  # 非推奨: カスタム種別を使用してください
 
 # TASK（Task Plan）を生成
-pnpm exec eutelo add task <name>
+pnpm exec eutelo add task <name>  # 非推奨: カスタム種別を使用してください
 
 # OPS（Operations Runbook）を生成
-pnpm exec eutelo add ops <name>
+pnpm exec eutelo add ops <name>  # 非推奨: カスタム種別を使用してください
 ```
 
 #### カスタムドキュメント種別
@@ -515,7 +517,7 @@ pnpm exec eutelo add custom <feature>
 - `{SUB}` → `<sub>`引数が必要
 - `{NAME}` → `<name>`引数が必要
 
-**注意**: カスタムドキュメント種別は`eutelo graph`に含まれます。未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
+**注意**: 未知のドキュメント種別（設定で定義されていない）は警告を生成しますが、検証エラーにはなりません。
 
 ### `eutelo guard`
 
@@ -724,83 +726,9 @@ pnpm exec eutelo validate --warn-only docs/**/*.md
 
 **注意**: `directoryStructure`定義に`rules`フィールドがないドキュメントは、検証時にスキップされます。
 
-### `eutelo graph`
+## 移行ガイド
 
-ドキュメント間の依存関係グラフを操作・分析します。
-
-#### `eutelo graph build`
-
-ドキュメントグラフを構築して出力します。
-
-```bash
-pnpm exec eutelo graph build                    # JSON形式でグラフを出力
-pnpm exec eutelo graph build --format mermaid   # Mermaid形式で出力
-pnpm exec eutelo graph build --output graph.json # ファイルに出力
-```
-
-#### `eutelo graph show <documentId>`
-
-指定したドキュメントの親子関係や関連ノードを表示します。
-
-```bash
-pnpm exec eutelo graph show <documentId>        # ドキュメントの関係を表示
-```
-
-#### `eutelo graph impact <documentId>`
-
-指定したドキュメントの影響範囲（1-hop / 2-hop 依存関係）を分析します。
-
-```bash
-pnpm exec eutelo graph impact <documentId>      # 影響範囲を分析
-pnpm exec eutelo graph impact <documentId> --depth 5  # 検索深度を指定（デフォルト: 3）
-```
-
-#### `eutelo graph related <documentId>`
-
-指定したドキュメントの関連ドキュメント（親、子、関連ドキュメント）を一覧表示します。ドキュメント間の関係を理解したり、ガードチェックのデバッグに便利です。
-
-```bash
-# ドキュメントの関連ドキュメントを表示
-pnpm exec eutelo graph related PRD-AUTH
-
-# JSON形式で出力
-pnpm exec eutelo graph related PRD-AUTH --format=json
-
-# 探索深度を指定（デフォルト: 1）
-pnpm exec eutelo graph related PRD-AUTH --depth=2
-
-# 深度に関係なくすべての関連ドキュメントを収集
-pnpm exec eutelo graph related PRD-AUTH --all
-
-# 探索方向を指定
-pnpm exec eutelo graph related BEH-AUTH --direction=upstream   # 親方向のみ
-pnpm exec eutelo graph related PRD-AUTH --direction=downstream # 子方向のみ
-pnpm exec eutelo graph related PRD-AUTH --direction=both       # 両方向（デフォルト）
-```
-
-**オプション:**
-- `--format <format>`: 出力形式（`text` または `json`）
-- `--depth <n>`: 探索深度を設定（デフォルト: 1）
-- `--all`: 深度に関係なくすべての関連ドキュメントを収集
-- `--direction <dir>`: 探索方向（`upstream`、`downstream`、または `both`）
-
-#### `eutelo graph summary`
-
-グラフ全体の統計情報（ノード数、エッジ数、孤立ノードなど）を表示します。
-
-```bash
-pnpm exec eutelo graph summary                  # グラフ統計を表示
-```
-
-### `eutelo config inspect`
-
-`eutelo.config.*` と preset を解決し、マージ後の設定を確認します。
-
-```bash
-pnpm exec eutelo config inspect                         # プロジェクトルートの設定を解決
-pnpm exec eutelo config inspect --config ./eutelo.config.yaml
-pnpm exec eutelo config inspect --format json           # JSON 形式で出力
-```
+削除された機能と移行手順については、[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照してください。
 
 ## 開発者向け情報
 
