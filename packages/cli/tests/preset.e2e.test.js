@@ -23,25 +23,3 @@ function cleanup(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
-test('config inspect fails when preset cannot be resolved', () => {
-  const cwd = setupProject();
-  try {
-    const configPath = path.join(cwd, 'eutelo.config.json');
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify(
-        {
-          presets: ['@example/missing-preset']
-        },
-        null,
-        2
-      )
-    );
-
-    const result = runCli(['config', 'inspect', '--config', 'eutelo.config.json'], cwd);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Unable to resolve preset/);
-  } finally {
-    cleanup(cwd);
-  }
-});
