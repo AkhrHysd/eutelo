@@ -44,7 +44,7 @@ function getPackageNameFromPath(filePath) {
  * パッケージ名からfile:パスを逆引き（ローカル開発用）
  */
 function getFilePathFromPackageName(packageName) {
-  const packages = ['core', 'infrastructure', 'distribution', 'preset-default', 'biome-doc-lint', 'eslint-plugin-docs', 'commander', 'cli', 'eutelo'];
+  const packages = ['core', 'infrastructure', 'distribution', 'preset-default', 'commander', 'cli', 'eutelo'];
   for (const pkgDir of packages) {
     const packagePath = join(ROOT_DIR, 'packages', pkgDir, 'package.json');
     try {
@@ -136,8 +136,6 @@ function main() {
     : [
         'core',
         'cli',
-        'biome-doc-lint',
-        'eslint-plugin-docs',
         'eutelo',
       ];
 

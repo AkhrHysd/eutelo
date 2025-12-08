@@ -15,8 +15,6 @@ const ROOT_DIR = join(__dirname, '../..');
 
 const PACKAGES = [
   'cli',
-  'biome-doc-lint',
-  'eslint-plugin-docs',
 ];
 
 function checkDependencies(packageDir) {

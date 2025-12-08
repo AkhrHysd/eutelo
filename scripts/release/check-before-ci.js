@@ -16,8 +16,6 @@ const ROOT_DIR = join(__dirname, '../..');
 const PACKAGES_WITH_DEPS = [
   'core',
   'cli',
-  'biome-doc-lint',
-  'eslint-plugin-docs',
   'preset-default',
   'eutelo',
 ];

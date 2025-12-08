@@ -21,10 +21,8 @@
 
 **機能:**
 1. 変更されたドキュメントファイルを検出
-2. `eutelo graph build` でグラフ全体を構築
-3. 変更ファイルとグラフのエッジから関連ファイルを抽出
-4. 抽出した関連ファイルを `eutelo guard` で検証
-5. 検証結果（Issues/Warnings/Errors）をPRコメントとして投稿
+2. 変更ファイルと関連ファイルを `eutelo guard` で検証（`--related`オプションで自動的に関連ファイルを収集）
+3. 検証結果（Issues/Warnings/Errors）をPRコメントとして投稿
 
 **必要なシークレット:**
 - `EUTELO_GUARD_API_ENDPOINT`: Guard API のエンドポイント（例: `https://api.openai.com`）
@@ -66,9 +64,7 @@
 
 **機能:**
 - 指定されたパスのファイルを検証
-- `eutelo graph build` でグラフ全体を構築
-- 指定ファイルとグラフのエッジから関連ファイルを抽出
-- 抽出した関連ファイルを `eutelo guard` で検証
+- 指定ファイルと関連ファイルを `eutelo guard` で検証（`--related`オプションで自動的に関連ファイルを収集）
 - 検証結果をワークフローのログに出力
 
 **必要なシークレット:**
@@ -96,23 +92,7 @@
       docs/**/*.md
 ```
 
-### 2. グラフの構築
-
-`eutelo graph build` でドキュメントグラフ全体を構築し、JSON形式で保存します。
-
-```bash
-npx eutelo graph build --format json --output graph.json
-```
-
-### 3. 関連ファイルの抽出
-
-Node.jsスクリプトを使用して、変更ファイルとグラフのエッジから関連ファイルを抽出します。
-
-- 変更ファイルの document ID を特定
-- グラフのエッジ（`parent`、`related`、`mentions` など）から関連ファイルを抽出
-- 変更ファイル自体も含めて、重複を除去したファイルリストを作成
-
-### 4. Guard 実行
+### 2. Guard 実行
 
 抽出した関連ファイルを `eutelo guard` に渡して検証します。
 
@@ -120,7 +100,7 @@ Node.jsスクリプトを使用して、変更ファイルとグラフのエッ�
 npx eutelo guard --format json $RELATED_FILES
 ```
 
-### 5. 結果の投稿
+### 3. 結果の投稿
 
 **PR用ワークフロー (`guard-pull-request.yml`):**
 - `actions/github-script@v7` を使用してPRコメントとして投稿
@@ -160,18 +140,6 @@ GitHubリポジトリの Settings > Secrets and variables > Actions で以下の
 - **権限設定**: PRコメントを投稿する場合は、`pull-requests: write` 権限が必要です
 
 ## トラブルシューティング
-
-### グラフの構築に失敗する
-
-- `eutelo.config.json` が正しく設定されているか確認してください
-- `docsRoot` が正しく設定されているか確認してください
-- ドキュメントファイルの frontmatter が正しい形式か確認してください
-
-### 関連ファイルが抽出されない
-
-- グラフの構築が成功しているか確認してください
-- 変更ファイルの document ID が正しく設定されているか確認してください
-- グラフのエッジが正しく構築されているか確認してください
 
 ### Guard の実行に失敗する
 

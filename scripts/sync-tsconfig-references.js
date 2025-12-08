@@ -26,8 +26,6 @@ function getPackageDirFromName(packageName) {
     'commander',
     'cli',
     'eutelo',
-    'biome-doc-lint',
-    'eslint-plugin-docs',
   ];
 
   for (const pkgDir of packages) {
@@ -143,8 +141,6 @@ function main() {
     'commander',
     'cli',
     'eutelo',
-    'biome-doc-lint',
-    'eslint-plugin-docs',
   ];
 
   console.log('🔄 Syncing TypeScript references from package.json dependencies...\n');
