@@ -61,22 +61,22 @@ export default defineConfig({
   // Optional: Documentation root directory (default: 'eutelo-docs')
   docsRoot: 'docs',
   
-  // Scaffold templates for document generation
-  scaffold: {
-    'feature.prd': {
-      id: 'feature.prd',
-      kind: 'prd',
-      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
-      template: '_template-prd.md',
-      variables: {
-        ID: 'PRD-{FEATURE}',
-        PARENT: '/'
-      },
-      frontmatterDefaults: {
-        type: 'prd',
-        parent: '/'
+  // Directory structure with document templates
+  directoryStructure: {
+    'product': [],
+    'product/features/{FEATURE}': [
+      {
+        file: 'PRD-{FEATURE}.md',
+        kind: 'prd',
+        template: 'templates/prd.md',
+        prefix: 'PRD-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'prd',
+          parent: '/'
+        }
       }
-    }
+    ]
   },
   
   // Frontmatter schema definitions
@@ -280,12 +280,17 @@ presets:
 
 docsRoot: docs
 
-scaffold:
-  feature.prd:
-    id: feature.prd
-    kind: prd
-    path: product/features/{FEATURE}/PRD-{FEATURE}.md
-    template: _template-prd.md
+directoryStructure:
+  product: []
+  product/features/{FEATURE}:
+    - file: PRD-{FEATURE}.md
+      kind: prd
+      template: templates/prd.md
+      prefix: PRD-
+      variables: [FEATURE]
+      frontmatterDefaults:
+        type: prd
+        parent: /
 
 frontmatter:
   rootParentIds:
@@ -422,43 +427,9 @@ When `directoryStructure` is not specified, the default structure is used.
 
 ### `eutelo add`
 
-Generates documents from templates.
+Generates documents from templates based on the document types defined in your configuration.
 
-#### Built-in Document Types (Deprecated)
-
-> **Warning:** Built-in document types (`prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`) are deprecated.  
-> Please define custom document types in `eutelo.config.*` and use `eutelo add <kind>` instead.  
-> See [Migration Guide](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md) for details.
-
-```bash
-# Generate a PRD (Product Requirements Document)
-pnpm exec eutelo add prd <feature>  # Deprecated: Use custom document types instead
-
-# Generate a BEH (Behavior Specification)
-pnpm exec eutelo add beh <feature>  # Deprecated: Use custom document types instead
-
-# Generate a SUB-PRD (Sub Product Requirements Document)
-pnpm exec eutelo add sub-prd <feature> <sub>  # Deprecated: Use custom document types instead
-
-# Generate a SUB-BEH (Sub Behavior Specification)
-pnpm exec eutelo add sub-beh <feature> <sub>  # Deprecated: Use custom document types instead
-
-# Generate a DSG (Design Specification)
-pnpm exec eutelo add dsg <feature>  # Deprecated: Use custom document types instead
-
-# Generate an ADR (Architecture Decision Record)
-pnpm exec eutelo add adr <feature>  # Deprecated: Use custom document types instead
-
-# Generate a TASK (Task Plan)
-pnpm exec eutelo add task <name>  # Deprecated: Use custom document types instead
-
-# Generate an OPS (Operations Runbook)
-pnpm exec eutelo add ops <name>  # Deprecated: Use custom document types instead
-```
-
-#### Custom Document Types
-
-Eutelo supports custom document types defined in your configuration. When you define a scaffold entry with a `kind` in your `eutelo.config.*`, it automatically becomes available as a CLI command.
+Document types are defined in your configuration using `directoryStructure`. When you define a file entry with a `kind`, it automatically becomes available as a CLI command.
 
 **Example: Adding a Custom Document Type**
 
@@ -473,24 +444,23 @@ feature: {FEATURE}
 # Custom Document: {FEATURE}
 ```
 
-2. **Define the scaffold entry** in `eutelo.config.ts`:
+2. **Define the document type** in `eutelo.config.ts`:
 ```typescript
 export default defineConfig({
-  scaffold: {
-    'document.custom': {
-      id: 'document.custom',
-      kind: 'custom',
-      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
-      template: '_template-custom.md',
-      variables: {
-        ID: 'CUSTOM-{FEATURE}',
-        PARENT: 'PRD-{FEATURE}'
-      },
-      frontmatterDefaults: {
-        type: 'custom',
-        parent: '{PARENT}'
+  directoryStructure: {
+    'custom/{FEATURE}': [
+      {
+        file: 'CUSTOM-{FEATURE}.md',
+        kind: 'custom',
+        template: 'templates/_template-custom.md',
+        prefix: 'CUSTOM-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'custom',
+          parent: 'PRD-{FEATURE}'
+        }
       }
-    }
+    ]
   },
   frontmatter: {
     schemas: [
@@ -512,7 +482,7 @@ export default defineConfig({
 pnpm exec eutelo add custom <feature>
 ```
 
-The command `eutelo add custom <feature>` is automatically generated based on the scaffold configuration. The command arguments are determined by the placeholders used in the scaffold's `path` and `variables`:
+The command `eutelo add custom <feature>` is automatically generated based on the `directoryStructure` configuration. The command arguments are determined by the placeholders used in the directory path and file definition:
 - `{FEATURE}` → requires `<feature>` argument
 - `{SUB}` → requires `<sub>` argument
 - `{NAME}` → requires `<name>` argument

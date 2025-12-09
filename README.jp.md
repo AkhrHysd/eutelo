@@ -61,22 +61,22 @@ export default defineConfig({
   // オプション: ドキュメントルートディレクトリ（デフォルト: 'eutelo-docs'）
   docsRoot: 'docs',
   
-  // ドキュメント生成用のスキャフォールドテンプレート
-  scaffold: {
-    'feature.prd': {
-      id: 'feature.prd',
-      kind: 'prd',
-      path: 'product/features/{FEATURE}/PRD-{FEATURE}.md',
-      template: '_template-prd.md',
-      variables: {
-        ID: 'PRD-{FEATURE}',
-        PARENT: '/'
-      },
-      frontmatterDefaults: {
-        type: 'prd',
-        parent: '/'
+  // ドキュメントテンプレートを含むディレクトリ構造
+  directoryStructure: {
+    'product': [],
+    'product/features/{FEATURE}': [
+      {
+        file: 'PRD-{FEATURE}.md',
+        kind: 'prd',
+        template: 'templates/prd.md',
+        prefix: 'PRD-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'prd',
+          parent: '/'
+        }
       }
-    }
+    ]
   },
   
   // Frontmatterスキーマ定義
@@ -280,12 +280,17 @@ presets:
 
 docsRoot: docs
 
-scaffold:
-  feature.prd:
-    id: feature.prd
-    kind: prd
-    path: product/features/{FEATURE}/PRD-{FEATURE}.md
-    template: _template-prd.md
+directoryStructure:
+  product: []
+  product/features/{FEATURE}:
+    - file: PRD-{FEATURE}.md
+      kind: prd
+      template: templates/prd.md
+      prefix: PRD-
+      variables: [FEATURE]
+      frontmatterDefaults:
+        type: prd
+        parent: /
 
 frontmatter:
   rootParentIds:
@@ -422,43 +427,9 @@ export default {
 
 ### `eutelo add`
 
-テンプレートからドキュメントを生成します。
+設定ファイルで定義されたドキュメント種別に基づいて、テンプレートからドキュメントを生成します。
 
-#### 組み込みドキュメント種別（非推奨）
-
-> **警告:** 組み込みドキュメント種別（`prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`）は非推奨です。  
-> `eutelo.config.*`でカスタムドキュメント種別を定義し、`eutelo add <kind>`を使用してください。  
-> 詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照してください。
-
-```bash
-# PRD（Product Requirements Document）を生成
-pnpm exec eutelo add prd <feature>  # 非推奨: カスタム種別を使用してください
-
-# BEH（Behavior Specification）を生成
-pnpm exec eutelo add beh <feature>  # 非推奨: カスタム種別を使用してください
-
-# SUB-PRD（Sub Product Requirements Document）を生成
-pnpm exec eutelo add sub-prd <feature> <sub>  # 非推奨: カスタム種別を使用してください
-
-# SUB-BEH（Sub Behavior Specification）を生成
-pnpm exec eutelo add sub-beh <feature> <sub>  # 非推奨: カスタム種別を使用してください
-
-# DSG（Design Specification）を生成
-pnpm exec eutelo add dsg <feature>  # 非推奨: カスタム種別を使用してください
-
-# ADR（Architecture Decision Record）を生成
-pnpm exec eutelo add adr <feature>  # 非推奨: カスタム種別を使用してください
-
-# TASK（Task Plan）を生成
-pnpm exec eutelo add task <name>  # 非推奨: カスタム種別を使用してください
-
-# OPS（Operations Runbook）を生成
-pnpm exec eutelo add ops <name>  # 非推奨: カスタム種別を使用してください
-```
-
-#### カスタムドキュメント種別
-
-Euteloは設定ファイルで定義されたカスタムドキュメント種別をサポートしています。`eutelo.config.*`で`kind`を持つscaffoldエントリを定義すると、自動的にCLIコマンドとして利用可能になります。
+ドキュメント種別は`directoryStructure`を使用して設定で定義します。`kind`を持つファイルエントリを定義すると、自動的にCLIコマンドとして利用可能になります。
 
 **例: カスタムドキュメント種別の追加**
 
@@ -473,24 +444,23 @@ feature: {FEATURE}
 # カスタムドキュメント: {FEATURE}
 ```
 
-2. **`eutelo.config.ts`でscaffoldエントリを定義**:
+2. **`eutelo.config.ts`でドキュメント種別を定義**:
 ```typescript
 export default defineConfig({
-  scaffold: {
-    'document.custom': {
-      id: 'document.custom',
-      kind: 'custom',
-      path: 'custom/{FEATURE}/CUSTOM-{FEATURE}.md',
-      template: '_template-custom.md',
-      variables: {
-        ID: 'CUSTOM-{FEATURE}',
-        PARENT: 'PRD-{FEATURE}'
-      },
-      frontmatterDefaults: {
-        type: 'custom',
-        parent: '{PARENT}'
+  directoryStructure: {
+    'custom/{FEATURE}': [
+      {
+        file: 'CUSTOM-{FEATURE}.md',
+        kind: 'custom',
+        template: 'templates/_template-custom.md',
+        prefix: 'CUSTOM-',
+        variables: ['FEATURE'],
+        frontmatterDefaults: {
+          type: 'custom',
+          parent: 'PRD-{FEATURE}'
+        }
       }
-    }
+    ]
   },
   frontmatter: {
     schemas: [
@@ -512,7 +482,7 @@ export default defineConfig({
 pnpm exec eutelo add custom <feature>
 ```
 
-`eutelo add custom <feature>`コマンドは、scaffold設定に基づいて自動的に生成されます。コマンドの引数は、scaffoldの`path`と`variables`で使用されるプレースホルダーによって決定されます：
+`eutelo add custom <feature>`コマンドは、`directoryStructure`設定に基づいて自動的に生成されます。コマンドの引数は、ディレクトリパスとファイル定義で使用されるプレースホルダーによって決定されます：
 - `{FEATURE}` → `<feature>`引数が必要
 - `{SUB}` → `<sub>`引数が必要
 - `{NAME}` → `<name>`引数が必要
