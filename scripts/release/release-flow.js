@@ -165,9 +165,18 @@ function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
           console.error(stderr);
         }
         
-        // 403エラー（既に公開済み）の場合はスキップ
+        // 2FA/トークン権限エラーは失敗として扱う
         if (
-          fullError.includes('403') ||
+          fullError.includes('Two-factor authentication') ||
+          fullError.includes('granular access token') ||
+          fullError.includes('bypass 2fa')
+        ) {
+          console.error(`  ✗ Authentication error: NPM token requires 2FA bypass or granular access token`);
+          throw publishError;
+        }
+        
+        // 403エラー（既に公開済み）の場合のみスキップ
+        if (
           fullError.includes('cannot publish over') ||
           fullError.includes('previously published versions') ||
           fullError.includes('You cannot publish over')
