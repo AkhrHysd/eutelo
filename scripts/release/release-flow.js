@@ -68,8 +68,8 @@ function runPreflightChecks() {
     console.log('\n  → npm test...');
     execSync('npm test', { cwd: ROOT_DIR, stdio: 'inherit' });
     
-    console.log('\n  → npx eutelo guard --ci --json --fail-on-error...');
-    execSync('npx eutelo guard --ci --json --fail-on-error', { 
+    console.log('\n  → npx eutelo align --ci --json --fail-on-error...');
+    execSync('npx eutelo align --ci --json --fail-on-error', { 
       cwd: ROOT_DIR, 
       stdio: 'inherit' 
     });
