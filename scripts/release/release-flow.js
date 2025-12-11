@@ -139,9 +139,12 @@ function publishPackage(packageDir, distTag = 'latest', dryRun = false) {
     } else {
       console.log(`  → Publishing with tag: ${distTag}...`);
       try {
+        // CI環境（GitHub Actions等）の場合のみ --provenance を使用
+        const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+        const provenanceFlag = isCI ? '--provenance' : '';
         // stderr をキャプチャして、stdout は継承（表示）
         execSync(
-          `npm publish --provenance --access public --tag ${distTag}`,
+          `npm publish ${provenanceFlag} --access public --tag ${distTag}`.replace(/\s+/g, ' ').trim(),
           {
             cwd: join(ROOT_DIR, 'packages', packageDir),
             stdio: ['inherit', 'inherit', 'pipe'],

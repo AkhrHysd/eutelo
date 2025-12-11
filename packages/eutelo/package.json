@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/eutelo",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Eutelo エコシステムの全パッケージをまとめてインストールするメタパッケージ",
   "license": "MIT",
   "type": "module",
@@ -22,11 +22,11 @@
     "guard"
   ],
   "dependencies": {
-    "@eutelo/core": "^0.5.0",
-    "@eutelo/infrastructure": "^0.5.0",
-    "@eutelo/distribution": "^0.5.0",
-    "@eutelo/cli": "^0.5.0",
-    "@eutelo/commander": "^0.5.0"
+    "@eutelo/core": "file:../core",
+    "@eutelo/infrastructure": "file:../infrastructure",
+    "@eutelo/distribution": "file:../distribution",
+    "@eutelo/cli": "file:../cli",
+    "@eutelo/commander": "file:../commander"
   },
   "publishConfig": {
     "access": "public",

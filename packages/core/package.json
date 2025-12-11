@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/core",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,7 +9,7 @@
     "./config": "./dist/config/index.js"
   },
   "dependencies": {
-    "@eutelo/infrastructure": "^0.5.0",
+    "@eutelo/infrastructure": "file:../infrastructure",
     "yaml": "^2.8.1"
   },
   "files": [
