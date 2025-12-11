@@ -6,6 +6,25 @@
 
 ## 変更履歴
 
+## [0.5.0] - 2025-12-12
+
+### Breaking Changes
+- `graphCommand` 関連コードを削除（機能は `GuardService` の関連ドキュメント収集に統合）
+- `ImpactAnalyzer` の一部 API を削除
+
+### Added
+- `directoryStructure` 設定: `eutelo init` で作成されるディレクトリ構造を設定ファイルでカスタマイズ可能に
+- `directoryStructure` と `eutelo add` の統合: ファイル定義で `kind`, `frontmatterDefaults` を指定可能
+- 動的パス処理関数: `hasDynamicSegments()`, `extractVariables()`, `convertDynamicPathToPlaceholder()` など
+
+### Changed
+- `ScaffoldService`: `directoryStructure` と `dynamicPathOptions` をサポート
+- `ConfigResolver`: `directoryStructure` の正規化・検証ロジックを追加
+- `preset-default`: `directoryStructure` 形式に移行（`scaffold` から変更）
+
+### Deprecated
+- `scaffold` 設定: `directoryStructure` のファイル定義を使用してください
+
 ## [0.4.1] - 2025-11-27
 
 ### Added

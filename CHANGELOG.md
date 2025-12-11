@@ -41,9 +41,13 @@
 
 ---
 
-## [Unreleased]
+## [0.5.0] - 2025-12-12
 
 ### Breaking Changes
+
+#### コマンド名の変更
+- **`eutelo guard` → `eutelo align`**: ドキュメント間の一貫性チェックを実行するコマンドの名称変更（後方互換性のため `eutelo guard` も引き続き使用可能）
+- **`eutelo validate` → `eutelo rule`**: ユーザー定義ルールに対してドキュメントを検証するコマンドの名称変更（後方互換性のため `eutelo validate` も引き続き使用可能）
 
 #### 削除されたコマンド
 - **`eutelo graph`コマンド全体を削除**
@@ -52,7 +56,7 @@
   - `eutelo graph impact <documentId>` - 影響範囲分析
   - `eutelo graph summary` - グラフ統計情報の表示
   - `eutelo graph related <documentPath>` - 関連ドキュメント一覧
-  - **代替方法**: `eutelo guard`の関連ドキュメント収集機能を使用。詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照
+  - **代替方法**: `eutelo align --with-related`で関連ドキュメント収集機能を使用
 - **`eutelo config inspect`コマンドを削除**
   - **代替方法**: 設定ファイル（`eutelo.config.*`）を直接確認
 
@@ -66,14 +70,14 @@
 - **`eutelo add`の組み込みドキュメント種別を非推奨化**
   - 組み込み種別: `prd`, `beh`, `sub-prd`, `sub-beh`, `dsg`, `adr`, `task`, `ops`
   - **推奨**: カスタム種別を設定ファイルで定義して使用
-  - 組み込み種別を使用した場合、非推奨警告が表示されますが、動作は継続します
-  - 詳細は[移行ガイド](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md)を参照
 
 ### Migration Guide
 
 詳細な移行ガイドは [MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md](docs/product/tasks/MIGRATION-GUIDE-EUTELO-FEATURE-SIMPLIFICATION.md) を参照してください。
 
 ### Added
+- **`eutelo align` コマンド**: ドキュメント間の一貫性チェックを実行（旧 `eutelo guard`）
+- **`eutelo rule` コマンド**: ユーザー定義ルールに対してドキュメントを検証（旧 `eutelo validate`）
 - **`directoryStructure` 設定**: `eutelo init` で作成されるディレクトリ構造を設定ファイルでカスタマイズ可能に
   - 配列形式とディレクトリ-ファイル定義形式の2つの形式をサポート
   - 動的パス（`{FEATURE}` など）をプレースホルダーディレクトリ（`__FEATURE__`）に変換

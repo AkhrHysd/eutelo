@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/distribution",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Eutelo の標準ドキュメントテンプレートと構成ガイドを配信する npm パッケージ",
   "license": "MIT",
   "type": "module",

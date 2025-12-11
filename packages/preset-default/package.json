@@ -1,6 +1,6 @@
 {
   "name": "@eutelo/preset-default",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Default Dento/Eutelo conventions exposed as a preset for the configurable framework",
   "type": "module",
   "main": "./dist/index.js",
